@@ -1,0 +1,113 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      target: deps
+    container_name: studia-backend-dev
+    ports:
+      - "8011:8000"
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/studia
+      - REDIS_URL=redis://redis:6379/1
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=witalo
+      - MINIO_SECRET_KEY=g3IoVa0N51NjPGaMnbYsMhNdcrUX7UxUegOmCCre
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - SCRAPER_URL=http://studia-scraper-dev:8090
+    networks:
+      - shared
+      - studia-net
+
+  worker:
+    build:
+      context: ./backend
+      target: deps
+    container_name: studia-worker-dev
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    command: taskiq worker worker:broker
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/studia
+      - REDIS_URL=redis://redis:6379/1
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=witalo
+      - MINIO_SECRET_KEY=g3IoVa0N51NjPGaMnbYsMhNdcrUX7UxUegOmCCre
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - PYTHONDONTWRITEBYTECODE=1
+      - SCRAPER_URL=http://studia-scraper-dev:8090
+    networks:
+      - shared
+      - studia-net
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: studia-minio-dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    environment:
+      - MINIO_ROOT_USER=witalo
+      - MINIO_ROOT_PASSWORD=g3IoVa0N51NjPGaMnbYsMhNdcrUX7UxUegOmCCre
+    command: server /data --console-address ":9001" --quiet
+    networks:
+      - studia-net
+
+  scraper:
+    build:
+      context: ./services/scraper
+    container_name: studia-scraper-dev
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./services/scraper:/app
+      - ./backend:/backend:ro
+      - scraper_state:/state
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/studia
+      - TC_BASE=https://www.tecconcursos.com.br
+      - TC_EMAIL=${TC_EMAIL:-}
+      - TC_PASSWORD=${TC_PASSWORD:-}
+      - TC_STORAGE_STATE_PATH=/state/storage_state.json
+      - SCRAPE_STATE_PATH=/state/scrape_state.db
+      - DISCOVERY_DUMP_DIR=/state/discovery
+    networks:
+      - shared
+
+  frontend:
+    image: node:24-alpine
+    container_name: studia-frontend-dev
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./fontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8011
+      - NEXT_TELEMETRY_DISABLED=1
+    depends_on:
+      - backend
+    networks:
+      - studia-net
+
+volumes:
+  minio_data:
+  scraper_state:
+
+networks:
+  studia-net:
+    driver: bridge
+  shared:
+    external: true
+    name: minha_rede

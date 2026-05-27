@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashcard - studIA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #121212;
+            --surface: #1e1e1e;
+            --border: #333333;
+            --cyan: #06b6d4;
+            --cyan-glow: rgba(6, 182, 212, 0.3);
+            --violet: #8b5cf6;
+            --green: #10b981;
+            --red: #ef4444;
+            --orange: #f59e0b;
+            --blue: #3b82f6;
+            --white: #ffffff;
+            --gray-200: #e5e7eb;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: var(--bg);
+            font-family: 'Inter', sans-serif;
+            color: var(--white);
+            overflow-x: hidden;
+        }
+
+        /* Ambient glow */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 400px;
+            background: radial-gradient(ellipse, rgba(6, 182, 212, 0.08) 0%, rgba(139, 92, 246, 0.05) 50%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Header */
+        .header {
+            width: 100%;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(30, 30, 30, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 30;
+        }
+
+        .btn-back {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: none;
+            border: none;
+            color: var(--gray-400);
+            font-family: inherit;
+            font-size: 0.875rem;
+            cursor: pointer;
+            padding: 6px 12px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .btn-back:hover { background: var(--gray-800); color: var(--white); }
+
+        .header-divider {
+            width: 1px;
+            height: 24px;
+            background: var(--gray-700);
+        }
+
+        .deck-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .deck-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: rgba(6, 182, 212, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .deck-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--white);
+        }
+
+        .header-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .card-counter {
+            font-size: 0.85rem;
+            color: var(--gray-400);
+        }
+        .card-counter span { color: var(--cyan); font-weight: 700; }
+
+        .progress-track {
+            width: 120px;
+            height: 3px;
+            background: var(--gray-700);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: var(--cyan);
+            border-radius: 2px;
+            transition: width 0.4s ease;
+        }
+
+        /* Main content */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 16px;
+            width: 100%;
+            max-width: 640px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Flashcard */
+        .flashcard-wrapper {
+            perspective: 1200px;
+            width: 100%;
+            height: 420px;
+            margin-bottom: 32px;
+        }
+
+        .flashcard {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transition: transform 0.7s cubic-bezier(0.4, 0.0, 0.2, 1);
+            transform-style: preserve-3d;
+            cursor: pointer;
+        }
+
+        .flashcard.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 20px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 60px rgba(6, 182, 212, 0.04);
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Front */
+        .front {
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .front .badge {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--cyan);
+            background: rgba(6, 182, 212, 0.1);
+            padding: 4px 14px;
+            border-radius: 20px;
+        }
+
+        .front .card-number {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            font-weight: 500;
+        }
+
+        .front .question {
+            font-size: 1.5rem;
+            font-weight: 500;
+            line-height: 1.6;
+            color: var(--white);
+            max-width: 90%;
+        }
+
+        .front .tap-hint {
+            position: absolute;
+            bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--gray-500);
+            font-size: 0.8rem;
+            animation: pulse 2.5s ease-in-out infinite;
+        }
+
+        /* Back */
+        .back {
+            transform: rotateY(180deg);
+            overflow-y: auto;
+            padding-right: 24px;
+        }
+
+        .back .answer-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--cyan);
+            margin-bottom: 16px;
+        }
+
+        .back h3 {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--white);
+            margin-top: 20px;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid rgba(6, 182, 212, 0.15);
+        }
+        .back h3:first-of-type { margin-top: 0; }
+
+        .back p {
+            font-size: 0.9rem;
+            line-height: 1.65;
+            color: var(--gray-200);
+            margin-bottom: 12px;
+        }
+
+        .back ul {
+            padding-left: 20px;
+            margin-bottom: 12px;
+        }
+        .back li {
+            font-size: 0.9rem;
+            line-height: 1.55;
+            color: var(--gray-200);
+            margin-bottom: 6px;
+        }
+        .back li strong {
+            color: var(--cyan);
+        }
+
+        .callout {
+            background: rgba(239, 68, 68, 0.08);
+            border-left: 3px solid var(--red);
+            padding: 10px 14px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 14px;
+            font-size: 0.85rem;
+            color: var(--gray-200);
+        }
+        .callout strong { color: var(--red); }
+
+        /* Scrollbar */
+        .back::-webkit-scrollbar { width: 4px; }
+        .back::-webkit-scrollbar-track { background: transparent; }
+        .back::-webkit-scrollbar-thumb { background: var(--gray-700); border-radius: 4px; }
+        .back::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+
+        /* Rating buttons */
+        .rating-container {
+            width: 100%;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.4s ease;
+            pointer-events: none;
+        }
+        .rating-container.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: all;
+        }
+
+        .rating-label {
+            text-align: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--gray-500);
+            margin-bottom: 12px;
+        }
+
+        .rating-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .rating-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 14px 8px;
+            border-radius: 12px;
+            background: var(--surface);
+            border: 2px solid;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.25s ease;
+        }
+
+        .rating-btn .icon { font-size: 1.3rem; }
+        .rating-btn .label {
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .rating-btn .timing {
+            font-size: 0.65rem;
+            font-weight: 500;
+            opacity: 0.6;
+        }
+
+        .rating-btn.errei {
+            border-color: var(--red);
+            color: var(--red);
+        }
+        .rating-btn.errei:hover {
+            background: var(--red);
+            color: var(--white);
+            box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3);
+        }
+
+        .rating-btn.dificil {
+            border-color: var(--orange);
+            color: var(--orange);
+        }
+        .rating-btn.dificil:hover {
+            background: var(--orange);
+            color: var(--white);
+            box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+        }
+
+        .rating-btn.bom {
+            border-color: var(--green);
+            color: var(--green);
+        }
+        .rating-btn.bom:hover {
+            background: var(--green);
+            color: var(--white);
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .rating-btn.facil {
+            border-color: var(--blue);
+            color: var(--blue);
+        }
+        .rating-btn.facil:hover {
+            background: var(--blue);
+            color: var(--white);
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 0.8; }
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .flashcard-wrapper { height: 380px; }
+            .front .question { font-size: 1.25rem; }
+            .face { padding: 24px; }
+            .rating-btn { padding: 10px 6px; }
+            .rating-btn .label { font-size: 0.7rem; }
+            .header { padding: 12px 16px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <button class="btn-back" onclick="history.back()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Voltar
+        </button>
+        <div class="header-divider"></div>
+        <div class="deck-info">
+            <div class="deck-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            </div>
+            <span class="deck-name">Fundações</span>
+        </div>
+        <div class="header-right">
+            <div class="progress-track">
+                <div class="progress-fill" style="width: 20%"></div>
+            </div>
+            <span class="card-counter">Cartão <span>1</span> de <span>5</span></span>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+
+        <!-- Flashcard -->
+        <div class="flashcard-wrapper">
+            <div class="flashcard" id="flashcard">
+                <!-- Front -->
+                <div class="face front">
+                    <span class="badge">Fundações</span>
+                    <span class="card-number">#1</span>
+                    <div class="question">Quais são os principais Métodos Semi-empíricos para estimar o Recalque Imediato em Areias?</div>
+                    <div class="tap-hint">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Toque para ver a resposta
+                    </div>
+                </div>
+
+                <!-- Back -->
+                <div class="face back">
+                    <div class="answer-label">Resposta</div>
+
+                    <h3>Conceito Geral</h3>
+                    <p>Relacionam os resultados de ensaios de campo (como SPT, CPT, etc.) com as tensões admissíveis ou resistentes de cálculo.</p>
+
+                    <h3>1. Método de Schmertmann</h3>
+                    <div class="callout">
+                        <strong>Atenção:</strong> É o método mais cobrado em provas!
+                    </div>
+                    <ul>
+                        <li>Destinado a sapatas rígidas apoiadas em <strong>areia</strong>.</li>
+                        <li>Utiliza resultados do ensaio de penetração contínua de cone (<strong>CPT</strong>).</li>
+                    </ul>
+
+                    <h3>2. Método de Shultze e Sherif</h3>
+                    <ul>
+                        <li>Correlaciona os recalques a partir de um banco de dados.</li>
+                        <li>Aplicado a <strong>areias</strong>.</li>
+                        <li>Utiliza informações do ensaio <strong>SPT</strong>.</li>
+                    </ul>
+
+                    <h3>3. Método de Décourt</h3>
+                    <ul>
+                        <li>Análogo ao método de Shultze e Sherif.</li>
+                        <li>Aplicado a <strong>areias</strong>.</li>
+                        <li>Utiliza informações do ensaio <strong>SPT</strong>.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rating Buttons -->
+        <div class="rating-container" id="ratingContainer">
+            <div class="rating-label">Como foi?</div>
+            <div class="rating-grid">
+                <button class="rating-btn errei" onclick="rate('errei')">
+                    <span class="icon">✕</span>
+                    <span class="label">Errei</span>
+                    <span class="timing">&lt;1min</span>
+                </button>
+                <button class="rating-btn dificil" onclick="rate('dificil')">
+                    <span class="icon">⚡</span>
+                    <span class="label">Difícil</span>
+                    <span class="timing">~3min</span>
+                </button>
+                <button class="rating-btn bom" onclick="rate('bom')">
+                    <span class="icon">✓</span>
+                    <span class="label">Bom</span>
+                    <span class="timing">~7min</span>
+                </button>
+                <button class="rating-btn facil" onclick="rate('facil')">
+                    <span class="icon">⚡⚡</span>
+                    <span class="label">Fácil</span>
+                    <span class="timing">~15min</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const flashcard = document.getElementById('flashcard');
+        const ratingContainer = document.getElementById('ratingContainer');
+        let isFlipped = false;
+
+        flashcard.addEventListener('click', () => {
+            isFlipped = !isFlipped;
+            flashcard.classList.toggle('flipped', isFlipped);
+            // Show rating buttons when card is flipped to back
+            ratingContainer.classList.toggle('visible', isFlipped);
+        });
+
+        function rate(level) {
+            // TODO: send to backend for spaced repetition history
+            console.log('Rated:', level);
+
+            // Visual feedback
+            const btn = event.currentTarget;
+            btn.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                btn.style.transform = '';
+                // Flip card back and hide ratings
+                isFlipped = false;
+                flashcard.classList.remove('flipped');
+                ratingContainer.classList.remove('visible');
+                // TODO: load next card
+            }, 200);
+        }
+    </script>
+
+</body>
+</html>

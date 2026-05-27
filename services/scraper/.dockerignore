@@ -1,0 +1,11 @@
+.venv
+.env
+storage_state.json
+cookies.json
+scrape_state.db
+discovery/
+output/
+logs/
+__pycache__
+*.pyc
+.pytest_cache

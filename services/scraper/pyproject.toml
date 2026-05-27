@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "tec-scraper"
+version = "0.1.0"
+description = "witdev-tec-master scraper — coleta de questões via API JSON autenticada (zero custo IA)"
+authors = ["Wital"]
+packages = [{ include = "app" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.115.0"
+uvicorn = { extras = ["standard"], version = "^0.34.0" }
+playwright = "1.58.0"
+playwright-stealth = "^2.0.0"
+pydantic = "^2.5.3"
+pydantic-settings = "^2.1.0"
+structlog = "^25.1.0"
+httpx = { extras = ["http2"], version = "^0.28.1" }
+tenacity = "^9.0.0"
+typer = "^0.15.0"
+sqlalchemy = { extras = ["asyncio"], version = "^2.0.41" }
+asyncpg = "^0.30.0"
+python-slugify = "^8.0.0"
+markdownify = "^0.13.1"
+beautifulsoup4 = "^4.12.0"
+lxml = "^5.3.0"
+python-dotenv = "^1.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
