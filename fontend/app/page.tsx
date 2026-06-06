@@ -1,3 +1,5 @@
+import { StatCard, ProgressBar } from "./components/ds";
+
 const disciplinas = [
   { nome: "Cálculo Numérico", tempo: "10h06min", acertos: 210, erros: 53, total: 263, pct: 80 },
   { nome: "Mecânica dos Fluídos", tempo: "17h18min", acertos: 59, erros: 16, total: 75, pct: 79 },
@@ -48,9 +50,8 @@ export default function Home() {
           <StatCard
             title="Total de Horas"
             icon="schedule"
-            iconColor="text-primary"
-            barColor="bg-primary"
-            barWidth="65%"
+            iconColor="primary"
+            progress={65}
           >
             <span className="text-4xl font-bold text-white">
               55h<span className="text-2xl text-gray-400">08min</span>
@@ -60,9 +61,8 @@ export default function Home() {
           <StatCard
             title="Precisão Técnica"
             icon="precision_manufacturing"
-            iconColor="text-secondary"
-            barColor="bg-secondary"
-            barWidth="80%"
+            iconColor="secondary"
+            progress={80}
           >
             <div className="flex items-end justify-between w-full">
               <div>
@@ -76,9 +76,8 @@ export default function Home() {
           <StatCard
             title="Cronograma do Semestre"
             icon="calendar_month"
-            iconColor="text-accent-success"
-            barColor="bg-accent-success"
-            barWidth="19%"
+            iconColor="success"
+            progress={19}
           >
             <div className="flex items-end justify-between w-full">
               <div>
@@ -215,35 +214,6 @@ export default function Home() {
   );
 }
 
-function StatCard({
-  title,
-  icon,
-  iconColor,
-  barColor,
-  barWidth,
-  children,
-}: {
-  title: string;
-  icon: string;
-  iconColor: string;
-  barColor: string;
-  barWidth: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="bg-surface-dark p-6 rounded-xl shadow-sm border border-border-dark relative overflow-hidden group">
-      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-        <span className={`material-symbols-outlined text-6xl ${iconColor}`}>{icon}</span>
-      </div>
-      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{title}</h3>
-      <div className="flex items-end gap-2">{children}</div>
-      <div className="mt-4 h-1 w-full bg-gray-700 rounded-full overflow-hidden">
-        <div className={`h-full ${barColor} rounded-full`} style={{ width: barWidth }} />
-      </div>
-    </div>
-  );
-}
-
 function GoalProgress({
   label,
   current,
@@ -271,8 +241,8 @@ function GoalProgress({
             {pct}%
           </span>
         </div>
-        <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-gray-700">
-          <div className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${color}`} style={{ width: `${pct}%` }} />
+        <div className="mb-4">
+          <ProgressBar value={pct} color={color === "bg-secondary" ? "secondary" : "primary"} height={8} />
         </div>
       </div>
     </div>

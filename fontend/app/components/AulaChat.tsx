@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import MarkdownRenderer from "./MarkdownRenderer";
 import ModelSelector from "./ModelSelector";
+import { ChatBubble } from "./ds";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -132,39 +133,16 @@ export default function AulaChat({ aulaId, disabled = false }: AulaChatProps) {
         )}
 
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`max-w-[85%] rounded-xl px-4 py-3 ${
-                msg.role === "user"
-                  ? "bg-primary/15 text-white"
-                  : "bg-gray-800/50 text-gray-200"
-              }`}
-            >
-              {msg.role === "model" ? (
-                <div className="text-sm">
-                  <MarkdownRenderer content={msg.text || "..."} />
-                </div>
-              ) : (
-                <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-              )}
-            </div>
-          </div>
+          <ChatBubble key={i} role={msg.role}>
+            {msg.role === "model" ? (
+              <MarkdownRenderer content={msg.text || "..."} />
+            ) : (
+              msg.text
+            )}
+          </ChatBubble>
         ))}
 
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-800/50 rounded-xl px-4 py-3">
-              <div className="flex gap-1">
-                <div className="w-2 h-2 bg-primary/50 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                <div className="w-2 h-2 bg-primary/50 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                <div className="w-2 h-2 bg-primary/50 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-              </div>
-            </div>
-          </div>
-        )}
+        {loading && <ChatBubble typing />}
 
         <div ref={messagesEndRef} />
       </div>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { Input } from "../components/ds";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -63,15 +64,8 @@ export default function FlashcardsPage() {
             <p className="text-sm text-gray-400">Gerencie seus estudos e acompanhe seu progresso diário.</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-            <div className="relative grow sm:grow-0">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-                <span className="material-symbols-outlined text-[20px]">search</span>
-              </span>
-              <input
-                className="pl-10 pr-4 py-2.5 w-full sm:w-64 bg-surface-dark border border-border-dark rounded-lg text-sm focus:ring-primary focus:border-primary text-white placeholder-gray-500"
-                placeholder="Buscar baralho..."
-                type="text"
-              />
+            <div className="grow sm:grow-0 sm:w-64">
+              <Input icon="search" placeholder="Buscar baralho..." />
             </div>
             <button className="p-2.5 bg-surface-dark border border-border-dark rounded-lg hover:bg-gray-700 text-gray-300 transition-colors">
               <span className="material-symbols-outlined text-[20px]">filter_list</span>

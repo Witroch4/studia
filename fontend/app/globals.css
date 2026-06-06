@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * Tailwind theme — generates utilities (bg-primary, text-secondary, …).
+ * Names here are consumed across existing pages; keep them stable.
+ * ──────────────────────────────────────────────────────────────────────── */
 @theme inline {
   --color-primary: #06b6d4;
   --color-secondary: #8b5cf6;
@@ -12,12 +16,119 @@
   --font-sans: 'Inter', sans-serif;
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * studIA Design System tokens (from claude.ai/design handoff).
+ * Plain :root custom properties so var(--token) works in the ds/* components
+ * and arbitrary-value utilities alike. Dark-only "night-mode engineering lab".
+ * ──────────────────────────────────────────────────────────────────────── */
+:root {
+  /* ----- Brand accents ----- */
+  --color-primary: #06b6d4;        /* Electric Cyan — CTAs, active nav, data */
+  --color-primary-600: #0891b2;    /* hover/darken */
+  --color-secondary: #8b5cf6;      /* Deep Violet — badges, glows, gradient end */
+
+  /* ----- Backgrounds & surfaces ----- */
+  --color-bg-dark: #121212;
+  --color-surface-dark: #1e1e1e;
+  --color-border-dark: #333333;
+
+  /* ----- Neutral gray ramp (Tailwind gray, used verbatim) ----- */
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+
+  /* ----- Semantic / feedback ----- */
+  --color-success: #10b981;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+
+  /* ----- Deck / discipline accent set ----- */
+  --color-deck-blue: #3b82f6;
+  --color-deck-orange: #f97316;
+  --color-deck-red: #ef4444;
+  --color-deck-green: #22c55e;
+  --color-deck-purple: #a855f7;
+  --color-deck-cyan: #06b6d4;
+
+  /* ----- Text roles ----- */
+  --text-strong: #ffffff;
+  --text-body: var(--color-gray-200);
+  --text-muted: var(--color-gray-400);
+  --text-faint: var(--color-gray-500);
+  --text-on-primary: #ffffff;
+
+  /* ----- Surface roles ----- */
+  --surface-page: var(--color-bg-dark);
+  --surface-card: var(--color-surface-dark);
+  --surface-raised: var(--color-surface-dark);
+  --surface-inset: rgba(255, 255, 255, 0.02);
+  --border-default: var(--color-border-dark);
+  --border-strong: var(--color-gray-600);
+
+  /* ----- Tint roles (signature "/10–/15" translucent fills) ----- */
+  --tint-primary-soft: rgba(6, 182, 212, 0.10);
+  --tint-primary: rgba(6, 182, 212, 0.15);
+  --tint-secondary: rgba(139, 92, 246, 0.15);
+  --tint-success: rgba(16, 185, 129, 0.15);
+  --tint-error: rgba(239, 68, 68, 0.15);
+  --tint-warning: rgba(245, 158, 11, 0.15);
+  --tint-neutral: rgba(107, 114, 128, 0.15);
+
+  /* ----- Focus ring ----- */
+  --ring-primary: var(--color-primary);
+
+  /* ----- Typography ----- */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, Menlo, Monaco, monospace;
+
+  /* ----- Corner radii ----- */
+  --radius-sm: 0.25rem;    /* 4px */
+  --radius-md: 0.5rem;     /* 8px — buttons, inputs, nav */
+  --radius-lg: 0.75rem;    /* 12px — cards */
+  --radius-xl: 1rem;       /* 16px — upload zones, modals */
+  --radius-2xl: 1.5rem;    /* 24px — large flashcard */
+  --radius-full: 9999px;
+
+  /* ----- Shadows (quiet) + signature cyan glows ----- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --glow-primary: 0 8px 24px rgba(6, 182, 212, 0.30);
+  --glow-primary-soft: 0 8px 24px rgba(6, 182, 212, 0.20);
+  --glow-flashcard: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 60px rgba(6, 182, 212, 0.04);
+
+  /* ----- Motion ----- */
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-flip: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 0.2s;
+  --dur-base: 0.3s;
+  --dur-entry: 0.5s;
+  --dur-flip: 0.7s;
+
+  /* ----- Spacing (4px grid) + layout ----- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --pad-card: var(--space-6);
+  --gap-section: var(--space-8);
+  --gap-grid: var(--space-6);
+  --sidebar-width: 16rem;
+}
+
 body {
   font-family: 'Inter', sans-serif;
   background: var(--color-bg-dark);
   color: var(--color-text-dark);
 }
 
+/* Custom scrollbar — 8px, charcoal track, ember thumb */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -33,23 +144,29 @@ body {
   background: #555;
 }
 
+/* ----- Entry animation ----- */
 @keyframes cc-fade-up {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .cc-reveal {
-  animation: cc-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: cc-fade-up var(--dur-entry) var(--ease-out-expo) both;
 }
+
+/* ----- Ambient blueprint grid (dashboards / empty states) ----- */
 .cc-grid {
   background-image:
     linear-gradient(rgba(6, 182, 212, 0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(6, 182, 212, 0.04) 1px, transparent 1px);
   background-size: 32px 32px;
 }
+
+/* ----- Tabular numbers for data ----- */
 .cc-num {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
+
 .cc-grid button:not(:disabled),
 .cc-grid select,
 .cc-grid input[type="range"],
