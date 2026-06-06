@@ -50,3 +50,8 @@ consolidar_composicoes.py
 /filtrar-inicial.png
 /filtro-banca-aberto.png
 /limite-excedido.png
+
+# Artefatos de debug do scraper TecConcursos (não pertencem ao repo)
+/tc-*.png
+/tc-*.html
+/tc-*.json

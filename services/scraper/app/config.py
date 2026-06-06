@@ -28,16 +28,26 @@ class Settings(BaseSettings):
     tc_email: str | None = None
     tc_password: str | None = None
     tc_storage_state_path: Path = Path("./storage_state.json")
-    tc_rate_per_sec: float = 2.0
-    tc_max_concurrency: int = 4
-    # Modo humano — substitui rate_per_sec por delays log-normais
-    # com pausas longas ocasionais (efeito "lendo a questão", "café")
-    tc_human_mode: bool = False
+    tc_rate_per_sec: float = 0.5          # default conservador (era 2.0 — disparou anti-bot)
+    tc_max_concurrency: int = 1           # default sequencial (era 4 — fatal pra anti-bot)
+    # Modo humano "balanceado" — alvo ~3h para 876 reqs.
+    # Curva: maioria 3-7s, alguns "lendo" 8-18s, poucos "longa" 25-50s,
+    # raros "café" 60-120s. Sem burst-pauses violentas.
+    tc_human_mode: bool = True            # ON por default (já que falamos com TC)
     tc_human_short_min: float = 3.0
-    tc_human_short_max: float = 9.0
-    tc_human_pause_chance: float = 0.18   # 18% das req: pausa "lendo" 12-35s
-    tc_human_break_chance: float = 0.04   # 4% das req: pausa "café" 60-180s
-    tc_human_burst_pause_every: int = 40  # a cada N reqs: pausa 3-6min
+    tc_human_short_max: float = 7.0
+    tc_human_long_chance: float = 0.18    # 18%: pausa curta 8-18s
+    tc_human_long_min: float = 8.0
+    tc_human_long_max: float = 18.0
+    tc_human_pause_chance: float = 0.05   # 5%: pausa "longa" 25-50s
+    tc_human_pause_min: float = 25.0
+    tc_human_pause_max: float = 50.0
+    tc_human_break_chance: float = 0.02   # 2%: pausa "café" 60-120s
+    tc_human_break_min: float = 60.0
+    tc_human_break_max: float = 120.0
+    tc_human_burst_pause_every: int = 150 # a cada 150 reqs: pausa 60-120s
+    tc_human_burst_pause_min: float = 60.0
+    tc_human_burst_pause_max: float = 120.0
     tc_user_agent: str = (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"

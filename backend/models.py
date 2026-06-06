@@ -305,7 +305,7 @@ class Questao(Base):
     tipo: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     enunciado_md: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     enunciado_html: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    gabarito: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    gabarito: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     texto_associado: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     imagens: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)

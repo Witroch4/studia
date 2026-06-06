@@ -34,6 +34,7 @@ from app.discovery import (
     descobrir_questao,
 )
 from app.observability import configure_logging, get_logger
+from app.scrapers.tc_imprimir import scrape_caderno_imprimir
 from app.scrapers.tecconcursos import scrape_caderno, scrape_ids
 from app.state import ScrapeState
 
@@ -105,8 +106,24 @@ def discover_lista() -> None:
 def cli_scrape_caderno(
     caderno_id: int,
     limite: Annotated[int | None, typer.Option(help="Smoke test: scrape apenas N primeiras posições")] = None,
+    total: Annotated[int | None, typer.Option(help="Total de questões (skip binary search inicial)")] = None,
 ) -> None:
-    result = asyncio.run(scrape_caderno(caderno_id, limite=limite))
+    result = asyncio.run(scrape_caderno(caderno_id, limite=limite, total=total))
+    typer.echo(str(result))
+
+
+@scrape_app.command("imprimir")
+def cli_scrape_imprimir(
+    caderno_id: int,
+    total: Annotated[int | None, typer.Option(help="Total esperado (opcional, pra parar cedo)")] = None,
+    page_size: Annotated[int, typer.Option(help="Questões por página")] = 200,
+) -> None:
+    """Scrape via endpoint /ajaxCarregarQuestoesImpressao (recomendado).
+
+    200 questões por request, JSON estruturado, gabarito completo,
+    sem rate-limit issues. Caderno de 876 = 5 requests.
+    """
+    result = asyncio.run(scrape_caderno_imprimir(caderno_id, total=total, page_size=page_size))
     typer.echo(str(result))
 
 

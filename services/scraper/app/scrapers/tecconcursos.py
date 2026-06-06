@@ -107,16 +107,24 @@ async def scrape_caderno(
     caderno_id: int,
     *,
     limite: int | None = None,
+    total: int | None = None,
     state: ScrapeState | None = None,
 ) -> dict[str, int]:
-    """Pipeline completo: descobre total → itera posições → persiste."""
+    """Pipeline completo: descobre total (ou usa o fornecido) → itera → persiste.
+
+    Passe `total=N` se já souber o tamanho (evita binary search inicial,
+    que custa ~20 reqs extras e pode disparar anti-bot).
+    """
     state = state or ScrapeState()
     cookies = load_cookies_for_httpx()
 
     contadores = {"ok": 0, "erro": 0, "missing": 0, "pulados": 0}
 
     async with TcClient(cookies) as client:
-        total = await descobrir_total(client, caderno_id)
+        if total is None:
+            total = await descobrir_total(client, caderno_id)
+        else:
+            log.info("total.given", caderno=caderno_id, total=total)
         if limite:
             total = min(total, limite)
         log.info("scrape.start", caderno=caderno_id, total=total)

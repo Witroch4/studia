@@ -104,3 +104,88 @@ The design balances **information density** (dashboards, tables, statistics) wit
 * **Whitespace Philosophy**: Generous but purposeful. Large margins between sections create clear visual groupings. Card interiors use ample padding to prevent content from feeling cramped. The flashcard study mode maximizes the central card area with ambient background effects.
 * **Z-Layer Strategy**: Sidebar at z-50, header at z-30–40, main content at z-10, ambient background effects at z-0 with `pointer-events-none`.
 * **Backdrop Blur**: Header uses `backdrop-blur-md` with a semi-transparent background (`bg-background-dark/80`) for a frosted glass effect when scrolling.
+
+## 6. Extended Components (Disciplinas, Aulas, Concorrência, Jobs)
+
+### Chat (AulaChat)
+* **Layout**: side panel; message list scrolls, input pinned to bottom.
+* **User bubble**: `bg-primary/15 text-white max-w-[85%] rounded-xl px-4 py-3`, aligned right.
+* **Model bubble**: `bg-gray-800/50 text-gray-200 max-w-[85%] rounded-xl px-4 py-3`, aligned left, renders markdown.
+* **Typing indicator**: 3 dots, `w-2 h-2 bg-primary/50 rounded-full animate-bounce` with staggered delays (0 / 150 / 300ms).
+* **Input**: `bg-gray-800/50 border border-border-dark rounded-lg`, focus `ring-1 ring-primary`. Send button is a cyan primary with glow.
+
+### Upload / Drop Zones (PdfUploader, ConcursoUploader)
+* **Idle**: `border border-dashed border-border-dark bg-bg-dark/40 rounded-2xl p-8–10`, hover → `border-primary/50`.
+* **Drag-over**: `border-primary bg-primary/5` (instant feedback).
+* **File staged**: `border-accent-success/50 bg-accent-success/5` (green).
+* Large central icon + helper copy in `text-gray-400/600`. Often paired with the ModelSelector inline.
+
+### Model Selector (ModelSelector)
+* **Trigger (compact)**: small `flex items-center gap-1.5 px-2 py-1` pill.
+* **Dropdown**: `absolute w-80 bg-surface-dark border border-border-dark rounded-xl shadow-2xl z-50 max-h-80 overflow-y-auto`. Opens upward (`bottom-full mb-1`) inside chat/footer.
+* **Item**: hover `bg-gray-800`; selected `bg-primary/10` (expanded variant adds `border-l-2 border-primary`).
+* **"Recomendado" badge**: `px-1.5 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded`. Pricing shown as muted metadata.
+
+### Tabs (Aula detail: Resumo / Fórmulas / Flashcards)
+* Active tab: `text-primary` with cyan underline/indicator. Inactive: `text-gray-400 hover:text-white`. `transition-colors`.
+
+### Status Badges (Jobs, processamento de aula)
+Pill `px-2.5 py-1 rounded-full text-xs font-medium`, tinted background + matching text:
+* Processando/ativo → `bg-primary/15 text-primary`
+* Pendente → `bg-amber-500/15 text-amber-400`
+* Concluído → `bg-accent-success/15 text-accent-success`
+* Erro → `bg-accent-error/15 text-accent-error`
+* Cancelado/inativo → `bg-gray-500/15 text-gray-400`
+
+### Tables (Jobs, Classificação de concorrência)
+* **Header row**: `text-[10px] uppercase tracking-wider text-gray-400 bg-gray-800/50`.
+* **Body**: `divide-y divide-border-dark/50`; row hover `hover:bg-white/[0.03]`; zebra `bg-gray-800/10` on odd rows.
+* **Highlighted row** (próprio resultado): `bg-primary/10`.
+* Numeric cells use `.cc-num` (tabular-nums). Wrapper `overflow-x-auto`.
+
+### Collapsible Panel
+* Header button: `w-full flex items-center justify-between px-5 py-4 hover:bg-white/5`.
+* Chevron icon rotates: `transition-transform`, `rotate-180` when open.
+* Body: `border-t border-border-dark pt-4 px-5 pb-5 text-sm text-gray-400 space-y-2`.
+
+### Cota Modality Color System (Concorrência)
+Five distinct quota identities — each as text / bg-tint / ring / bar:
+| Code | Modality | Text | Tint / Ring / Bar |
+|---|---|---|---|
+| AC | Ampla Concorrência | `cyan-300` | `cyan-500/10` · `cyan-500/30` · `cyan-500` |
+| PN | Negros | `amber-300` | `amber-500/10` · `amber-500/30` · `amber-500` |
+| PI | Indígenas | `emerald-300` | `emerald-500/10` · `emerald-500/30` · `emerald-500` |
+| PQ | Quilombolas | `violet-300` | `violet-500/10` · `violet-500/30` · `violet-500` |
+| PCD | Pessoa c/ Deficiência | `sky-300` | `sky-500/10` · `sky-500/30` · `sky-500` |
+
+## 7. Markdown Content Renderer (MarkdownRenderer.tsx)
+
+Didactic content (resumos, chat) renders via react-markdown + KaTeX with custom styling:
+* `h1` `text-xl font-bold text-white`; `h2` `text-lg`; `h3` `text-base` + `border-b border-primary/15`.
+* `p` `text-gray-300 text-[0.9rem] leading-relaxed`; `strong` `text-white font-semibold`; `em` italic gray-200.
+* `ul/ol` `pl-4 space-y-1.5`, list markers `marker:text-primary/50`.
+* Inline `code` `bg-black/30 px-1.5 py-0.5 rounded text-primary font-mono`; block `code` `bg-black/30 rounded-xl border border-border-dark p-4 text-primary overflow-x-auto`.
+
+**Custom XML tags** (only on flashcard verso / content, never on frente):
+* `<atencao>Título: texto</atencao>` → `bg-red-500/8 border-l-3 border-red-500 rounded-r-lg px-4 py-2.5` (red alert).
+* `<destaque>texto</destaque>` → inline `bg-primary/15 text-primary px-1.5 py-0.5 rounded font-medium` (cyan highlight).
+* `<resumo>texto</resumo>` → `bg-primary/10 border border-primary/30 rounded-lg p-4 text-primary font-bold text-center text-lg` (centered cyan box, ideal for formulas).
+
+## 8. Motion Recap
+
+* **Entry**: `.cc-fade-up` — opacity 0→1 + translateY(10px→0), `0.5s cubic-bezier(0.22, 1, 0.36, 1)`.
+* **Spinners/loaders**: `animate-spin` (border spinners), `animate-bounce` (chat dots), `animate-pulse` (skeletons + notification badge).
+* **Flashcard flip**: `perspective: 1200px`, `transform-style: preserve-3d`, `backface-visibility: hidden`, `duration-700` cubic-bezier(0.4,0,0.2,1).
+* **Hover micro-motion**: arrows `group-hover:translate-x-1`, cards `hover:border-primary/50 hover:shadow-md`.
+
+## 9. Ambient / Texture
+
+* **Blueprint grid** (`.cc-grid`): two cyan `linear-gradient` layers at 4% opacity, 32×32px cells — subtle "engineering" backdrop on dashboards/empty states.
+* **Custom scrollbar**: 8px, track `#1e1e1e`, thumb `#333` (hover `#555`), rounded.
+* **Glow shadows**: primary buttons `shadow-lg shadow-cyan-500/20`; flashcard `shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_60px_rgba(6,182,212,0.04)]`.
+
+---
+
+## One-liner (paste into Claude Design "Any other notes?")
+
+> Dark-only study platform. Canvas `#121212`, surfaces `#1e1e1e`, borders `#333`. Hero accent electric cyan `#06b6d4` (CTAs, active nav, data, highlights) + secondary violet `#8b5cf6` (badges, glows, brand gradient cyan→violet). Green `#10b981` success, red `#ef4444` error. Font Inter; numbers tabular-nums. Cards `rounded-xl` 1px `#333` borders (shadows minimal, glow on primary buttons). Pill status badges with `/15` tinted bg + matching text. Tinted-background components (`bg-primary/10`, `bg-amber-500/15`) instead of solid fills. Dashed `rounded-2xl` drag-drop upload zones. Chat bubbles `rounded-xl` (`bg-primary/15` user, `bg-gray-800/50` model). Logo: `stud` white + `IA` cyan. 256px sticky sidebar, active item `bg-primary/10 text-primary`. Subtle cyan blueprint grid backdrop, `cc-fade-up` entry animation. Vibe: night-mode engineering lab — dense but breathable.

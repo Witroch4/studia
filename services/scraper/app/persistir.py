@@ -186,7 +186,10 @@ async def upsert_questao(q: QuestaoApi, raw: dict[str, Any] | None = None) -> in
         async with session.begin():
             ids = await _upsert_taxonomia(session, q)
 
-            gabarito = letra_from_numero(q.numeroAlternativaCorreta)
+            # Prefere o campo `gabarito` direto (letra A-E ou "Certo"/"Errado")
+            # quando disponível (vem em /ajaxCarregarQuestoesImpressao). Fallback
+            # pra derivar da posição numérica (vem em /api/cadernos/{c}/questoes/{N}).
+            gabarito = q.gabarito or letra_from_numero(q.numeroAlternativaCorreta)
             status_txt = "ANULADA" if q.anulada else ("DESATUALIZADA" if q.desatualizada else "ATIVA")
 
             stmt = (

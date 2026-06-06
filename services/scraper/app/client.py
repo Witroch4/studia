@@ -83,22 +83,28 @@ class TcClient:
             s = self._settings
 
             if s.tc_human_mode:
-                # Distribuição humana: maior parte 3-9s, pausas "lendo" 12-35s,
-                # pausas "café" 60-180s, e burst-pause longa a cada N reqs.
+                # Distribuição balanceada (alvo ~3h pras 876 reqs):
+                # 75% short (3-7s) | 18% long-short (8-18s) | 5% pause (25-50s)
+                # 2% break (60-120s) | burst-pause a cada N reqs (60-120s)
                 self._req_count += 1
                 roll = random.random()
+                cum_break = s.tc_human_break_chance
+                cum_pause = cum_break + s.tc_human_pause_chance
+                cum_long = cum_pause + s.tc_human_long_chance
                 if (
                     s.tc_human_burst_pause_every > 0
                     and self._req_count > 0
                     and self._req_count % s.tc_human_burst_pause_every == 0
                 ):
-                    wait = random.uniform(180, 360)
-                    log.info("throttle.burst_break", wait_s=round(wait, 1))
-                elif roll < s.tc_human_break_chance:
-                    wait = random.uniform(60, 180)
+                    wait = random.uniform(s.tc_human_burst_pause_min, s.tc_human_burst_pause_max)
+                    log.info("throttle.burst_pause", n=self._req_count, wait_s=round(wait, 1))
+                elif roll < cum_break:
+                    wait = random.uniform(s.tc_human_break_min, s.tc_human_break_max)
                     log.info("throttle.coffee_break", wait_s=round(wait, 1))
-                elif roll < s.tc_human_break_chance + s.tc_human_pause_chance:
-                    wait = random.uniform(12, 35)
+                elif roll < cum_pause:
+                    wait = random.uniform(s.tc_human_pause_min, s.tc_human_pause_max)
+                elif roll < cum_long:
+                    wait = random.uniform(s.tc_human_long_min, s.tc_human_long_max)
                 else:
                     wait = random.uniform(s.tc_human_short_min, s.tc_human_short_max)
             else:
