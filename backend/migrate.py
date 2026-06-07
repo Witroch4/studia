@@ -38,8 +38,9 @@ def get_column_sql(table, column):
 
 async def migrate():
     async with engine.begin() as conn:
-        # 1) Habilitar extensão pgvector
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        # 1) Habilitar extensão pgvector apenas no Postgres
+        if engine.dialect.name == "postgresql":
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
         # 2) Criar tabelas que não existem
         await conn.run_sync(Base.metadata.create_all)

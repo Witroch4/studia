@@ -14,8 +14,13 @@ def test_annotation_model_uses_expected_table_and_index():
         "created_at",
         "updated_at",
     }
-    index_names = {index.name for index in QuestaoAnotacao.__table__.indexes}
-    assert "uq_questao_anotacoes_scope" in index_names
+    index = next(
+        index
+        for index in QuestaoAnotacao.__table__.indexes
+        if index.name == "uq_questao_anotacoes_scope"
+    )
+    assert index.unique is True
+    assert len(index.expressions) == 3
 
 
 def test_calculator_history_model_uses_expected_table():
