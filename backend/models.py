@@ -10,6 +10,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     JSON,
     String,
@@ -344,6 +345,51 @@ class Resolucao(Base):
     resposta: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     acertou: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     tempo_segundos: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
+class QuestaoAnotacao(Base):
+    """Canvas and strike-through state for one question in one caderno scope."""
+
+    __tablename__ = "questao_anotacoes"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    usuario_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    caderno_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cadernos_questoes.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    questao_id: Mapped[int] = mapped_column(
+        ForeignKey("questoes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    canvas_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    strikes_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_questao_anotacoes_scope",
+            func.coalesce(usuario_id, 0),
+            func.coalesce(caderno_id, 0),
+            questao_id,
+            unique=True,
+        ),
+    )
+
+
+class CalculadoraHistorico(Base):
+    """Scientific calculator history, optionally linked to a question."""
+
+    __tablename__ = "calculadora_historico"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    usuario_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    caderno_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    questao_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    expression: Mapped[str] = mapped_column(Text, nullable=False)
+    result: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
 

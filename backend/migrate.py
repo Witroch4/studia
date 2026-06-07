@@ -43,6 +43,10 @@ async def migrate():
 
         # 2) Criar tabelas que não existem
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_questao_anotacoes_scope
+            ON questao_anotacoes (COALESCE(usuario_id, 0), COALESCE(caderno_id, 0), questao_id)
+        """))
 
         # 3) Detectar colunas faltantes em tabelas existentes
         def _inspect(sync_conn):
