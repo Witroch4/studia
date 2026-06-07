@@ -19,7 +19,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import get_db
-from models import Alternativa, Banca, CadernoQuestoes, Cargo, Materia, Orgao, Questao, Resolucao
+from models import (
+    Alternativa,
+    Banca,
+    CalculadoraHistorico,
+    CadernoQuestoes,
+    Cargo,
+    Materia,
+    Orgao,
+    Questao,
+    QuestaoAnotacao,
+    Resolucao,
+)
 
 import re as _re
 
@@ -352,6 +363,38 @@ class ResponderReq(BaseModel):
     caderno_id: int | None = None
 
 
+def _empty_canvas() -> dict[str, Any]:
+    return {"version": 1, "cardSize": None, "strokes": []}
+
+
+def _empty_strikes() -> dict[str, Any]:
+    return {"version": 1, "targets": []}
+
+
+class AnnotationReq(BaseModel):
+    canvas_json: dict[str, Any] = Field(default_factory=_empty_canvas)
+    strikes_json: dict[str, Any] = Field(default_factory=_empty_strikes)
+
+
+def _annotation_response(row: QuestaoAnotacao | None, caderno_id: int, questao_id: int) -> dict[str, Any]:
+    return {
+        "id": row.id if row else None,
+        "usuario_id": row.usuario_id if row else None,
+        "caderno_id": caderno_id,
+        "questao_id": questao_id,
+        "canvas_json": row.canvas_json if row else _empty_canvas(),
+        "strikes_json": row.strikes_json if row else _empty_strikes(),
+        "updated_at": row.updated_at.isoformat() if row and row.updated_at else None,
+    }
+
+
+async def _sqlite_annotation_id(db: AsyncSession) -> int | None:
+    if db.get_bind().dialect.name != "sqlite":
+        return None
+    max_id = (await db.execute(select(func.coalesce(func.max(QuestaoAnotacao.id), 0)))).scalar_one()
+    return int(max_id) + 1
+
+
 @router.post("/{questao_id}/responder")
 async def responder(questao_id: int, req: ResponderReq, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     q = (await db.execute(
@@ -617,6 +660,68 @@ async def indice_caderno(caderno_id: int, db: AsyncSession = Depends(get_db)) ->
             "preview": (r.preview or "").strip()[:140],
         })
     return {"caderno_id": caderno_id, "total": len(items), "items": items}
+
+
+@router.get("/cadernos/{caderno_id}/questoes/{questao_id}/annotations")
+async def get_annotations(caderno_id: int, questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    cad = (await db.execute(select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id))).scalar_one_or_none()
+    if not cad:
+        raise HTTPException(404, "caderno não encontrado")
+    q = (await db.execute(select(Questao.id).where(Questao.id == questao_id))).scalar_one_or_none()
+    if not q:
+        raise HTTPException(404, "questao não encontrada")
+
+    row = (await db.execute(
+        select(QuestaoAnotacao).where(
+            QuestaoAnotacao.usuario_id.is_(None),
+            QuestaoAnotacao.caderno_id == caderno_id,
+            QuestaoAnotacao.questao_id == questao_id,
+        )
+    )).scalar_one_or_none()
+    return _annotation_response(row, caderno_id, questao_id)
+
+
+@router.put("/cadernos/{caderno_id}/questoes/{questao_id}/annotations")
+async def put_annotations(
+    caderno_id: int,
+    questao_id: int,
+    req: AnnotationReq,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    cad = (await db.execute(select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id))).scalar_one_or_none()
+    if not cad:
+        raise HTTPException(404, "caderno não encontrado")
+    q = (await db.execute(select(Questao.id).where(Questao.id == questao_id))).scalar_one_or_none()
+    if not q:
+        raise HTTPException(404, "questao não encontrada")
+
+    row = (await db.execute(
+        select(QuestaoAnotacao).where(
+            QuestaoAnotacao.usuario_id.is_(None),
+            QuestaoAnotacao.caderno_id == caderno_id,
+            QuestaoAnotacao.questao_id == questao_id,
+        )
+    )).scalar_one_or_none()
+    if row:
+        row.canvas_json = req.canvas_json
+        row.strikes_json = req.strikes_json
+    else:
+        annotation_id = await _sqlite_annotation_id(db)
+        row_kwargs = {
+            "usuario_id": None,
+            "caderno_id": caderno_id,
+            "questao_id": questao_id,
+            "canvas_json": req.canvas_json,
+            "strikes_json": req.strikes_json,
+        }
+        if annotation_id is not None:
+            row_kwargs["id"] = annotation_id
+        row = QuestaoAnotacao(**row_kwargs)
+        db.add(row)
+
+    await db.commit()
+    await db.refresh(row)
+    return _annotation_response(row, caderno_id, questao_id)
 
 
 @router.get("/{questao_id}")
