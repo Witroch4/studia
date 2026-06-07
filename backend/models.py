@@ -310,6 +310,10 @@ class Questao(Base):
     imagens: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
     raw_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # Embedding pgvector (Gemini text-embedding-004 = 768 dims)
+    # Populado por backend/generate_embeddings.py
+    embedding_dim: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    embedding_model: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
@@ -319,6 +323,40 @@ class Questao(Base):
         back_populates="questao", cascade="all, delete-orphan"
     )
     assuntos: Mapped[list["Assunto"]] = relationship(secondary=questao_assunto)
+
+
+class Resolucao(Base):
+    """Cada vez que alguém responde uma questão.
+
+    Sem auth ainda — `usuario_id` opcional. Usamos pra calcular
+    "(N Resolvidas, X Acertos, Y Erros)" estilo TC.
+    """
+    __tablename__ = "resolucoes"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    questao_id: Mapped[int] = mapped_column(
+        ForeignKey("questoes.id", ondelete="CASCADE"), index=True
+    )
+    caderno_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cadernos_questoes.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    usuario_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    resposta: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    acertou: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    tempo_segundos: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
+class CadernoQuestoes(Base):
+    __tablename__ = "cadernos_questoes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nome: Mapped[str] = mapped_column(String(512))
+    pasta: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    filtros: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    question_ids: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
 class Alternativa(Base):

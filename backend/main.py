@@ -127,6 +127,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# witdev-tec-master: questões/cadernos/IA
+from q_router import router as q_router  # noqa: E402
+app.include_router(q_router)
+
 
 # ─── Health ──────────────────────────────────────────────
 

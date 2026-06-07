@@ -50,3 +50,8 @@ minio
 taskiq[redis,reload]
 taskiq-redis
 sse-starlette
+# witdev-tec-master: busca facetada + embeddings
+meilisearch-python-sdk>=4.0.0
+pgvector>=0.3.0
+python-slugify>=8.0.0
+markdownify>=0.13.0
