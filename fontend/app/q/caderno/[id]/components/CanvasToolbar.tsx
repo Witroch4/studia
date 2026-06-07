@@ -82,7 +82,7 @@ export function CanvasToolbar({
                 }`}
                 title={item.label}
               >
-                <Icon name={item.icon} size={18} />
+                <Icon name={item.icon} size={18} aria-hidden="true" />
               </button>
             ))}
           </div>
@@ -120,7 +120,7 @@ export function CanvasToolbar({
             className="inline-flex h-8 items-center gap-1 rounded border border-gray-700 px-2 text-gray-300 transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
             title="Limpar canvas"
           >
-            <Icon name="delete" size={16} />
+            <Icon name="delete" size={16} aria-hidden="true" />
             Limpar
           </button>
         </>
@@ -132,12 +132,17 @@ export function CanvasToolbar({
         className="inline-flex h-8 items-center gap-1 rounded border border-gray-700 px-2 text-gray-300 transition hover:bg-gray-800"
         title="Calculadora"
       >
-        <Icon name="calculate" size={16} />
+        <Icon name="calculate" size={16} aria-hidden="true" />
         Calc
       </button>
 
       {(saving || saveError) && (
-        <span className={`text-[11px] ${saveError ? "text-amber-300" : "text-gray-500"}`} title={saveError ?? undefined}>
+        <span
+          role="status"
+          aria-live="polite"
+          className={`text-[11px] ${saveError ? "text-amber-300" : "text-gray-500"}`}
+          title={saveError ?? undefined}
+        >
           {saving ? "Salvando..." : "Erro ao salvar"}
         </span>
       )}

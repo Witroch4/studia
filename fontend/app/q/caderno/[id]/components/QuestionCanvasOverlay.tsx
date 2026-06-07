@@ -78,22 +78,6 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: CanvasStroke, size: C
   ctx.stroke();
 }
 
-function drawSegment(
-  ctx: CanvasRenderingContext2D,
-  stroke: CanvasStroke,
-  from: CanvasPoint,
-  to: CanvasPoint,
-  size: CanvasSize,
-) {
-  configureStroke(ctx, stroke);
-  const start = toCanvasPoint(from, size);
-  const end = toCanvasPoint(to, size);
-  ctx.beginPath();
-  ctx.moveTo(start.x, start.y);
-  ctx.lineTo(end.x, end.y);
-  ctx.stroke();
-}
-
 function segmentDistance(point: CanvasPoint, start: CanvasPoint, end: CanvasPoint, size: CanvasSize) {
   const p = toCanvasPoint(point, size);
   const a = toCanvasPoint(start, size);
@@ -125,8 +109,20 @@ function distanceToStroke(point: CanvasPoint, stroke: CanvasStroke, size: Canvas
   return shortest;
 }
 
+function eraseCanvasAtPoint(current: CanvasState, point: CanvasPoint, size: CanvasSize, eraseRadius: number) {
+  const strokes = current.strokes.filter((stroke) => distanceToStroke(point, stroke, size) > eraseRadius);
+  if (strokes.length === current.strokes.length) return current;
+
+  return {
+    version: 1 as const,
+    cardSize: { width: size.width, height: size.height },
+    strokes,
+  };
+}
+
 export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onChange }: QuestionCanvasOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasStateRef = useRef<CanvasState>(canvas);
   const sizeRef = useRef<CanvasSize>(MIN_CANVAS_SIZE);
   const currentStroke = useRef<CanvasStroke | null>(null);
   const activePointerId = useRef<number | null>(null);
@@ -192,10 +188,15 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
   }, [redraw, size]);
 
   useEffect(() => {
+    canvasStateRef.current = canvas;
+  }, [canvas]);
+
+  useEffect(() => {
     if (active) return;
     currentStroke.current = null;
     activePointerId.current = null;
-  }, [active]);
+    redraw();
+  }, [active, redraw]);
 
   const pointFromEvent = useCallback((event: PointerEvent<HTMLCanvasElement>): CanvasPoint => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -210,18 +211,22 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
     (point: CanvasPoint) => {
       const eraseRadius = Math.max(12, width * 1.75);
       const currentSize = sizeRef.current;
-      onChange((current) => ({
-        version: 1,
-        cardSize: { width: currentSize.width, height: currentSize.height },
-        strokes: current.strokes.filter((stroke) => distanceToStroke(point, stroke, currentSize) > eraseRadius),
-      }));
+      const preview = eraseCanvasAtPoint(canvasStateRef.current, point, currentSize, eraseRadius);
+      if (preview === canvasStateRef.current) return;
+
+      canvasStateRef.current = preview;
+      onChange((current) => {
+        const next = eraseCanvasAtPoint(current, point, currentSize, eraseRadius);
+        canvasStateRef.current = next;
+        return next;
+      });
     },
     [onChange, width],
   );
 
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLCanvasElement>) => {
-      if (!active) return;
+      if (!active || activePointerId.current !== null) return;
 
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -235,15 +240,9 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
 
       const stroke = makeStroke(tool, color, width, point);
       currentStroke.current = stroke;
-
-      const ctx = getContext();
-      if (!ctx) return;
-
-      ctx.save();
-      drawStroke(ctx, stroke, sizeRef.current);
-      ctx.restore();
+      redraw();
     },
-    [active, color, eraseAtPoint, getContext, pointFromEvent, tool, width],
+    [active, color, eraseAtPoint, pointFromEvent, redraw, tool, width],
   );
 
   const handlePointerMove = useCallback(
@@ -261,17 +260,10 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
       const stroke = currentStroke.current;
       if (!stroke) return;
 
-      const previous = stroke.points[stroke.points.length - 1];
       stroke.points.push(point);
-
-      const ctx = getContext();
-      if (!ctx) return;
-
-      ctx.save();
-      drawSegment(ctx, stroke, previous, point, sizeRef.current);
-      ctx.restore();
+      redraw();
     },
-    [active, eraseAtPoint, getContext, pointFromEvent, tool],
+    [active, eraseAtPoint, pointFromEvent, redraw, tool],
   );
 
   const finishStroke = useCallback(
@@ -292,11 +284,15 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
       if (!stroke) return;
 
       const currentSize = sizeRef.current;
-      onChange((current) => ({
-        version: 1,
-        cardSize: { width: currentSize.width, height: currentSize.height },
-        strokes: [...current.strokes, stroke],
-      }));
+      onChange((current) => {
+        const next = {
+          version: 1 as const,
+          cardSize: { width: currentSize.width, height: currentSize.height },
+          strokes: [...current.strokes, stroke],
+        };
+        canvasStateRef.current = next;
+        return next;
+      });
     },
     [onChange],
   );
@@ -311,7 +307,9 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
       onPointerMove={handlePointerMove}
       onPointerUp={finishStroke}
       onPointerCancel={finishStroke}
-      aria-hidden={!active}
+      role={active ? "application" : undefined}
+      aria-label={active ? "Canvas de anotacoes da questao" : undefined}
+      aria-hidden={active ? undefined : true}
     />
   );
 }
