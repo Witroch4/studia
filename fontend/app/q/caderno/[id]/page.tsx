@@ -147,17 +147,20 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     }
   }
 
-  function avancar(delta: number) {
+  async function mudarIndice(proximoIdx: number) {
     if (!caderno) return;
-    void annotations.flush();
-    const novo = Math.max(0, Math.min(caderno.total - 1, idx + delta));
+    await annotations.flush();
+    const novo = Math.max(0, Math.min(caderno.total - 1, proximoIdx));
     setIdx(novo);
+  }
+
+  function avancar(delta: number) {
+    void mudarIndice(idx + delta);
   }
 
   function aleatoria() {
     if (!caderno) return;
-    void annotations.flush();
-    setIdx(Math.floor(Math.random() * caderno.total));
+    void mudarIndice(Math.floor(Math.random() * caderno.total));
   }
 
   useHotkeys({
@@ -170,19 +173,18 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       const num = prompt(`Ir para questão (1 a ${caderno?.total}):`);
       if (num && /^\d+$/.test(num)) {
         const n = Math.min(Math.max(parseInt(num), 1), caderno?.total || 1) - 1;
-        void annotations.flush();
-        setIdx(n);
+        void mudarIndice(n);
       }
     },
     m: () => { if (!canvasActive) setFav((f) => !f); },
     j: () => { if (!canvasActive) setFav((f) => !f); },
-    k: () => setModoLeitura((m) => !m),
-    "+": () => setFontSize((s) => Math.min(28, s + 2)),
-    "=": () => setFontSize((s) => Math.min(28, s + 2)),
-    "-": () => setFontSize((s) => Math.max(12, s - 2)),
-    "0": () => setFontSize(16),
-    ".": () => setPausado((p) => !p),
-    "?": () => setShowAtalhos(true),
+    k: () => { if (!canvasActive) setModoLeitura((m) => !m); },
+    "+": () => { if (!canvasActive) setFontSize((s) => Math.min(28, s + 2)); },
+    "=": () => { if (!canvasActive) setFontSize((s) => Math.min(28, s + 2)); },
+    "-": () => { if (!canvasActive) setFontSize((s) => Math.max(12, s - 2)); },
+    "0": () => { if (!canvasActive) setFontSize(16); },
+    ".": () => { if (!canvasActive) setPausado((p) => !p); },
+    "?": () => { if (!canvasActive) setShowAtalhos(true); },
     Escape: () => setCanvasActive(false),
   }, { enabled: !calculatorOpen });
 
@@ -278,9 +280,10 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
         <IndiceTab
           cadernoId={caderno.id}
           onAbrir={(n) => {
-            void annotations.flush();
-            setIdx(n - 1);
-            setTab("Questoes");
+            void (async () => {
+              await mudarIndice(n - 1);
+              setTab("Questoes");
+            })();
           }}
           idxAtual={idx}
         />
