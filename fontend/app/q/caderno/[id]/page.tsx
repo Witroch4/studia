@@ -3,6 +3,12 @@
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useHotkeys, ATALHOS_TC } from "../../../hooks/useHotkeys";
+import type { CanvasTool, StrikeTarget } from "./annotations/types";
+import { useQuestionAnnotations } from "./annotations/useQuestionAnnotations";
+import { CanvasToolbar } from "./components/CanvasToolbar";
+import { QuestionCanvasOverlay } from "./components/QuestionCanvasOverlay";
+import { ScientificCalculator } from "./components/ScientificCalculator";
+import { StrikableAlternative } from "./components/StrikableAlternative";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
 
@@ -68,6 +74,12 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const [tempo, setTempo] = useState(0);
   const [pausado, setPausado] = useState(false);
   const [modoLeitura, setModoLeitura] = useState(false);
+  const [canvasActive, setCanvasActive] = useState(false);
+  const [canvasTool, setCanvasTool] = useState<CanvasTool>("pen");
+  const [canvasColor, setCanvasColor] = useState("#22c55e");
+  const [canvasWidth, setCanvasWidth] = useState(5);
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const questionCardRef = useRef<HTMLDivElement | null>(null);
   const startedAt = useRef<number>(0);
 
   // Timer global (geral do caderno) + init de startedAt
@@ -98,6 +110,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   }, [id, carregarStatsCaderno]);
 
   const currentQid = caderno?.question_ids[idx];
+  const annotations = useQuestionAnnotations(caderno?.id ?? null, currentQid ?? null);
 
   useEffect(() => {
     if (!currentQid) return;
@@ -136,29 +149,33 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
 
   function avancar(delta: number) {
     if (!caderno) return;
+    void annotations.flush();
     const novo = Math.max(0, Math.min(caderno.total - 1, idx + delta));
     setIdx(novo);
   }
 
   function aleatoria() {
     if (!caderno) return;
+    void annotations.flush();
     setIdx(Math.floor(Math.random() * caderno.total));
   }
 
   useHotkeys({
-    ArrowLeft: () => avancar(-1),
-    ArrowRight: () => avancar(1),
-    l: aleatoria,
-    n: () => avancar(1),
+    ArrowLeft: () => { if (!canvasActive) avancar(-1); },
+    ArrowRight: () => { if (!canvasActive) avancar(1); },
+    l: () => { if (!canvasActive) aleatoria(); },
+    n: () => { if (!canvasActive) avancar(1); },
     p: () => {
+      if (canvasActive) return;
       const num = prompt(`Ir para questão (1 a ${caderno?.total}):`);
       if (num && /^\d+$/.test(num)) {
         const n = Math.min(Math.max(parseInt(num), 1), caderno?.total || 1) - 1;
+        void annotations.flush();
         setIdx(n);
       }
     },
-    m: () => setFav((f) => !f),
-    j: () => setFav((f) => !f),
+    m: () => { if (!canvasActive) setFav((f) => !f); },
+    j: () => { if (!canvasActive) setFav((f) => !f); },
     k: () => setModoLeitura((m) => !m),
     "+": () => setFontSize((s) => Math.min(28, s + 2)),
     "=": () => setFontSize((s) => Math.min(28, s + 2)),
@@ -166,7 +183,8 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     "0": () => setFontSize(16),
     ".": () => setPausado((p) => !p),
     "?": () => setShowAtalhos(true),
-  });
+    Escape: () => setCanvasActive(false),
+  }, { enabled: !calculatorOpen });
 
   if (!caderno) return <div className="p-8 text-gray-400">Carregando caderno…</div>;
   if (!questao) return <div className="p-8 text-gray-400">Carregando questão {idx + 1} de {caderno.total}…</div>;
@@ -182,6 +200,15 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const gabaritoLabel = temFlagCorreta
     ? `${altCorreta?.letra ?? "?"} (${(altCorreta?.texto_md || "").replace(/<[^>]+>/g, "").trim() || questao.gabarito})`
     : questao.gabarito;
+
+  function isStruck(target: StrikeTarget) {
+    return annotations.strikes.targets.some((item) => {
+      if (item.type !== target.type) return false;
+      if (item.type === "alternative" && target.type === "alternative") return item.id === target.id;
+      if (item.type === "statement-block" && target.type === "statement-block") return item.index === target.index;
+      return false;
+    });
+  }
 
   return (
     <div
@@ -248,7 +275,15 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
         <EstatisticasTab cadernoId={caderno.id} />
       )}
       {tab === "Indice" && (
-        <IndiceTab cadernoId={caderno.id} onAbrir={(n) => { setIdx(n - 1); setTab("Questoes"); }} idxAtual={idx} />
+        <IndiceTab
+          cadernoId={caderno.id}
+          onAbrir={(n) => {
+            void annotations.flush();
+            setIdx(n - 1);
+            setTab("Questoes");
+          }}
+          idxAtual={idx}
+        />
       )}
       {tab === "Gabarito" && (
         <GabaritoTab cadernoId={caderno.id} />
@@ -270,7 +305,15 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       {tab === "Questoes" && (
       <main className="max-w-5xl mx-auto px-6 py-4">
         {/* ─── Card stats da questão ─── */}
-        <div className="border border-gray-700/60 rounded-lg bg-[#1a1a1a] mb-4">
+        <div ref={questionCardRef} className="relative mb-4 rounded-lg border border-gray-700/60 bg-[#1a1a1a]">
+          <QuestionCanvasOverlay
+            active={canvasActive}
+            canvas={annotations.canvas}
+            tool={canvasTool}
+            color={canvasColor}
+            width={canvasWidth}
+            onChange={annotations.updateCanvas}
+          />
           <header className="px-4 py-3 flex items-center gap-4 border-b border-gray-700/60">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-600 to-violet-600 flex items-center justify-center text-xl shrink-0">
               {questao.banca?.sigla?.slice(0, 2).toUpperCase() || "TC"}
@@ -303,7 +346,22 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                 {questao.assuntos.length === 0 && <span className="text-gray-600">Sem classificação</span>}
               </div>
             </div>
-            <div className="flex items-center gap-2 text-lg text-gray-500">
+            <div className="flex flex-wrap items-center justify-end gap-2 text-lg text-gray-500">
+              <CanvasToolbar
+                active={canvasActive}
+                tool={canvasTool}
+                color={canvasColor}
+                width={canvasWidth}
+                hasStrokes={annotations.canvas.strokes.length > 0}
+                saving={annotations.saving}
+                saveError={annotations.saveError}
+                onActiveChange={setCanvasActive}
+                onToolChange={setCanvasTool}
+                onColorChange={setCanvasColor}
+                onWidthChange={setCanvasWidth}
+                onClear={annotations.clearCanvas}
+                onOpenCalculator={() => setCalculatorOpen(true)}
+              />
               <button title="Comentário (O)" className="hover:text-cyan-400">🎓</button>
               <button title="Teoria" className="hover:text-cyan-400">📕</button>
               <button title="Fórum (F)" className="hover:text-cyan-400">💬</button>
@@ -336,7 +394,11 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
           {/* ─── Enunciado + alternativas ─── */}
           <div className="p-5">
             <article
-              className="prose prose-invert prose-cyan max-w-none mb-4"
+              onDoubleClick={() => annotations.toggleStrike({ type: "statement-block", index: 0 })}
+              className={`prose prose-invert prose-cyan max-w-none mb-4 ${
+                isStruck({ type: "statement-block", index: 0 }) ? "text-gray-500 line-through decoration-red-500 decoration-2" : ""
+              }`}
+              title="Dois cliques riscam ou restauram o enunciado"
               dangerouslySetInnerHTML={{ __html: questao.enunciado_html }}
             />
 
@@ -346,9 +408,14 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                 const isErrada = resolvida && selecionada === alt.letra && !ehCorreta(alt);
                 return (
                   <li key={alt.id}>
-                    <button
-                      onClick={() => !resolvida && setSelecionada(alt.letra)}
+                    <StrikableAlternative
+                      id={alt.id}
+                      letra={alt.letra}
+                      selected={selecionada === alt.letra}
                       disabled={resolvida}
+                      struck={isStruck({ type: "alternative", id: alt.id })}
+                      onSelect={() => setSelecionada(alt.letra)}
+                      onToggleStrike={() => annotations.toggleStrike({ type: "alternative", id: alt.id })}
                       className={`w-full text-left flex items-start gap-3 px-3 py-2 rounded border transition ${
                         isCorreta ? "border-green-500 bg-green-950/40" :
                         isErrada ? "border-red-500 bg-red-950/40" :
@@ -356,13 +423,8 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                         "border-gray-700 hover:bg-gray-800/40"
                       }`}
                     >
-                      <span className={`flex items-center justify-center w-7 h-7 rounded-full border text-sm shrink-0 ${
-                        selecionada === alt.letra ? "border-cyan-400 text-cyan-300" : "border-gray-600 text-gray-400"
-                      }`}>
-                        {alt.letra}
-                      </span>
                       <span className="flex-1" dangerouslySetInnerHTML={{ __html: alt.texto_md || "" }} />
-                    </button>
+                    </StrikableAlternative>
                   </li>
                 );
               })}
@@ -414,6 +476,13 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
         </div>
       </main>
       )}
+
+      <ScientificCalculator
+        open={calculatorOpen}
+        cadernoId={caderno.id}
+        questaoId={questao.id}
+        onClose={() => setCalculatorOpen(false)}
+      />
 
       {/* ─── Modal atalhos ─── */}
       {showAtalhos && (
