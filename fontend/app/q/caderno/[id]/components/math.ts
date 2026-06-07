@@ -6,7 +6,7 @@ type Token =
 
 const SUPPORTED_FUNCTIONS = new Set(["sin", "cos", "tan", "log", "ln", "sqrt"]);
 const DEG_TO_RAD = Math.PI / 180;
-const EPSILON = 1e-12;
+const TANGENT_UNDEFINED_TOLERANCE = 1e-12;
 
 function userError(message = "Expressão inválida.") {
   return new Error(message);
@@ -106,7 +106,7 @@ class Parser {
       const operator = this.previousOperator();
       const right = this.parseUnary();
 
-      if (operator === "/" && Math.abs(right) < EPSILON) {
+      if (operator === "/" && right === 0) {
         throw userError("Não é possível dividir por zero.");
       }
 
@@ -182,7 +182,7 @@ class Parser {
         return this.ensureFinite(Math.cos(input * DEG_TO_RAD));
       case "tan": {
         const radians = input * DEG_TO_RAD;
-        if (Math.abs(Math.cos(radians)) < EPSILON) {
+        if (Math.abs(Math.cos(radians)) < TANGENT_UNDEFINED_TOLERANCE) {
           throw userError("Tangente indefinida para esse ângulo.");
         }
         return this.ensureFinite(Math.tan(radians));
@@ -233,10 +233,12 @@ class Parser {
 
 function formatResult(value: number) {
   if (!Number.isFinite(value)) throw userError("Resultado inválido.");
-  if (Object.is(value, -0) || Math.abs(value) < EPSILON) return "0";
+  if (Object.is(value, -0) || value === 0) return "0";
 
   const abs = Math.abs(value);
   const rounded = abs >= 1e-6 && abs < 1e10 ? Number(value.toFixed(10)) : Number(value.toPrecision(10));
+  if (Object.is(rounded, -0) || rounded === 0) return "0";
+
   return rounded.toString();
 }
 

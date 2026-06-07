@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import type { KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../../../../components/ds/Icon";
 import { createCalculatorHistory, fetchCalculatorHistory } from "../annotations/api";
 import type { CalculatorHistoryItem } from "../annotations/types";
@@ -14,38 +15,43 @@ export interface ScientificCalculatorProps {
 }
 
 type CalculatorKey =
-  | { label: string; value: string; tone?: "number" | "operator" | "function" }
-  | { label: string; action: "clear" | "backspace" | "equals"; tone?: "danger" | "operator" };
+  | { label: string; value: string; ariaLabel?: string; tone?: "number" | "operator" | "function" }
+  | {
+      label: string;
+      action: "clear" | "backspace" | "equals";
+      ariaLabel?: string;
+      tone?: "danger" | "operator";
+    };
 
 const KEYS: CalculatorKey[] = [
-  { label: "C", action: "clear", tone: "danger" },
-  { label: "⌫", action: "backspace" },
-  { label: "(", value: "(", tone: "operator" },
-  { label: ")", value: ")", tone: "operator" },
+  { label: "C", action: "clear", ariaLabel: "Limpar expressão", tone: "danger" },
+  { label: "⌫", action: "backspace", ariaLabel: "Apagar último caractere" },
+  { label: "(", value: "(", ariaLabel: "Abrir parêntese", tone: "operator" },
+  { label: ")", value: ")", ariaLabel: "Fechar parêntese", tone: "operator" },
   { label: "sin", value: "sin(", tone: "function" },
   { label: "cos", value: "cos(", tone: "function" },
   { label: "tan", value: "tan(", tone: "function" },
-  { label: "√", value: "sqrt(", tone: "function" },
+  { label: "√", value: "sqrt(", ariaLabel: "Raiz quadrada", tone: "function" },
   { label: "log", value: "log(", tone: "function" },
   { label: "ln", value: "ln(", tone: "function" },
-  { label: "^", value: "^", tone: "operator" },
-  { label: "%", value: "%", tone: "operator" },
+  { label: "^", value: "^", ariaLabel: "Potência", tone: "operator" },
+  { label: "%", value: "%", ariaLabel: "Porcentagem", tone: "operator" },
   { label: "7", value: "7", tone: "number" },
   { label: "8", value: "8", tone: "number" },
   { label: "9", value: "9", tone: "number" },
-  { label: "÷", value: "/", tone: "operator" },
+  { label: "÷", value: "/", ariaLabel: "Dividir", tone: "operator" },
   { label: "4", value: "4", tone: "number" },
   { label: "5", value: "5", tone: "number" },
   { label: "6", value: "6", tone: "number" },
-  { label: "×", value: "*", tone: "operator" },
+  { label: "×", value: "*", ariaLabel: "Multiplicar", tone: "operator" },
   { label: "1", value: "1", tone: "number" },
   { label: "2", value: "2", tone: "number" },
   { label: "3", value: "3", tone: "number" },
-  { label: "-", value: "-", tone: "operator" },
+  { label: "-", value: "-", ariaLabel: "Subtrair", tone: "operator" },
   { label: "0", value: "0", tone: "number" },
-  { label: ".", value: ".", tone: "number" },
-  { label: "=", action: "equals", tone: "operator" },
-  { label: "+", value: "+", tone: "operator" },
+  { label: ".", value: ".", ariaLabel: "Ponto decimal", tone: "number" },
+  { label: "=", action: "equals", ariaLabel: "Calcular resultado", tone: "operator" },
+  { label: "+", value: "+", ariaLabel: "Somar", tone: "operator" },
 ];
 
 function keyClass(key: CalculatorKey) {
@@ -77,18 +83,23 @@ function formatHistoryTime(value: string | null) {
 }
 
 export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: ScientificCalculatorProps) {
+  const panelRef = useRef<HTMLElement>(null);
+  const currentContextRef = useRef({ cadernoId, questaoId });
+  currentContextRef.current = { cadernoId, questaoId };
   const [expression, setExpression] = useState("");
   const [result, setResult] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [history, setHistory] = useState<CalculatorHistoryItem[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [pendingSaveCount, setPendingSaveCount] = useState(0);
+  const saving = pendingSaveCount > 0;
 
   useEffect(() => {
     if (!open) return;
 
     let active = true;
+    setHistory([]);
     setHistoryLoading(true);
     setHistoryError(null);
 
@@ -146,7 +157,7 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
     setResult(nextResult);
     setError(null);
     setHistoryError(null);
-    setSaving(true);
+    setPendingSaveCount((count) => count + 1);
 
     try {
       const item = await createCalculatorHistory({
@@ -155,11 +166,16 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
         caderno_id: cadernoId,
         questao_id: questaoId,
       });
-      setHistory((current) => [item, ...current]);
+
+      if (currentContextRef.current.cadernoId === cadernoId && currentContextRef.current.questaoId === questaoId) {
+        setHistory((current) => [item, ...current]);
+      }
     } catch {
-      setHistoryError("Resultado calculado, mas não foi salvo.");
+      if (currentContextRef.current.cadernoId === cadernoId && currentContextRef.current.questaoId === questaoId) {
+        setHistoryError("Resultado calculado, mas não foi salvo.");
+      }
     } finally {
-      setSaving(false);
+      setPendingSaveCount((count) => Math.max(0, count - 1));
     }
   }, [cadernoId, expression, questaoId]);
 
@@ -177,17 +193,41 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
     [appendValue, backspace, calculate, clear],
   );
 
+  const handlePanelKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key !== "Enter") return;
+
+      const target = event.target;
+      const fromPanel = target === event.currentTarget;
+      const fromExpression =
+        target instanceof HTMLInputElement && target.id === "scientific-calculator-expression";
+
+      if (!fromPanel && !fromExpression) return;
+
+      event.preventDefault();
+      void calculate();
+    },
+    [calculate],
+  );
+
   if (!open) return null;
 
   return (
     <aside
+      ref={panelRef}
+      tabIndex={-1}
+      onKeyDown={handlePanelKeyDown}
       className="fixed bottom-4 left-4 right-4 z-50 flex max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-lg border border-gray-700/80 bg-[#171717] text-gray-100 shadow-2xl shadow-black/50 sm:left-auto sm:w-[360px]"
       aria-label="Calculadora científica"
     >
       <header className="flex items-center gap-2 border-b border-gray-700/70 bg-[#111111] px-3 py-2">
         <Icon name="calculate" size={18} className="text-cyan-300" />
         <h2 className="text-sm font-semibold">Calculadora</h2>
-        {saving && <span className="ml-1 text-[11px] text-gray-500">Salvando...</span>}
+        {saving && (
+          <span className="ml-1 text-[11px] text-gray-500" aria-live="polite" aria-atomic="true">
+            Salvando…
+          </span>
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -210,18 +250,12 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
             setExpression(event.target.value);
             setError(null);
           }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              void calculate();
-            }
-          }}
           className="h-10 w-full rounded border border-gray-700 bg-gray-950 px-3 font-mono text-sm text-gray-100 outline-none transition placeholder:text-gray-600 focus:border-cyan-500"
           placeholder="sin(30)+sqrt(16)"
           inputMode="decimal"
         />
 
-        <div className="rounded border border-gray-700/70 bg-gray-950/70 p-3">
+        <div className="rounded border border-gray-700/70 bg-gray-950/70 p-3" aria-live="polite" aria-atomic="true">
           <div className="text-[11px] uppercase tracking-wide text-gray-500">Resultado</div>
           <div className="mt-1 min-h-9 break-words font-mono text-3xl font-semibold text-cyan-300">
             {result || "0"}
@@ -235,9 +269,13 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
             <button
               key={key.label}
               type="button"
-              onClick={() => handleKey(key)}
+              onClick={() => {
+                handleKey(key);
+                panelRef.current?.focus({ preventScroll: true });
+              }}
               className={keyClass(key)}
-              title={"value" in key ? key.value : key.label}
+              title={key.ariaLabel ?? ("value" in key ? key.value : key.label)}
+              aria-label={key.ariaLabel}
             >
               {key.label}
             </button>
@@ -247,7 +285,11 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
         <section className="border-t border-gray-700/70 pt-3">
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Histórico</h3>
-            {historyLoading && <span className="text-[11px] text-gray-500">Carregando...</span>}
+            {historyLoading && (
+              <span className="text-[11px] text-gray-500" aria-live="polite" aria-atomic="true">
+                Carregando…
+              </span>
+            )}
           </div>
 
           {!historyLoading && history.length === 0 && (
