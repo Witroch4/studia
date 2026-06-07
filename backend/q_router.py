@@ -744,7 +744,14 @@ async def list_calculator_history(
         stmt = stmt.where(CalculadoraHistorico.caderno_id == caderno_id)
     if questao_id is not None:
         stmt = stmt.where(CalculadoraHistorico.questao_id == questao_id)
-    rows = (await db.execute(stmt.order_by(desc(CalculadoraHistorico.created_at)).limit(50))).scalars().all()
+    rows = (
+        await db.execute(
+            stmt.order_by(
+                desc(CalculadoraHistorico.created_at),
+                desc(CalculadoraHistorico.id),
+            ).limit(50)
+        )
+    ).scalars().all()
     return {
         "items": [
             {
@@ -763,12 +770,17 @@ async def list_calculator_history(
 
 @router.post("/calculator/history")
 async def create_calculator_history(req: CalculatorHistoryReq, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    expression = req.expression.strip()
+    result = req.result.strip()
+    if not expression or not result:
+        raise HTTPException(422, "expression e result são obrigatórios")
+
     row = CalculadoraHistorico(
         usuario_id=None,
         caderno_id=req.caderno_id,
         questao_id=req.questao_id,
-        expression=req.expression.strip(),
-        result=req.result.strip(),
+        expression=expression,
+        result=result,
     )
     db.add(row)
     await db.commit()
