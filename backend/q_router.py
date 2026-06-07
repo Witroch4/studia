@@ -377,6 +377,13 @@ class AnnotationReq(BaseModel):
     strikes_json: dict[str, Any] = Field(default_factory=_empty_strikes)
 
 
+class CalculatorHistoryReq(BaseModel):
+    expression: str = Field(..., min_length=1, max_length=512)
+    result: str = Field(..., min_length=1, max_length=512)
+    caderno_id: int | None = None
+    questao_id: int | None = None
+
+
 def _annotation_response(row: QuestaoAnotacao | None, caderno_id: int, questao_id: int) -> dict[str, Any]:
     return {
         "id": row.id if row else None,
@@ -722,6 +729,74 @@ async def put_annotations(
 
     await db.refresh(row)
     return _annotation_response(row, caderno_id, questao_id)
+
+
+@router.get("/calculator/history")
+async def list_calculator_history(
+    caderno_id: int | None = None,
+    questao_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    from sqlalchemy import desc
+
+    stmt = select(CalculadoraHistorico).where(CalculadoraHistorico.usuario_id.is_(None))
+    if caderno_id is not None:
+        stmt = stmt.where(CalculadoraHistorico.caderno_id == caderno_id)
+    if questao_id is not None:
+        stmt = stmt.where(CalculadoraHistorico.questao_id == questao_id)
+    rows = (await db.execute(stmt.order_by(desc(CalculadoraHistorico.created_at)).limit(50))).scalars().all()
+    return {
+        "items": [
+            {
+                "id": row.id,
+                "usuario_id": row.usuario_id,
+                "caderno_id": row.caderno_id,
+                "questao_id": row.questao_id,
+                "expression": row.expression,
+                "result": row.result,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in rows
+        ]
+    }
+
+
+@router.post("/calculator/history")
+async def create_calculator_history(req: CalculatorHistoryReq, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    row = CalculadoraHistorico(
+        usuario_id=None,
+        caderno_id=req.caderno_id,
+        questao_id=req.questao_id,
+        expression=req.expression.strip(),
+        result=req.result.strip(),
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return {
+        "id": row.id,
+        "usuario_id": row.usuario_id,
+        "caderno_id": row.caderno_id,
+        "questao_id": row.questao_id,
+        "expression": row.expression,
+        "result": row.result,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
+@router.delete("/calculator/history/{item_id}")
+async def delete_calculator_history(item_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
+    row = (await db.execute(
+        select(CalculadoraHistorico).where(
+            CalculadoraHistorico.id == item_id,
+            CalculadoraHistorico.usuario_id.is_(None),
+        )
+    )).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, "historico não encontrado")
+    await db.delete(row)
+    await db.commit()
+    return {"ok": True}
 
 
 @router.get("/{questao_id}")
