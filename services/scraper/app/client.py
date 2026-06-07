@@ -25,11 +25,21 @@ from app.schemas import AccessBlocked, CaptchaChallenge, RateLimited, SessionExp
 log = get_logger(__name__)
 
 
+def _redact_proxy(url: str) -> str:
+    """socks5h://user:pass@host:port → socks5h://user:***@host:port"""
+    import re
+    return re.sub(r"://([^:]+):[^@]+@", r"://\1:***@", url)
+
+
 def classificar_resposta(r: httpx.Response) -> str | None:
     if r.status_code in (403, 451):
         return "acesso_negado"
     if r.status_code == 429:
         return "rate_limit"
+    if r.status_code == 452:
+        # 452: TC retorna isso quando a SESSÃO está queimada (não IP).
+        # Re-login resolve. Validado via DevTools 2026-06-07.
+        return "sessao_queimada"
     if r.status_code in (301, 302) and "/login" in r.headers.get("location", ""):
         return "sessao_expirou"
     # Apenas amostra leve do corpo para detectar HTML/captcha
@@ -60,7 +70,7 @@ class TcClient:
         self._settings = settings
         self._req_count = 0
 
-        self._client = httpx.AsyncClient(
+        client_kwargs: dict[str, Any] = dict(
             base_url=self.base,
             http2=True,
             cookies=cookies,
@@ -75,6 +85,11 @@ class TcClient:
                 "Origin": self.base,
             },
         )
+        # Proxy residencial WitDev se configurado (rodar em SSH/datacenter)
+        if settings.residential_proxy_url:
+            client_kwargs["proxy"] = settings.residential_proxy_url
+            log.info("tc.client.proxy_enabled", proxy=_redact_proxy(settings.residential_proxy_url))
+        self._client = httpx.AsyncClient(**client_kwargs)
 
     async def _throttle(self) -> None:
         async with self._lock:
@@ -129,7 +144,7 @@ class TcClient:
         if tag == "rate_limit":
             retry_after = int(r.headers.get("Retry-After", "60"))
             raise RateLimited(retry_after)
-        if tag in {"sessao_expirou", "sessao_zumbi"}:
+        if tag in {"sessao_expirou", "sessao_zumbi", "sessao_queimada"}:
             raise SessionExpired(f"sessão inválida ({tag})")
         if tag == "captcha":
             raise CaptchaChallenge("captcha detectado")

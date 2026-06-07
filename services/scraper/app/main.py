@@ -36,6 +36,7 @@ from app.discovery import (
 from app.observability import configure_logging, get_logger
 from app.scrapers.tc_imprimir import scrape_caderno_imprimir
 from app.scrapers.tecconcursos import scrape_caderno, scrape_ids
+from app.auth import login_and_save_state
 from app.state import ScrapeState
 
 configure_logging()
@@ -175,6 +176,27 @@ async def health() -> dict[str, str]:
 @api.post("/run/caderno")
 async def run_caderno(body: CadernoBody) -> dict[str, int]:
     return await scrape_caderno(body.caderno_id)
+
+
+class CadernoImprimirBody(BaseModel):
+    caderno_id: int
+    total: int | None = None
+    page_size: int = 200
+    relogin: bool = False
+
+
+@api.post("/run/caderno-imprimir")
+async def run_caderno_imprimir(body: CadernoImprimirBody) -> dict[str, int | str]:
+    """Caminho OFICIAL — usa /ajaxCarregarQuestoesImpressao (200 quest./req, 100% gabarito).
+
+    Se relogin=true, refaz login Playwright antes (recomendado quando trocou IP
+    ou faz tempo desde a última coleta).
+    """
+    if body.relogin:
+        await login_and_save_state(headless=True)
+    return await scrape_caderno_imprimir(
+        body.caderno_id, total=body.total, page_size=body.page_size,
+    )
 
 
 @api.post("/run/questoes")

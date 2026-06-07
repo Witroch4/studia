@@ -38,17 +38,34 @@ async def login_and_save_state(headless: bool = True) -> Path:
         headless=headless,
     )
 
+    # Se proxy residencial configurado, passa pro Playwright
+    proxy_cfg = None
+    if settings.residential_proxy_url:
+        from urllib.parse import urlparse
+        u = urlparse(settings.residential_proxy_url)
+        # Chromium NÃO suporta auth em SOCKS5 — usa HTTP CONNECT na mesma porta
+        # (residential-proxy auto-detecta SOCKS vs HTTP pelo 1º byte).
+        proxy_cfg = {
+            "server": f"http://{u.hostname}:{u.port}",
+            "username": u.username,
+            "password": u.password,
+        }
+        log.info("tc.login.proxy_enabled", server=proxy_cfg["server"], user=proxy_cfg["username"])
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=headless,
             args=["--disable-blink-features=AutomationControlled"],
         )
-        ctx = await browser.new_context(
+        ctx_kwargs: dict = dict(
             user_agent=settings.tc_user_agent,
             locale="pt-BR",
             timezone_id="America/Sao_Paulo",
             viewport={"width": 1920, "height": 1080},
         )
+        if proxy_cfg:
+            ctx_kwargs["proxy"] = proxy_cfg
+        ctx = await browser.new_context(**ctx_kwargs)
         page = await ctx.new_page()
         await page.goto(f"{settings.tc_base}/login")
 

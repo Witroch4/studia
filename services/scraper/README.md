@@ -74,6 +74,38 @@ export TC_PASSWORD=suasenha
 # o serviço scraper sobe em http://localhost:8090
 ```
 
+## Caminho oficial: `scrape imprimir` ⭐
+
+Em 2026-06-06 descobrimos via DevTools/MCP que o fluxo de **Imprimir Caderno** usa um endpoint XHR que entrega **200 questões + gabarito completo em 1 request**, sem rate limit nem anti-bot:
+
+```
+POST /questoes/cadernos/{caderno_id}/ajaxCarregarQuestoesImpressao
+Body (form-urlencoded):
+  configuracoes.idCadernoQuestoes={caderno_id}
+  configuracoes.idTeoriaModulo=
+  configuracoes.idTeoriaAssunto=
+  configuracoes.questaoInicial=0|200|400|...
+  configuracoes.numeroQuestoes=200
+  configuracoes.removerQuestoes=NENHUMA
+
+Response: {"list": [{idQuestao, enunciado, alternativas[], gabarito, ...}, ...]}
+```
+
+Benchmark real com caderno de 876 questões:
+
+| Método | Reqs | Tempo | Cobertura | Gabarito |
+|---|---|---|---|---|
+| ❌ `/api/questoes/{id}/deslogado` | 876 | ~50min | 42% | 3% |
+| ❌ `/api/cadernos/{c}/questoes/{N}` | 876 | ~50min | 42% | 3% |
+| ✅ **`/ajaxCarregarQuestoesImpressao`** | **5** | **28s** | **100%** | **100%** |
+
+Comando:
+```bash
+docker exec studia-scraper-dev python -m app.main scrape imprimir <caderno_id>
+```
+
+Os outros caminhos (`scrape caderno` por posição) ficaram como shim deprecated em [tc_imprimir.py](app/scrapers/tc_imprimir.py).
+
 ## Uso
 
 ### 1. Login (uma vez por sessão — ~7 dias)

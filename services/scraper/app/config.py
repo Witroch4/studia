@@ -64,6 +64,21 @@ class Settings(BaseSettings):
     backend_url: str | None = None
     platform_api_key: str | None = None
 
+    # ─── Residential Proxy WitDev (para rodar em SSH/datacenter) ──────
+    # Quando setado, TODAS as conexões TC saem pelo IP residencial de casa.
+    # Doc: /home/wital/witdev-platform-core/proxy-residencial/docs/WITDEV-PROXY-API.md
+    # Formato canônico: socks5h://tc-scraper:${RP_SERVICE_SECRET}@residential-proxy:1080
+    residential_proxy_url: str | None = None
+
+    # ─── /imprimir scraper safety (anti-403/429) ──────────────────────
+    # Defaults conservadores. Pode subir mais via env vars na produção.
+    imprimir_pause_min: float = 4.0       # seg entre páginas (mín)
+    imprimir_pause_max: float = 7.0       # seg entre páginas (máx)
+    imprimir_burst_every: int = 20        # a cada N páginas, pausa burst
+    imprimir_burst_min: float = 25.0
+    imprimir_burst_max: float = 50.0
+    imprimir_block_pause: float = 180.0   # pausa 3min em 403/429
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
