@@ -56,6 +56,7 @@ export function useQuestionAnnotations(cadernoId: number | null, questaoId: numb
   const canvasRef = useRef<CanvasState>(emptyCanvas());
   const strikesRef = useRef<StrikesState>(emptyStrikes());
   const saveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const mutationRevisions = useRef<Map<string, number>>(new Map());
   const savingCount = useRef(0);
   const currentQuestion = useMemo<QuestionKey | null>(
     () => (cadernoId != null && questaoId != null ? { cadernoId, questaoId, key: keyFor(cadernoId, questaoId) } : null),
@@ -119,6 +120,8 @@ export function useQuestionAnnotations(cadernoId: number | null, questaoId: numb
       setAnnotationState(emptyCanvas(), emptyStrikes());
     }
 
+    const fetchRevision = mutationRevisions.current.get(key) ?? 0;
+
     fetchAnnotations(currentCadernoId, currentQuestaoId)
       .then((data) => {
         if (cancelled) return;
@@ -133,6 +136,7 @@ export function useQuestionAnnotations(cadernoId: number | null, questaoId: numb
             setAnnotationState(emptyCanvas(), emptyStrikes());
           }
         }
+        if ((mutationRevisions.current.get(key) ?? 0) !== fetchRevision) return;
         setAnnotationState(data.canvas_json || emptyCanvas(), data.strikes_json || emptyStrikes());
       })
       .catch((error) => {
@@ -152,6 +156,7 @@ export function useQuestionAnnotations(cadernoId: number | null, questaoId: numb
       if (!currentQuestion) return;
       const pending: PendingSave = { ...currentQuestion, canvas: nextCanvas, strikes: nextStrikes };
       const payload = payloadFor(nextCanvas, nextStrikes);
+      mutationRevisions.current.set(pending.key, (mutationRevisions.current.get(pending.key) ?? 0) + 1);
       localStorage.setItem(pending.key, JSON.stringify(payload));
 
       const currentTimer = saveTimers.current.get(pending.key);
