@@ -37,6 +37,7 @@ pdfs/
 
 # Playwright MCP artifacts
 .playwright-mcp/
+.superpowers/
 
 # Dados externos (orçamentos/concorrência — não pertencem ao repo)
 CAGECE DEMANDA PLANILHA ORC/
