@@ -18,8 +18,15 @@ import { useEffect } from "react";
  *
  * Ignora teclas quando o foco está em input/textarea/contenteditable.
  */
-export function useHotkeys(map: Record<string, (e: KeyboardEvent) => void>) {
+export function useHotkeys(
+  map: Record<string, (e: KeyboardEvent) => void>,
+  options: { enabled?: boolean } = {},
+) {
+  const enabled = options.enabled ?? true;
+
   useEffect(() => {
+    if (!enabled) return;
+
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select") return;
@@ -39,7 +46,7 @@ export function useHotkeys(map: Record<string, (e: KeyboardEvent) => void>) {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [map]);
+  }, [map, enabled]);
 }
 
 // Mapa oficial dos atalhos TC adotados (referência canônica)
