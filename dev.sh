@@ -79,22 +79,21 @@ dc() {
 # ─────────────────────────────────────────────────────────────────────────────
 
 ensure_infra() {
-  log_info "Verificando postgres e redis..."
+  log_info "Verificando postgres e redis (infra compartilhada)..."
 
-  # Sobe só postgres e redis (se já estiverem up, é no-op)
-  dc up -d postgres redis
-
-  # Aguardar healthchecks
+  # postgres e redis NÃO são serviços deste compose: rodam na infra
+  # compartilhada (containers 'postgres' e 'redis' na rede externa
+  # 'minha_rede'). Aqui apenas verificamos se estão de pé.
   local retries=0
   local max_retries=30
   while [ $retries -lt $max_retries ]; do
     local pg_ok=false
     local redis_ok=false
 
-    if dc exec -T postgres pg_isready -U postgres &>/dev/null; then
+    if docker exec postgres pg_isready -U postgres &>/dev/null; then
       pg_ok=true
     fi
-    if dc exec -T redis redis-cli ping &>/dev/null; then
+    if docker exec redis redis-cli ping &>/dev/null; then
       redis_ok=true
     fi
 
@@ -107,7 +106,8 @@ ensure_infra() {
     sleep 1
   done
 
-  log_error "Timeout esperando postgres/redis ficarem prontos"
+  log_error "postgres/redis não estão prontos na infra compartilhada (rede 'minha_rede')."
+  log_error "Suba o stack de infra compartilhada (platform) antes de rodar o studIA."
   exit 1
 }
 

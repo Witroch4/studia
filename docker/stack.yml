@@ -1,0 +1,168 @@
+# studIA — stack de produção (Docker Swarm, deploy direto via SSH, sem Portainer).
+# Infra compartilhada na overlay externa `minha_rede`: postgres, redis e minio
+# já rodam lá (stacks postgres/redis/minio). studIA sobe backend + worker +
+# scraper + meili (dedicado) + frontend, todos fixados no manager1 (x86,
+# co-localizado com postgres/minio/redis; meili tem volume local).
+#
+# Roteamento (Traefik, dom único studia.witdev.com.br, por prioridade):
+#   /api/auth/*  → frontend (Better Auth, Next route handler)   prio 100
+#   /api/*       → backend  (FastAPI)                            prio 50
+#   resto        → frontend (Next app)                           prio 1
+#
+# Imagens: ${REGISTRY:-witrocha}/studia-{backend,frontend,scraper}:${TAG:-latest}
+# Env produtivo (secrets) montado de /opt/studia/.env (montado pelo build.sh).
+
+x-studia-backend-image: &backend-image "${REGISTRY:-witrocha}/studia-backend:${BACKEND_TAG:-latest}"
+x-studia-frontend-image: &frontend-image "${REGISTRY:-witrocha}/studia-frontend:${FRONTEND_TAG:-latest}"
+x-studia-scraper-image: &scraper-image "${REGISTRY:-witrocha}/studia-scraper:${SCRAPER_TAG:-latest}"
+
+x-on-manager: &on-manager
+  placement:
+    constraints:
+      - node.hostname == manager1
+  restart_policy:
+    condition: any
+    delay: 5s
+  update_config:
+    order: start-first
+    parallelism: 1
+    delay: 5s
+  rollback_config:
+    order: stop-first
+    parallelism: 1
+
+services:
+  backend:
+    image: *backend-image
+    env_file:
+      - ${STUDIA_ENV_FILE:-/opt/studia/.env}
+    environment:
+      REDIS_URL: redis://redis:6379/1
+      MINIO_ENDPOINT: minio:9000
+      MEILI_URL: http://studia-meili:7700
+      SCRAPER_URL: http://studia-scraper:8090
+      TZ: America/Fortaleza
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    networks:
+      - minha_rede
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\""]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 5
+    deploy:
+      <<: *on-manager
+      labels:
+        traefik.enable: "true"
+        traefik.docker.network: minha_rede
+        traefik.http.routers.studia-api.rule: "Host(`studia.witdev.com.br`) && PathPrefix(`/api`)"
+        traefik.http.routers.studia-api.priority: "50"
+        traefik.http.routers.studia-api.entrypoints: websecure
+        traefik.http.routers.studia-api.tls.certresolver: letsencryptresolver
+        traefik.http.services.studia-api.loadbalancer.server.port: "8000"
+
+  worker:
+    image: *backend-image
+    env_file:
+      - ${STUDIA_ENV_FILE:-/opt/studia/.env}
+    environment:
+      REDIS_URL: redis://redis:6379/1
+      MINIO_ENDPOINT: minio:9000
+      MEILI_URL: http://studia-meili:7700
+      SCRAPER_URL: http://studia-scraper:8090
+      PYTHONDONTWRITEBYTECODE: "1"
+      TZ: America/Fortaleza
+    command: taskiq worker worker:broker
+    networks:
+      - minha_rede
+    deploy:
+      <<: *on-manager
+
+  studia-scraper:
+    image: *scraper-image
+    env_file:
+      - ${STUDIA_ENV_FILE:-/opt/studia/.env}
+    environment:
+      TZ: America/Fortaleza
+    networks:
+      - minha_rede
+    volumes:
+      - studia_scraper_state:/app/state
+    deploy:
+      # replicas: 0 — desabilitado no v1: persistir.py importa os models do
+      # backend via /app/_backend, que ainda não é embutido na imagem do
+      # scraper (TODO: bakear backend/models.py+database.py em _backend).
+      # Não é necessário p/ o launch (questões vêm do seed dev→prod).
+      replicas: 0
+      <<: *on-manager
+
+  studia-meili:
+    image: getmeili/meilisearch:v1.11
+    environment:
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-}
+      TZ: America/Fortaleza
+    networks:
+      - minha_rede
+    volumes:
+      - studia_meili_data:/meili_data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:7700/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 5
+    deploy:
+      <<: *on-manager
+
+  frontend:
+    image: *frontend-image
+    env_file:
+      - ${STUDIA_ENV_FILE:-/opt/studia/.env}
+    environment:
+      BETTER_AUTH_URL: https://studia.witdev.com.br
+      NEXT_PUBLIC_API_URL: https://studia.witdev.com.br
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      TZ: America/Fortaleza
+    networks:
+      - minha_rede
+    depends_on:
+      - backend
+    healthcheck:
+      # 127.0.0.1 (não 'localhost'): no Alpine localhost resolve ::1 (IPv6)
+      # primeiro, mas o server Next escuta em 0.0.0.0 (IPv4) → connection refused.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/login || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 5
+    deploy:
+      <<: *on-manager
+      labels:
+        traefik.enable: "true"
+        traefik.docker.network: minha_rede
+        # Better Auth (Next) — /api/auth fica no frontend, prioridade maior que /api.
+        traefik.http.routers.studia-auth.rule: "Host(`studia.witdev.com.br`) && PathPrefix(`/api/auth`)"
+        traefik.http.routers.studia-auth.priority: "100"
+        traefik.http.routers.studia-auth.entrypoints: websecure
+        traefik.http.routers.studia-auth.tls.certresolver: letsencryptresolver
+        traefik.http.routers.studia-auth.service: studia-web
+        # App Next (catch-all).
+        traefik.http.routers.studia-web.rule: "Host(`studia.witdev.com.br`)"
+        traefik.http.routers.studia-web.priority: "1"
+        traefik.http.routers.studia-web.entrypoints: websecure
+        traefik.http.routers.studia-web.tls.certresolver: letsencryptresolver
+        traefik.http.services.studia-web.loadbalancer.server.port: "3000"
+
+volumes:
+  studia_meili_data:
+  studia_scraper_state:
+
+networks:
+  minha_rede:
+    external: true
+    name: minha_rede

@@ -18,6 +18,8 @@ services:
       - MINIO_SECRET_KEY=g3IoVa0N51NjPGaMnbYsMhNdcrUX7UxUegOmCCre
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - SCRAPER_URL=http://studia-scraper-dev:8090
+      - MEILI_URL=http://meili:7700
+      - MEILI_KEY=dev_master_key_studia_2026
     networks:
       - shared
       - studia-net
@@ -40,6 +42,8 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - PYTHONDONTWRITEBYTECODE=1
       - SCRAPER_URL=http://studia-scraper-dev:8090
+      - MEILI_URL=http://meili:7700
+      - MEILI_KEY=dev_master_key_studia_2026
     networks:
       - shared
       - studia-net
@@ -56,6 +60,20 @@ services:
       - MINIO_ROOT_USER=witalo
       - MINIO_ROOT_PASSWORD=g3IoVa0N51NjPGaMnbYsMhNdcrUX7UxUegOmCCre
     command: server /data --console-address ":9001" --quiet
+    networks:
+      - studia-net
+
+  meili:
+    image: getmeili/meilisearch:v1.11
+    container_name: studia-meili-dev
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili_data:/meili_data
+    environment:
+      - MEILI_MASTER_KEY=dev_master_key_studia_2026
+      - MEILI_ENV=development
+      - MEILI_NO_ANALYTICS=true
     networks:
       - studia-net
 
@@ -96,14 +114,20 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8011
       - NEXT_TELEMETRY_DISABLED=1
+      # Better Auth (sessão em cookie, tabelas no mesmo Postgres do studIA)
+      - BETTER_AUTH_URL=http://localhost:3000
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-studia-dev-better-auth-secret-change-in-prod-0001}
+      - AUTH_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/studia
     depends_on:
       - backend
     networks:
       - studia-net
+      - shared
 
 volumes:
   minio_data:
   scraper_state:
+  meili_data:
 
 networks:
   studia-net:
