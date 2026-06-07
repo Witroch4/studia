@@ -84,6 +84,7 @@ function formatHistoryTime(value: string | null) {
 
 export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: ScientificCalculatorProps) {
   const panelRef = useRef<HTMLElement>(null);
+  const contextKey = `${cadernoId}:${questaoId}`;
   const currentContextRef = useRef({ cadernoId, questaoId });
   currentContextRef.current = { cadernoId, questaoId };
   const [expression, setExpression] = useState("");
@@ -92,8 +93,8 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [history, setHistory] = useState<CalculatorHistoryItem[]>([]);
-  const [pendingSaveCount, setPendingSaveCount] = useState(0);
-  const saving = pendingSaveCount > 0;
+  const [pendingSaveCounts, setPendingSaveCounts] = useState<Record<string, number>>({});
+  const saving = (pendingSaveCounts[contextKey] ?? 0) > 0;
 
   useEffect(() => {
     if (!open) return;
@@ -157,7 +158,11 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
     setResult(nextResult);
     setError(null);
     setHistoryError(null);
-    setPendingSaveCount((count) => count + 1);
+    const saveContextKey = contextKey;
+    setPendingSaveCounts((counts) => ({
+      ...counts,
+      [saveContextKey]: (counts[saveContextKey] ?? 0) + 1,
+    }));
 
     try {
       const item = await createCalculatorHistory({
@@ -175,9 +180,16 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
         setHistoryError("Resultado calculado, mas não foi salvo.");
       }
     } finally {
-      setPendingSaveCount((count) => Math.max(0, count - 1));
+      setPendingSaveCounts((counts) => {
+        const nextCount = Math.max(0, (counts[saveContextKey] ?? 0) - 1);
+        if (nextCount > 0) return { ...counts, [saveContextKey]: nextCount };
+
+        const nextCounts = { ...counts };
+        delete nextCounts[saveContextKey];
+        return nextCounts;
+      });
     }
-  }, [cadernoId, expression, questaoId]);
+  }, [cadernoId, contextKey, expression, questaoId]);
 
   const handleKey = useCallback(
     (key: CalculatorKey) => {
