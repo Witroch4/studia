@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "katex/dist/katex.min.css";
 import "./globals.css";
-import Sidebar from "./components/Sidebar";
+import AppShell from "./components/AppShell";
 
 export const metadata: Metadata = {
   title: "studIA - Dashboard",
@@ -26,10 +26,7 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-bg-dark text-text-dark min-h-screen flex antialiased">
-        <Sidebar />
-        <div className="flex-1 min-w-0 flex flex-col">
-          {children}
-        </div>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

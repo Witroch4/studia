@@ -2,11 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
+
+// Carregado só no cliente: usa useSession (better-auth/react), que não pode
+// rodar no prerender/SSR enquanto o better-auth está externalizado.
+const UserNav = dynamic(() => import("./UserNav"), {
+  ssr: false,
+  loading: () => <div className="h-12" />,
+});
 
 const navItems = [
   { href: "/", label: "Home", icon: "home" },
   { href: "/flashcards", label: "Flashcards", icon: "style" },
   { href: "/disciplinas", label: "Disciplinas", icon: "library_books" },
+  { href: "/q/filtrar", label: "Questões", icon: "fact_check" },
   { href: "/concorrencia", label: "Concorrência", icon: "leaderboard" },
   { href: "/jobs", label: "Jobs IA", icon: "monitoring" },
   { href: "#", label: "Planejamento", icon: "calendar_month" },
@@ -57,17 +66,7 @@ export default function Sidebar() {
         </nav>
 
         <div className="p-4 border-t border-border-dark/50">
-          <div className="flex items-center gap-3 px-2 py-2">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-primary to-secondary p-[1px]">
-              <div className="rounded-full h-full w-full bg-surface-dark flex items-center justify-center">
-                <span className="text-xs font-bold text-white">EJ</span>
-              </div>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">Engenheiro Jr.</p>
-              <p className="text-xs text-gray-500 truncate cursor-pointer hover:text-gray-400">Sair da conta</p>
-            </div>
-          </div>
+          <UserNav variant="desktop" />
         </div>
       </aside>
 
@@ -90,11 +89,7 @@ export default function Sidebar() {
               <span className="material-symbols-outlined">notifications</span>
               <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-secondary animate-pulse" />
             </button>
-            <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-primary to-secondary p-[2px]">
-              <div className="rounded-full h-full w-full bg-surface-dark flex items-center justify-center">
-                <span className="text-xs font-bold text-white">EJ</span>
-              </div>
-            </div>
+            <UserNav variant="mobile" />
           </div>
         </div>
       </nav>
