@@ -11,6 +11,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# NEXT_PUBLIC_* é inlinado no bundle do cliente em build-time. Em produção o
+# frontend chama a API no mesmo domínio (Traefik roteia /api → backend).
+ARG NEXT_PUBLIC_API_URL=https://studia.witdev.com.br
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm run build
 
 # ---- Production ----
