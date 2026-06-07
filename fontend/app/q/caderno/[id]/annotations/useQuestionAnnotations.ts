@@ -1,12 +1,41 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { fetchAnnotations, saveAnnotations } from "./api";
 import type { CanvasState, StrikeTarget, StrikesState } from "./types";
 import { emptyCanvas, emptyStrikes } from "./types";
 
+interface StoredAnnotations {
+  canvas_json: CanvasState;
+  strikes_json: StrikesState;
+}
+
+interface QuestionKey {
+  cadernoId: number;
+  questaoId: number;
+  key: string;
+}
+
+interface PendingSave extends QuestionKey {
+  canvas: CanvasState;
+  strikes: StrikesState;
+}
+
 function keyFor(cadernoId: number, questaoId: number) {
   return `studia:q:${cadernoId}:${questaoId}:annotations`;
+}
+
+function payloadFor(canvas: CanvasState, strikes: StrikesState): StoredAnnotations {
+  return { canvas_json: canvas, strikes_json: strikes };
+}
+
+function parseStoredAnnotations(raw: string): StoredAnnotations {
+  const parsed = JSON.parse(raw) as Partial<StoredAnnotations>;
+  return {
+    canvas_json: parsed.canvas_json || emptyCanvas(),
+    strikes_json: parsed.strikes_json || emptyStrikes(),
+  };
 }
 
 function hasTarget(targets: StrikeTarget[], target: StrikeTarget) {
@@ -19,40 +48,92 @@ function hasTarget(targets: StrikeTarget[], target: StrikeTarget) {
 }
 
 export function useQuestionAnnotations(cadernoId: number | null, questaoId: number | null) {
-  const [canvas, setCanvas] = useState<CanvasState>(emptyCanvas);
-  const [strikes, setStrikes] = useState<StrikesState>(emptyStrikes);
+  const [canvas, setCanvasState] = useState<CanvasState>(emptyCanvas);
+  const [strikes, setStrikesState] = useState<StrikesState>(emptyStrikes);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const loadedKey = useMemo(() => (cadernoId && questaoId ? keyFor(cadernoId, questaoId) : null), [cadernoId, questaoId]);
+  const canvasRef = useRef<CanvasState>(emptyCanvas());
+  const strikesRef = useRef<StrikesState>(emptyStrikes());
+  const saveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const savingCount = useRef(0);
+  const currentQuestion = useMemo<QuestionKey | null>(
+    () => (cadernoId != null && questaoId != null ? { cadernoId, questaoId, key: keyFor(cadernoId, questaoId) } : null),
+    [cadernoId, questaoId],
+  );
+
+  const setAnnotationState = useCallback((nextCanvas: CanvasState, nextStrikes: StrikesState) => {
+    canvasRef.current = nextCanvas;
+    strikesRef.current = nextStrikes;
+    setCanvasState(nextCanvas);
+    setStrikesState(nextStrikes);
+  }, []);
+
+  const setCanvas: Dispatch<SetStateAction<CanvasState>> = useCallback((value) => {
+    const next = typeof value === "function" ? value(canvasRef.current) : value;
+    canvasRef.current = next;
+    setCanvasState(next);
+  }, []);
+
+  const flushPayload = useCallback(async (pending: PendingSave) => {
+    const payload = payloadFor(pending.canvas, pending.strikes);
+    savingCount.current += 1;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await saveAnnotations(pending.cadernoId, pending.questaoId, pending.canvas, pending.strikes);
+      if (localStorage.getItem(pending.key) === JSON.stringify(payload)) {
+        localStorage.removeItem(pending.key);
+      }
+    } catch (error) {
+      localStorage.setItem(pending.key, JSON.stringify(payload));
+      setSaveError(error instanceof Error ? error.message : "Falha ao salvar anotacoes");
+    } finally {
+      savingCount.current = Math.max(0, savingCount.current - 1);
+      setSaving(savingCount.current > 0);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!cadernoId || !questaoId) return;
+    if (!currentQuestion) {
+      setAnnotationState(emptyCanvas(), emptyStrikes());
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
+    const { cadernoId: currentCadernoId, questaoId: currentQuestaoId, key } = currentQuestion;
     setLoading(true);
     setSaveError(null);
 
-    const localRaw = localStorage.getItem(keyFor(cadernoId, questaoId));
+    const localRaw = localStorage.getItem(key);
     if (localRaw) {
       try {
-        const local = JSON.parse(localRaw);
-        setCanvas(local.canvas_json || emptyCanvas());
-        setStrikes(local.strikes_json || emptyStrikes());
+        const local = parseStoredAnnotations(localRaw);
+        setAnnotationState(local.canvas_json, local.strikes_json);
       } catch {
-        localStorage.removeItem(keyFor(cadernoId, questaoId));
+        localStorage.removeItem(key);
+        setAnnotationState(emptyCanvas(), emptyStrikes());
       }
     } else {
-      setCanvas(emptyCanvas());
-      setStrikes(emptyStrikes());
+      setAnnotationState(emptyCanvas(), emptyStrikes());
     }
 
-    fetchAnnotations(cadernoId, questaoId)
+    fetchAnnotations(currentCadernoId, currentQuestaoId)
       .then((data) => {
         if (cancelled) return;
-        setCanvas(data.canvas_json || emptyCanvas());
-        setStrikes(data.strikes_json || emptyStrikes());
-        localStorage.removeItem(keyFor(cadernoId, questaoId));
+        const pendingRaw = localStorage.getItem(key);
+        if (pendingRaw) {
+          try {
+            const pending = parseStoredAnnotations(pendingRaw);
+            setAnnotationState(pending.canvas_json, pending.strikes_json);
+            return;
+          } catch {
+            localStorage.removeItem(key);
+            setAnnotationState(emptyCanvas(), emptyStrikes());
+          }
+        }
+        setAnnotationState(data.canvas_json || emptyCanvas(), data.strikes_json || emptyStrikes());
       })
       .catch((error) => {
         if (!cancelled) setSaveError(error instanceof Error ? error.message : "Falha ao carregar anotacoes");
@@ -64,71 +145,74 @@ export function useQuestionAnnotations(cadernoId: number | null, questaoId: numb
     return () => {
       cancelled = true;
     };
-  }, [cadernoId, questaoId]);
-
-  const flush = useCallback(
-    async (nextCanvas: CanvasState, nextStrikes: StrikesState) => {
-      if (!cadernoId || !questaoId) return;
-      setSaving(true);
-      setSaveError(null);
-      try {
-        await saveAnnotations(cadernoId, questaoId, nextCanvas, nextStrikes);
-        localStorage.removeItem(keyFor(cadernoId, questaoId));
-      } catch (error) {
-        localStorage.setItem(keyFor(cadernoId, questaoId), JSON.stringify({ canvas_json: nextCanvas, strikes_json: nextStrikes }));
-        setSaveError(error instanceof Error ? error.message : "Falha ao salvar anotacoes");
-      } finally {
-        setSaving(false);
-      }
-    },
-    [cadernoId, questaoId],
-  );
+  }, [currentQuestion, setAnnotationState]);
 
   const scheduleSave = useCallback(
     (nextCanvas: CanvasState, nextStrikes: StrikesState) => {
-      if (!loadedKey) return;
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => {
-        void flush(nextCanvas, nextStrikes);
+      if (!currentQuestion) return;
+      const pending: PendingSave = { ...currentQuestion, canvas: nextCanvas, strikes: nextStrikes };
+      const payload = payloadFor(nextCanvas, nextStrikes);
+      localStorage.setItem(pending.key, JSON.stringify(payload));
+
+      const currentTimer = saveTimers.current.get(pending.key);
+      if (currentTimer) clearTimeout(currentTimer);
+      const nextTimer = setTimeout(() => {
+        saveTimers.current.delete(pending.key);
+        void flushPayload(pending);
       }, 700);
+      saveTimers.current.set(pending.key, nextTimer);
     },
-    [flush, loadedKey],
+    [currentQuestion, flushPayload],
   );
 
   const updateCanvas = useCallback(
     (updater: (current: CanvasState) => CanvasState) => {
-      setCanvas((current) => {
-        const next = updater(current);
-        scheduleSave(next, strikes);
-        return next;
-      });
+      const next = updater(canvasRef.current);
+      canvasRef.current = next;
+      setCanvasState(next);
+      scheduleSave(next, strikesRef.current);
     },
-    [scheduleSave, strikes],
+    [scheduleSave],
   );
 
   const toggleStrike = useCallback(
     (target: StrikeTarget) => {
-      setStrikes((current) => {
-        const nextTargets = hasTarget(current.targets, target)
-          ? current.targets.filter((item) => !hasTarget([item], target))
-          : [...current.targets, target];
-        const next = { version: 1 as const, targets: nextTargets };
-        scheduleSave(canvas, next);
-        return next;
-      });
+      const current = strikesRef.current;
+      const nextTargets = hasTarget(current.targets, target)
+        ? current.targets.filter((item) => !hasTarget([item], target))
+        : [...current.targets, target];
+      const next = { version: 1 as const, targets: nextTargets };
+      strikesRef.current = next;
+      setStrikesState(next);
+      scheduleSave(canvasRef.current, next);
     },
-    [canvas, scheduleSave],
+    [scheduleSave],
   );
 
   const clearCanvas = useCallback(() => {
     const next = emptyCanvas();
-    setCanvas(next);
-    scheduleSave(next, strikes);
-  }, [scheduleSave, strikes]);
+    canvasRef.current = next;
+    setCanvasState(next);
+    scheduleSave(next, strikesRef.current);
+  }, [scheduleSave]);
+
+  const flush = useCallback(async () => {
+    if (!currentQuestion) return;
+    const pending: PendingSave = { ...currentQuestion, canvas: canvasRef.current, strikes: strikesRef.current };
+    const timer = saveTimers.current.get(pending.key);
+    if (timer) {
+      clearTimeout(timer);
+      saveTimers.current.delete(pending.key);
+    }
+    localStorage.setItem(pending.key, JSON.stringify(payloadFor(pending.canvas, pending.strikes)));
+    await flushPayload(pending);
+  }, [currentQuestion, flushPayload]);
 
   useEffect(() => {
+    const timers = saveTimers.current;
     return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
     };
   }, []);
 
@@ -142,6 +226,6 @@ export function useQuestionAnnotations(cadernoId: number | null, questaoId: numb
     setCanvas,
     toggleStrike,
     clearCanvas,
-    flush: () => flush(canvas, strikes),
+    flush,
   };
 }
