@@ -15,6 +15,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import Integer, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -388,11 +389,12 @@ def _annotation_response(row: QuestaoAnotacao | None, caderno_id: int, questao_i
     }
 
 
-async def _sqlite_annotation_id(db: AsyncSession) -> int | None:
-    if db.get_bind().dialect.name != "sqlite":
-        return None
-    max_id = (await db.execute(select(func.coalesce(func.max(QuestaoAnotacao.id), 0)))).scalar_one()
-    return int(max_id) + 1
+def _annotation_scope(caderno_id: int, questao_id: int):
+    return select(QuestaoAnotacao).where(
+        QuestaoAnotacao.usuario_id.is_(None),
+        QuestaoAnotacao.caderno_id == caderno_id,
+        QuestaoAnotacao.questao_id == questao_id,
+    )
 
 
 @router.post("/{questao_id}/responder")
@@ -670,14 +672,10 @@ async def get_annotations(caderno_id: int, questao_id: int, db: AsyncSession = D
     q = (await db.execute(select(Questao.id).where(Questao.id == questao_id))).scalar_one_or_none()
     if not q:
         raise HTTPException(404, "questao não encontrada")
+    if questao_id not in (cad.question_ids or []):
+        raise HTTPException(404, "questao não pertence ao caderno")
 
-    row = (await db.execute(
-        select(QuestaoAnotacao).where(
-            QuestaoAnotacao.usuario_id.is_(None),
-            QuestaoAnotacao.caderno_id == caderno_id,
-            QuestaoAnotacao.questao_id == questao_id,
-        )
-    )).scalar_one_or_none()
+    row = (await db.execute(_annotation_scope(caderno_id, questao_id))).scalar_one_or_none()
     return _annotation_response(row, caderno_id, questao_id)
 
 
@@ -694,32 +692,34 @@ async def put_annotations(
     q = (await db.execute(select(Questao.id).where(Questao.id == questao_id))).scalar_one_or_none()
     if not q:
         raise HTTPException(404, "questao não encontrada")
+    if questao_id not in (cad.question_ids or []):
+        raise HTTPException(404, "questao não pertence ao caderno")
 
-    row = (await db.execute(
-        select(QuestaoAnotacao).where(
-            QuestaoAnotacao.usuario_id.is_(None),
-            QuestaoAnotacao.caderno_id == caderno_id,
-            QuestaoAnotacao.questao_id == questao_id,
-        )
-    )).scalar_one_or_none()
+    row = (await db.execute(_annotation_scope(caderno_id, questao_id))).scalar_one_or_none()
     if row:
         row.canvas_json = req.canvas_json
         row.strikes_json = req.strikes_json
+        await db.commit()
     else:
-        annotation_id = await _sqlite_annotation_id(db)
-        row_kwargs = {
-            "usuario_id": None,
-            "caderno_id": caderno_id,
-            "questao_id": questao_id,
-            "canvas_json": req.canvas_json,
-            "strikes_json": req.strikes_json,
-        }
-        if annotation_id is not None:
-            row_kwargs["id"] = annotation_id
-        row = QuestaoAnotacao(**row_kwargs)
+        row = QuestaoAnotacao(
+            usuario_id=None,
+            caderno_id=caderno_id,
+            questao_id=questao_id,
+            canvas_json=req.canvas_json,
+            strikes_json=req.strikes_json,
+        )
         db.add(row)
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            row = (await db.execute(_annotation_scope(caderno_id, questao_id))).scalar_one_or_none()
+            if not row:
+                raise HTTPException(409, "conflito ao salvar anotacao")
+            row.canvas_json = req.canvas_json
+            row.strikes_json = req.strikes_json
+            await db.commit()
 
-    await db.commit()
     await db.refresh(row)
     return _annotation_response(row, caderno_id, questao_id)
 

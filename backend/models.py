@@ -353,7 +353,9 @@ class QuestaoAnotacao(Base):
 
     __tablename__ = "questao_anotacoes"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
     usuario_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     caderno_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("cadernos_questoes.id", ondelete="CASCADE"), nullable=True, index=True
@@ -384,7 +386,9 @@ class CalculadoraHistorico(Base):
 
     __tablename__ = "calculadora_historico"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
     usuario_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     caderno_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     questao_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
