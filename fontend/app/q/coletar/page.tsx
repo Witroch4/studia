@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import GuiasPanel from "./GuiasPanel";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
 
@@ -210,15 +211,27 @@ export default function ColetarPage() {
     <div className="min-h-screen bg-[#121212] text-gray-200">
       <header className="border-b border-gray-700 px-6 py-4">
         <h1 className="text-xl font-semibold flex items-center gap-2">
-          <span>📥</span> Coletar caderno do TecConcursos
+          <span>📥</span> Coletar do TecConcursos
         </h1>
         <p className="text-xs text-gray-500 mt-1">
-          Cole o link de um caderno do TC. A API cria um job rápido, divide em
-          faixas de 200 questões e o worker processa em fila persistente.
+          Importe um guia inteiro ou um caderno avulso. Tudo é coletado pela mesma
+          fila persistente (faixas de 200 questões) e fica visível aqui.
         </p>
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+        <GuiasPanel />
+
+        <div className="border-t border-gray-800 pt-6">
+          <h2 className="text-sm font-semibold text-gray-100 mb-1 flex items-center gap-2">
+            <span className="material-symbols-outlined text-cyan-400 text-[18px]">cloud_download</span>
+            Coletar caderno avulso
+          </h2>
+          <p className="text-xs text-gray-500 mb-3">
+            Cole o link de um caderno específico do TC (fora de um guia).
+          </p>
+        </div>
+
         <div>
           <label className="block text-sm font-semibold mb-2">
             URL ou ID do caderno
