@@ -195,6 +195,7 @@ if [ \"\$(docker network inspect -f \"{{.Attachable}}\" minha_rede 2>/dev/null |
   [ -n \"\$cid\" ] || { echo \"nenhum container em minha_rede p/ emprestar namespace\" >&2; exit 1; }
   net=\"--network container:\$cid\"
 fi
+docker pull $(img backend)
 docker run --rm \$net --env-file $REMOTE_ENV_FILE $(img backend) python -m scripts.db_prepare'"
   log_ok "banco preparado"
 }
