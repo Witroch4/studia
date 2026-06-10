@@ -40,6 +40,7 @@ interface Questao {
 interface Caderno {
   id: number;
   nome: string;
+  pasta: string | null;
   total: number;
   question_ids: number[];
 }
@@ -69,8 +70,9 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [resolvida, setResolvida] = useState(false);
   const [acertou, setAcertou] = useState<boolean | null>(null);
-  const [fav, setFav] = useState(false);
   const [showAtalhos, setShowAtalhos] = useState(false);
+  const [gotoOpen, setGotoOpen] = useState(false);
+  const [gotoValue, setGotoValue] = useState("");
   const [fontSize, setFontSize] = useState(16);
   const [tab, setTab] = useState<Tab>("Questoes");
   const [tempo, setTempo] = useState(0);
@@ -111,7 +113,40 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     carregarStatsCaderno();
   }, [id, carregarStatsCaderno]);
 
+  // Favoritas persistidas — carrega os IDs uma vez, sincroniza a estrela por questão
+  const [favIds, setFavIds] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    fetch(`${API}/api/q/favoritas`)
+      .then((r) => r.json())
+      .then((d) => setFavIds(new Set<number>(d.ids || [])))
+      .catch(console.error);
+  }, []);
+
   const currentQid = caderno?.question_ids[idx];
+  const fav = currentQid ? favIds.has(currentQid) : false;
+
+  const toggleFavorita = useCallback(() => {
+    if (!currentQid) return;
+    const alternar = (s: Set<number>) => {
+      const n = new Set(s);
+      if (n.has(currentQid)) n.delete(currentQid); else n.add(currentQid);
+      return n;
+    };
+    setFavIds(alternar); // otimista; o POST confirma (ou reverte) abaixo
+    fetch(`${API}/api/q/${currentQid}/favoritar`, { method: "POST" })
+      .then((r) => r.json())
+      .then((d) => {
+        setFavIds((s) => {
+          const n = new Set(s);
+          if (d.favorita) n.add(currentQid); else n.delete(currentQid);
+          return n;
+        });
+      })
+      .catch((e) => {
+        console.error(e);
+        setFavIds(alternar);
+      });
+  }, [currentQid]);
   const annotations = useQuestionAnnotations(caderno?.id ?? null, currentQid ?? null);
 
   useEffect(() => {
@@ -170,16 +205,9 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     ArrowRight: () => { if (!canvasActive) avancar(1); },
     l: () => { if (!canvasActive) aleatoria(); },
     n: () => { if (!canvasActive) avancar(1); },
-    p: () => {
-      if (canvasActive) return;
-      const num = prompt(`Ir para questão (1 a ${caderno?.total}):`);
-      if (num && /^\d+$/.test(num)) {
-        const n = Math.min(Math.max(parseInt(num), 1), caderno?.total || 1) - 1;
-        void mudarIndice(n);
-      }
-    },
-    m: () => { if (!canvasActive) setFav((f) => !f); },
-    j: () => { if (!canvasActive) setFav((f) => !f); },
+    p: () => { if (!canvasActive) setGotoOpen(true); },
+    m: () => { if (!canvasActive) toggleFavorita(); },
+    j: () => { if (!canvasActive) toggleFavorita(); },
     k: () => { if (!canvasActive) setModoLeitura((m) => !m); },
     "+": () => { if (!canvasActive) setFontSize((s) => Math.min(28, s + 2)); },
     "=": () => { if (!canvasActive) setFontSize((s) => Math.min(28, s + 2)); },
@@ -223,9 +251,22 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       <div className="border-b border-gray-700/60 px-6 py-2 flex items-center gap-3 text-xs sticky top-0 bg-[#0f0f0f] z-20">
         <span className="text-gray-500">Estudo</span>
         <span className="text-gray-600">›</span>
-        <span className="text-gray-500">Minhas pastas</span>
+        <button
+          onClick={() => router.push("/q/cadernos")}
+          className="text-gray-500 hover:text-cyan-400 hover:underline"
+        >
+          Minhas pastas
+        </button>
         <span className="text-gray-600">›</span>
-        <span className="text-gray-400">{caderno.nome}</span>
+        <button
+          onClick={() => router.push(`/q/cadernos?pasta=${encodeURIComponent(caderno.pasta ?? "")}`)}
+          className="text-gray-500 hover:text-cyan-400 hover:underline truncate max-w-[24rem]"
+          title={caderno.pasta ?? "Sem classificação"}
+        >
+          {caderno.pasta ?? "Sem classificação"}
+        </button>
+        <span className="text-gray-600">›</span>
+        <span className="text-gray-400 truncate max-w-[24rem]">{caderno.nome}</span>
         <button
           onClick={() => router.push("/q/filtrar")}
           className="ml-auto text-gray-400 hover:text-gray-200"
@@ -372,7 +413,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               <button title="Comentário (O)" className="hover:text-cyan-400">🎓</button>
               <button title="Teoria" className="hover:text-cyan-400">📕</button>
               <button title="Fórum (F)" className="hover:text-cyan-400">💬</button>
-              <button title="Favoritar (M)" onClick={() => setFav((f) => !f)} className={fav ? "text-yellow-400" : "hover:text-yellow-400"}>
+              <button title="Favoritar (M)" onClick={toggleFavorita} className={fav ? "text-yellow-400" : "hover:text-yellow-400"}>
                 {fav ? "★" : "☆"}
               </button>
               <button title="Anotação (W)" className="hover:text-cyan-400">✏️</button>
@@ -520,6 +561,52 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               Fechar (Esc)
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ─── Modal ir para questão (P) ─── */}
+      {gotoOpen && caderno && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
+          onClick={() => { setGotoOpen(false); setGotoValue(""); }}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const n = parseInt(gotoValue, 10);
+              if (!Number.isNaN(n)) void mudarIndice(Math.min(Math.max(n, 1), caderno.total) - 1);
+              setGotoOpen(false);
+              setGotoValue("");
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-surface-dark border border-gray-700 rounded-lg p-6 w-full max-w-sm shadow-xl"
+          >
+            <h2 className="text-lg font-semibold mb-1">Ir para questão</h2>
+            <p className="text-sm text-gray-400 mb-4">Digite um número entre 1 e {caderno.total}.</p>
+            <input
+              autoFocus
+              type="number"
+              min={1}
+              max={caderno.total}
+              value={gotoValue}
+              onChange={(e) => setGotoValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") { setGotoOpen(false); setGotoValue(""); } }}
+              placeholder={`1 – ${caderno.total}`}
+              className="w-full bg-bg-dark border border-gray-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 mb-5"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setGotoOpen(false); setGotoValue(""); }}
+                className="px-4 py-2 text-sm rounded-md border border-gray-700 text-gray-300 hover:bg-gray-800 transition"
+              >
+                Cancelar
+              </button>
+              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-cyan-600 hover:bg-cyan-500 font-medium transition">
+                Ir
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

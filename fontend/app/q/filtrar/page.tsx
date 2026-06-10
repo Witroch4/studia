@@ -2,15 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 /**
  * /q/filtrar — Filtro facetado tipo TecConcursos.
  *
  * Layout adotado do TC (ver /docs/witdev-tec-master-ux.md §1):
- *   - Sidebar esquerda: 12 categorias fixas
- *   - Coluna central: árvore matéria→assunto OU lista de itens da categoria
- *   - Painel direito "Opções": chips dos filtros ativos
- *   - Bottom: contagem + "Gerar Caderno"
+ *   - Sidebar esquerda: categorias fixas
+ *   - Coluna central: árvore matéria→assunto OU lista de facetas da categoria
+ *   - Painel direito "Opções": chips dos filtros ativos + atalhos
+ *   - Bottom: contagem + nome/pasta + "Gerar Caderno"
  */
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
@@ -31,6 +32,8 @@ interface MateriaArvore {
   assuntos: { id: number; nome: string }[];
 }
 
+type CampoFacet = "banca" | "orgao" | "cargo" | "ano" | "area" | "escolaridade" | "formacao" | "regiao";
+
 interface Filtros {
   materia?: string[];
   assuntos?: string[];
@@ -38,17 +41,62 @@ interface Filtros {
   orgao?: string[];
   cargo?: string[];
   ano?: number[];
+  area?: string[];
+  escolaridade?: string[];
+  formacao?: string[];
+  regiao?: string[];
+  status_excluir?: string[];
 }
+
+// Categorias que são pura lista de facetas Meili (as demais têm UI própria)
+const GRUPOS_FACET: Partial<Record<Categoria, { campo: CampoFacet; titulo?: string }[]>> = {
+  "Banca": [{ campo: "banca" }],
+  "Órgão e cargo": [
+    { campo: "orgao", titulo: "Órgão" },
+    { campo: "cargo", titulo: "Cargo" },
+  ],
+  "Ano": [{ campo: "ano" }],
+  "Área (Carreira)": [{ campo: "area" }],
+  "Escolaridade": [{ campo: "escolaridade" }],
+  "Formação": [{ campo: "formacao" }],
+  "Região": [{ campo: "regiao" }],
+};
+
+// Categorias cujos dados ainda não vêm na API de questões do TC
+const NOTA_SEM_DADOS: Partial<Record<Categoria, string>> = {
+  "Escolaridade": "A API de questões do TC não envia escolaridade por questão. O filtro ativa automaticamente quando a base tiver esse dado.",
+  "Região": "A API de questões do TC não envia região/UF por questão. O filtro ativa automaticamente quando a base tiver esse dado.",
+};
+
+const CHIP_PREFIX: Record<string, string> = {
+  assuntos: "",
+  banca: "Banca: ",
+  orgao: "Órgão: ",
+  cargo: "Cargo: ",
+  ano: "Ano: ",
+  area: "Área: ",
+  escolaridade: "Escolaridade: ",
+  formacao: "Formação: ",
+  regiao: "Região: ",
+  status_excluir: "Sem ",
+};
+
+const CAMPOS_CHIP = Object.keys(CHIP_PREFIX) as (keyof Filtros & string)[];
 
 export default function FiltrarPage() {
   const router = useRouter();
   const [categoria, setCategoria] = useState<Categoria>("Matéria e assunto");
   const [tipoQ, setTipoQ] = useState<TipoQuestao>("OBJETIVAS_TODAS");
   const [filtros, setFiltros] = useState<Filtros>({});
+  const [favoritas, setFavoritas] = useState(false);
+  const [favTotal, setFavTotal] = useState<number | null>(null);
+  const [qEnunciado, setQEnunciado] = useState("");
   const [busca, setBusca] = useState("");
   const [arvore, setArvore] = useState<MateriaArvore[]>([]);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [nomeCaderno, setNomeCaderno] = useState("Caderno de Estudo");
+  const [pastaCaderno, setPastaCaderno] = useState("");
+  const [pastas, setPastas] = useState<string[]>([]);
   const [gerando, setGerando] = useState(false);
   const [erroGerar, setErroGerar] = useState<string | null>(null);
   const [contagem, setContagem] = useState<{ total: number; facets: Record<string, Record<string, number>>; ms: number }>({
@@ -57,11 +105,25 @@ export default function FiltrarPage() {
     ms: 0,
   });
 
-  // Carrega árvore matéria→assunto
+  // Radio do topo → filtro `tipo` (inéditas ainda sem flag indexada — tratado como todas)
+  const filtrosEnvio = useMemo<Record<string, Array<string | number>>>(() => ({
+    ...filtros,
+    tipo: tipoQ === "DISCURSIVAS" ? ["DISCURSIVA"] : ["MULTIPLA_ESCOLHA", "CERTO_ERRADO"],
+  }), [filtros, tipoQ]);
+
+  // Carrega árvore matéria→assunto, contagem de favoritas e pastas existentes
   useEffect(() => {
     fetch(`${API}/api/q/categorias-arvore`)
       .then((r) => r.json())
       .then(setArvore)
+      .catch(console.error);
+    fetch(`${API}/api/q/favoritas`)
+      .then((r) => r.json())
+      .then((d) => setFavTotal(d.total ?? 0))
+      .catch(console.error);
+    fetch(`${API}/api/q/pastas`)
+      .then((r) => r.json())
+      .then((rows: { pasta: string | null }[]) => setPastas(rows.map((p) => p.pasta).filter(Boolean) as string[]))
       .catch(console.error);
   }, []);
 
@@ -71,14 +133,14 @@ export default function FiltrarPage() {
       fetch(`${API}/api/q/count`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filtros }),
+        body: JSON.stringify({ filtros: filtrosEnvio, q: qEnunciado, favoritas }),
       })
         .then((r) => r.json())
         .then(setContagem)
         .catch(console.error);
     }, 250);
     return () => clearTimeout(t);
-  }, [filtros]);
+  }, [filtrosEnvio, qEnunciado, favoritas]);
 
   const arvoreFiltrada = useMemo(() => {
     if (!busca) return arvore;
@@ -116,6 +178,35 @@ export default function FiltrarPage() {
     });
   }
 
+  function toggleFacet(campo: CampoFacet, valor: string) {
+    setFiltros((f) => {
+      const atual = (f[campo] || []) as Array<string | number>;
+      const marcado = atual.some((x) => String(x) === valor);
+      const v: string | number = campo === "ano" ? Number(valor) : valor;
+      return { ...f, [campo]: marcado ? atual.filter((x) => String(x) !== valor) : [...atual, v] };
+    });
+  }
+
+  function toggleStatusExcluir(status: "ANULADA" | "DESATUALIZADA") {
+    setFiltros((f) => {
+      const cur = new Set(f.status_excluir || []);
+      if (cur.has(status)) cur.delete(status); else cur.add(status);
+      return { ...f, status_excluir: Array.from(cur) };
+    });
+  }
+
+  /** Itens da faceta: distribuição Meili ∪ valores já selecionados (mesmo com count 0). */
+  function itensFacet(campo: CampoFacet): [string, number][] {
+    const dist = contagem.facets[campo] || {};
+    const selecionados = ((filtros[campo] || []) as Array<string | number>).map(String);
+    const chaves = new Set([...Object.keys(dist), ...selecionados]);
+    let arr = Array.from(chaves).map((k) => [k, dist[k] || 0] as [string, number]);
+    if (busca) arr = arr.filter(([k]) => k.toLowerCase().includes(busca.toLowerCase()));
+    if (campo === "ano") arr.sort((a, b) => Number(b[0]) - Number(a[0]));
+    else arr.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    return arr;
+  }
+
   async function gerarCaderno() {
     setErroGerar(null);
     setGerando(true);
@@ -125,8 +216,11 @@ export default function FiltrarPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nome: nomeCaderno || "Caderno de Estudo",
-          filtros,
-          limite: Math.max(contagem.total, 1),
+          pasta: pastaCaderno.trim() || null,
+          filtros: filtrosEnvio,
+          q: qEnunciado,
+          favoritas,
+          limite: Math.min(Math.max(contagem.total, 1), 30000),
           ordem: "aleatoria",
         }),
       });
@@ -143,26 +237,42 @@ export default function FiltrarPage() {
     }
   }
 
-  function removerChip(campo: keyof Filtros, valor: string | number) {
+  function removerChip(campo: keyof Filtros, valor: string) {
     setFiltros((f) => ({
       ...f,
-      [campo]: (f[campo] as Array<string | number> | undefined)?.filter((v) => v !== valor),
+      [campo]: (f[campo] as Array<string | number> | undefined)?.filter((v) => String(v) !== valor),
     }));
   }
 
   const totalChips =
-    (filtros.assuntos?.length || 0) + (filtros.banca?.length || 0) +
-    (filtros.orgao?.length || 0) + (filtros.cargo?.length || 0) +
-    (filtros.ano?.length || 0);
+    CAMPOS_CHIP.reduce((n, campo) => n + ((filtros[campo] as unknown[] | undefined)?.length || 0), 0) +
+    (favoritas ? 1 : 0) + (qEnunciado.trim() ? 1 : 0);
+
+  const gruposDaCategoria = GRUPOS_FACET[categoria];
 
   return (
     <div className="min-h-screen bg-[#121212] text-gray-200">
       <header className="border-b border-gray-700 px-6 py-3 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Filtrar Questões</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-xl font-semibold">Filtrar Questões</h1>
+          <Link href="/q/cadernos" className="text-sm text-cyan-400 hover:underline flex items-center gap-1">
+            📁 Minhas pastas
+          </Link>
+        </div>
         <div className="flex gap-4 text-sm">
           {(["OBJETIVAS_TODAS", "OBJETIVAS_INEDITAS", "DISCURSIVAS"] as TipoQuestao[]).map((t) => (
-            <label key={t} className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" name="tipoQ" checked={tipoQ === t} onChange={() => setTipoQ(t)} />
+            <label
+              key={t}
+              className={`flex items-center gap-2 ${t === "OBJETIVAS_INEDITAS" ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+              title={t === "OBJETIVAS_INEDITAS" ? "Flag de inédita ainda não indexada" : undefined}
+            >
+              <input
+                type="radio"
+                name="tipoQ"
+                checked={tipoQ === t}
+                onChange={() => setTipoQ(t)}
+                disabled={t === "OBJETIVAS_INEDITAS"}
+              />
               {t === "OBJETIVAS_TODAS" ? "Objetivas (todas)" :
                 t === "OBJETIVAS_INEDITAS" ? "Objetivas (inéditas)" : "Discursivas"}
             </label>
@@ -188,13 +298,15 @@ export default function FiltrarPage() {
 
         {/* Coluna central */}
         <section className="p-4 overflow-y-auto max-h-[calc(100vh-60px)]">
-          <input
-            type="text"
-            placeholder="Pesquisar por nome…"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            className="w-full mb-3 px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm focus:outline-none focus:border-cyan-500"
-          />
+          {(categoria === "Matéria e assunto" || gruposDaCategoria) && (
+            <input
+              type="text"
+              placeholder="Pesquisar por nome…"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="w-full mb-3 px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm focus:outline-none focus:border-cyan-500"
+            />
+          )}
 
           {categoria === "Matéria e assunto" && (
             <ul className="space-y-0.5">
@@ -238,29 +350,86 @@ export default function FiltrarPage() {
             </ul>
           )}
 
-          {categoria === "Banca" && (
-            <ul className="space-y-1">
-              {Object.entries(contagem.facets["banca"] || {})
-                .filter(([nome]) => !busca || nome.toLowerCase().includes(busca.toLowerCase()))
-                .sort((a, b) => b[1] - a[1])
-                .map(([nome, n]) => (
-                <li key={nome}>
-                  <button
-                    onClick={() => setFiltros((f) => ({ ...f, banca: f.banca?.includes(nome) ? f.banca.filter((b) => b !== nome) : [...(f.banca || []), nome] }))}
-                    className={`text-left px-2 py-1 text-sm hover:bg-gray-800 rounded w-full flex justify-between ${
-                      filtros.banca?.includes(nome) ? "text-cyan-400 font-medium" : ""
-                    }`}
-                  >
-                    <span>{nome}</span>
-                    <span className="text-xs text-gray-500">{n}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+          {gruposDaCategoria && gruposDaCategoria.map(({ campo, titulo }) => {
+            const itens = itensFacet(campo);
+            return (
+              <div key={campo} className="mb-4">
+                {titulo && <h3 className="text-xs uppercase tracking-wide text-gray-500 mb-1 px-2">{titulo}</h3>}
+                {itens.length === 0 ? (
+                  <p className="text-sm text-gray-500 italic px-2">
+                    {NOTA_SEM_DADOS[categoria] || "Nenhum item disponível com os filtros atuais."}
+                  </p>
+                ) : (
+                  <ul className="space-y-1">
+                    {itens.map(([nome, n]) => {
+                      const ativo = ((filtros[campo] || []) as Array<string | number>).some((x) => String(x) === nome);
+                      return (
+                        <li key={nome}>
+                          <button
+                            onClick={() => toggleFacet(campo, nome)}
+                            className={`text-left px-2 py-1 text-sm hover:bg-gray-800 rounded w-full flex justify-between ${
+                              ativo ? "text-cyan-400 font-medium" : ""
+                            }`}
+                          >
+                            <span className="truncate">{ativo ? "✓ " : ""}{nome}</span>
+                            <span className="text-xs text-gray-500 shrink-0 ml-2">{n}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+
+          {categoria === "Favoritas" && (
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={favoritas} onChange={(e) => setFavoritas(e.target.checked)} />
+                Apenas questões favoritas
+              </label>
+              <p className="text-xs text-gray-500">
+                {favTotal === null ? "Carregando…" : `${favTotal} questão(ões) favoritada(s).`}{" "}
+                Marque a estrela ⭐ no cabeçalho da questão dentro de um caderno para favoritar.
+              </p>
+            </div>
           )}
 
-          {categoria !== "Matéria e assunto" && categoria !== "Banca" && (
-            <p className="text-sm text-gray-500 italic">Categoria &quot;{categoria}&quot;: dados virão dos facets quando a base crescer.</p>
+          {categoria === "Enunciados" && (
+            <div className="space-y-2">
+              <input
+                type="text"
+                placeholder="Palavras no enunciado…"
+                value={qEnunciado}
+                onChange={(e) => setQEnunciado(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm focus:outline-none focus:border-cyan-500"
+              />
+              <p className="text-xs text-gray-500">
+                Busca textual no enunciado das questões (Meilisearch). Combine com os demais filtros.
+              </p>
+            </div>
+          )}
+
+          {categoria === "Opções" && (
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={(filtros.status_excluir || []).includes("ANULADA")}
+                  onChange={() => toggleStatusExcluir("ANULADA")}
+                />
+                Remover questões anuladas
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={(filtros.status_excluir || []).includes("DESATUALIZADA")}
+                  onChange={() => toggleStatusExcluir("DESATUALIZADA")}
+                />
+                Remover questões desatualizadas
+              </label>
+            </div>
           )}
         </section>
 
@@ -269,23 +438,52 @@ export default function FiltrarPage() {
           <h2 className="text-sm font-semibold mb-3 text-gray-400">
             Filtros ativos: <span className="text-cyan-400">{totalChips}</span>
           </h2>
-          <div className="space-y-2 mb-4">
-            {(filtros.assuntos || []).map((a) => (
-              <div key={a} className="flex items-center justify-between bg-cyan-950 border border-cyan-800 rounded px-2 py-1 text-xs">
-                <span className="truncate">{a}</span>
-                <button onClick={() => removerChip("assuntos", a)} className="ml-2 text-red-400 hover:text-red-300">✕</button>
+          <div className="space-y-2 mb-4 max-h-[50vh] overflow-y-auto">
+            {favoritas && (
+              <div className="flex items-center justify-between bg-yellow-950 border border-yellow-800 rounded px-2 py-1 text-xs">
+                <span className="truncate">⭐ Apenas favoritas</span>
+                <button onClick={() => setFavoritas(false)} className="ml-2 text-red-400 hover:text-red-300">✕</button>
               </div>
-            ))}
-            {(filtros.banca || []).map((b) => (
-              <div key={b} className="flex items-center justify-between bg-violet-950 border border-violet-800 rounded px-2 py-1 text-xs">
-                <span className="truncate">Banca: {b}</span>
-                <button onClick={() => removerChip("banca", b)} className="ml-2 text-red-400 hover:text-red-300">✕</button>
+            )}
+            {qEnunciado.trim() && (
+              <div className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs">
+                <span className="truncate">Enunciado: “{qEnunciado.trim()}”</span>
+                <button onClick={() => setQEnunciado("")} className="ml-2 text-red-400 hover:text-red-300">✕</button>
               </div>
-            ))}
+            )}
+            {CAMPOS_CHIP.flatMap((campo) =>
+              ((filtros[campo] || []) as Array<string | number>).map((v) => (
+                <div
+                  key={`${campo}:${v}`}
+                  className={`flex items-center justify-between rounded px-2 py-1 text-xs border ${
+                    campo === "assuntos"
+                      ? "bg-cyan-950 border-cyan-800"
+                      : campo === "status_excluir"
+                        ? "bg-red-950 border-red-800"
+                        : "bg-violet-950 border-violet-800"
+                  }`}
+                >
+                  <span className="truncate">
+                    {campo === "status_excluir" ? `Sem ${String(v).toLowerCase()}s` : `${CHIP_PREFIX[campo]}${v}`}
+                  </span>
+                  <button onClick={() => removerChip(campo, String(v))} className="ml-2 text-red-400 hover:text-red-300">✕</button>
+                </div>
+              ))
+            )}
           </div>
           <div className="text-xs text-gray-500 mb-1">Atalhos:</div>
-          <button className="text-xs text-cyan-400 hover:underline block">Remover anuladas</button>
-          <button className="text-xs text-cyan-400 hover:underline block">Remover desatualizadas</button>
+          <button
+            onClick={() => toggleStatusExcluir("ANULADA")}
+            className="text-xs text-cyan-400 hover:underline block"
+          >
+            {(filtros.status_excluir || []).includes("ANULADA") ? "✓ Anuladas removidas" : "Remover anuladas"}
+          </button>
+          <button
+            onClick={() => toggleStatusExcluir("DESATUALIZADA")}
+            className="text-xs text-cyan-400 hover:underline block"
+          >
+            {(filtros.status_excluir || []).includes("DESATUALIZADA") ? "✓ Desatualizadas removidas" : "Remover desatualizadas"}
+          </button>
         </aside>
       </div>
 
@@ -297,6 +495,18 @@ export default function FiltrarPage() {
           <div className="text-xs text-gray-500">Meili: {contagem.ms}ms</div>
         </div>
         <div className="flex gap-2 items-center">
+          <input
+            type="text"
+            value={pastaCaderno}
+            onChange={(e) => setPastaCaderno(e.target.value)}
+            placeholder="Pasta (opcional)"
+            list="pastas-existentes"
+            className="px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm w-44"
+            disabled={gerando}
+          />
+          <datalist id="pastas-existentes">
+            {pastas.map((p) => <option key={p} value={p} />)}
+          </datalist>
           <input
             type="text"
             value={nomeCaderno}

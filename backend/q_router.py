@@ -30,6 +30,7 @@ from models import (
     Orgao,
     Questao,
     QuestaoAnotacao,
+    QuestaoFavorita,
     Resolucao,
 )
 
@@ -48,7 +49,10 @@ KNOWN_TC_CADERNO_TOTALS: dict[int, int] = {
     95872853: 11_364,
 }
 
-DEFAULT_FACETS = ["banca", "orgao", "cargo", "ano", "materia", "assuntos", "tipo", "status"]
+DEFAULT_FACETS = [
+    "banca", "orgao", "cargo", "ano", "materia", "assuntos", "tipo", "status",
+    "area", "formacao", "escolaridade", "regiao",
+]
 
 
 _CADERNO_RE = _re.compile(r"/cadernos/(\d+)")
@@ -71,6 +75,7 @@ def extrair_caderno_id(url_ou_id: str) -> int:
 class CountReq(BaseModel):
     filtros: dict[str, list[str] | list[int]] = Field(default_factory=dict)
     q: str = ""
+    favoritas: bool = False
 
 
 class SearchReq(CountReq):
@@ -85,8 +90,20 @@ def _to_meili_filter(filtros: dict[str, list]) -> str | None:
         if not vals:
             continue
         quoted = [f'"{v}"' if isinstance(v, str) else str(v) for v in vals]
-        parts.append("(" + " OR ".join(f"{k} = {v}" for v in quoted) + ")")
+        if k == "status_excluir":
+            # ["ANULADA", ...] → status != "ANULADA" AND ...
+            parts.append("(" + " AND ".join(f"status != {v}" for v in quoted) + ")")
+        else:
+            parts.append("(" + " OR ".join(f"{k} = {v}" for v in quoted) + ")")
     return " AND ".join(parts) if parts else None
+
+
+async def _filtro_favoritas(db: AsyncSession) -> str | None:
+    """Filtro Meili `id IN [...]` com as questões favoritadas; None se não há nenhuma."""
+    ids = (await db.execute(select(QuestaoFavorita.questao_id))).scalars().all()
+    if not ids:
+        return None
+    return "id IN [" + ", ".join(str(i) for i in ids) + "]"
 
 
 async def _meili_search(payload: dict[str, Any]) -> dict[str, Any]:
@@ -104,7 +121,7 @@ async def _meili_search(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/count")
-async def count(req: CountReq) -> dict[str, Any]:
+async def count(req: CountReq, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """Padrão TC: contagem leve + facetas para painel UI."""
     payload = {
         "q": req.q,
@@ -112,6 +129,11 @@ async def count(req: CountReq) -> dict[str, Any]:
         "facets": DEFAULT_FACETS,
     }
     f = _to_meili_filter(req.filtros)
+    if req.favoritas:
+        fav = await _filtro_favoritas(db)
+        if fav is None:
+            return {"total": 0, "facets": {}, "ms": 0}
+        f = f"{f} AND {fav}" if f else fav
     if f:
         payload["filter"] = f
     data = await _meili_search(payload)
@@ -123,7 +145,7 @@ async def count(req: CountReq) -> dict[str, Any]:
 
 
 @router.post("/search")
-async def search(req: SearchReq) -> dict[str, Any]:
+async def search(req: SearchReq, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """Lista paginada de questões + facetas."""
     payload = {
         "q": req.q,
@@ -136,6 +158,11 @@ async def search(req: SearchReq) -> dict[str, Any]:
         ],
     }
     f = _to_meili_filter(req.filtros)
+    if req.favoritas:
+        fav = await _filtro_favoritas(db)
+        if fav is None:
+            return {"hits": [], "total": 0, "facets": {}, "ms": 0}
+        f = f"{f} AND {fav}" if f else fav
     if f:
         payload["filter"] = f
     if req.sort:
@@ -432,6 +459,7 @@ class GerarCadernoReq(BaseModel):
     pasta: str | None = None
     filtros: dict[str, list[str] | list[int]] = Field(default_factory=dict)
     q: str = ""
+    favoritas: bool = False
     limite: int = Field(default=500, ge=1, le=30000)
     ordem: str = Field(default="aleatoria", description="aleatoria | id | ano")
 
@@ -451,6 +479,11 @@ async def gerar_caderno(req: GerarCadernoReq, db: AsyncSession = Depends(get_db)
         "attributesToRetrieve": ["id"],
     }
     f = _to_meili_filter(req.filtros)
+    if req.favoritas:
+        fav = await _filtro_favoritas(db)
+        if fav is None:
+            raise HTTPException(400, "Nenhuma questão favoritada ainda.")
+        f = f"{f} AND {fav}" if f else fav
     if f:
         payload["filter"] = f
     if req.ordem == "id":
@@ -505,13 +538,44 @@ async def detalhe_caderno(caderno_id: int, db: AsyncSession = Depends(get_db)) -
 
 
 @router.get("/cadernos")
-async def listar_cadernos(db: AsyncSession = Depends(get_db)) -> list[dict[str, Any]]:
-    from sqlalchemy import desc
-    rows = (await db.execute(select(CadernoQuestoes).order_by(desc(CadernoQuestoes.created_at)).limit(50))).scalars().all()
+async def listar_cadernos(
+    pasta: str | None = None, db: AsyncSession = Depends(get_db)
+) -> list[dict[str, Any]]:
+    """Lista cadernos; `?pasta=Nome` filtra, `?pasta=` (vazio) → sem classificação."""
+    from sqlalchemy import desc, or_
+
+    stmt = select(CadernoQuestoes).order_by(desc(CadernoQuestoes.created_at)).limit(200)
+    if pasta is not None:
+        if pasta == "":
+            stmt = stmt.where(or_(CadernoQuestoes.pasta.is_(None), CadernoQuestoes.pasta == ""))
+        else:
+            stmt = stmt.where(CadernoQuestoes.pasta == pasta)
+    rows = (await db.execute(stmt)).scalars().all()
     return [
         {"id": c.id, "nome": c.nome, "total": c.total, "pasta": c.pasta,
          "created_at": c.created_at.isoformat() if c.created_at else None}
         for c in rows
+    ]
+
+
+@router.get("/pastas")
+async def listar_pastas(db: AsyncSession = Depends(get_db)) -> list[dict[str, Any]]:
+    """Agrupa cadernos por pasta (estilo TC "Minhas pastas"). NULL/"" → sem classificação."""
+    pasta_norm = func.nullif(func.coalesce(CadernoQuestoes.pasta, ""), "")
+    rows = (
+        await db.execute(
+            select(
+                pasta_norm.label("pasta"),
+                func.count(CadernoQuestoes.id),
+                func.coalesce(func.sum(CadernoQuestoes.total), 0),
+            )
+            .group_by(pasta_norm)
+            .order_by(pasta_norm.asc().nulls_last())
+        )
+    ).all()
+    return [
+        {"pasta": pasta, "cadernos": n, "total_questoes": int(tq)}
+        for pasta, n, tq in rows
     ]
 
 
@@ -966,6 +1030,35 @@ async def delete_calculator_history(item_id: int, db: AsyncSession = Depends(get
     await db.delete(row)
     await db.commit()
     return {"ok": True}
+
+
+@router.get("/favoritas")
+async def listar_favoritas(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """IDs das questões favoritadas (precisa registrar ANTES de GET /{questao_id})."""
+    ids = (
+        await db.execute(select(QuestaoFavorita.questao_id).order_by(QuestaoFavorita.questao_id))
+    ).scalars().all()
+    return {"ids": list(ids), "total": len(ids)}
+
+
+@router.post("/{questao_id}/favoritar")
+async def favoritar(questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """Toggle estrela: favorita se não era, desfavorita se já era."""
+    existente = (
+        await db.execute(select(QuestaoFavorita).where(QuestaoFavorita.questao_id == questao_id))
+    ).scalar_one_or_none()
+    if existente:
+        await db.delete(existente)
+        await db.commit()
+        return {"questao_id": questao_id, "favorita": False}
+    existe_questao = (
+        await db.execute(select(Questao.id).where(Questao.id == questao_id))
+    ).scalar_one_or_none()
+    if not existe_questao:
+        raise HTTPException(404, f"questao {questao_id} not found")
+    db.add(QuestaoFavorita(questao_id=questao_id))
+    await db.commit()
+    return {"questao_id": questao_id, "favorita": True}
 
 
 @router.get("/{questao_id}")

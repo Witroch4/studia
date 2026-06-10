@@ -397,6 +397,20 @@ class CalculadoraHistorico(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
 
+class QuestaoFavorita(Base):
+    """Questões marcadas com estrela (single-tenant, como Resolucao)."""
+
+    __tablename__ = "questoes_favoritas"
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    questao_id: Mapped[int] = mapped_column(
+        ForeignKey("questoes.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class CadernoQuestoes(Base):
     __tablename__ = "cadernos_questoes"
 

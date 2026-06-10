@@ -22,7 +22,12 @@ from models import Banca, Cargo, Materia, Orgao, Questao
 INDEX_NAME = "questoes"
 PRIMARY_KEY = "id"
 
-FILTERABLE = ["banca", "orgao", "cargo", "ano", "materia", "assuntos", "tipo", "status"]
+FILTERABLE = [
+    "banca", "orgao", "cargo", "ano", "materia", "assuntos", "tipo", "status",
+    "area", "formacao", "escolaridade", "regiao",
+    # "id" filterável p/ recortes `id IN [...]` (ex.: filtro de favoritas)
+    "id",
+]
 SORTABLE = ["ano", "id"]
 SEARCHABLE = ["enunciado", "assuntos", "materia"]
 STOP_WORDS = ["o", "a", "os", "as", "de", "da", "do"]
@@ -37,6 +42,20 @@ def strip_html(s: str | None) -> str:
     if not s:
         return ""
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", s)).strip()
+
+
+def _formacao(raw: dict | None) -> str | None:
+    """`concursoEspecialidade` do payload TC ≈ formação/especialidade do cargo.
+
+    O TC manda às vezes com aspas embutidas ('"Sem Especialidade"') e o valor
+    "Sem Especialidade" não é informação — ambos viram None.
+    """
+    if not raw:
+        return None
+    v = str(raw.get("concursoEspecialidade") or "").strip().strip('"').strip()
+    if not v or v.casefold() == "sem especialidade":
+        return None
+    return v
 
 
 async def build_docs(
@@ -100,6 +119,10 @@ async def build_docs(
                 "ano": cargo.ano if cargo else None,
                 "materia": materia.nome if materia else None,
                 "assuntos": [a.nome for a in q.assuntos],
+                "area": (cargo.area if cargo else None) or (q.raw_json or {}).get("concursoArea"),
+                "formacao": _formacao(q.raw_json),
+                "escolaridade": cargo.escolaridade if cargo else None,
+                "regiao": orgao.regiao if orgao else None,
                 "tem_alternativas": len(q.alternativas),
             }
         )
