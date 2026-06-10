@@ -165,6 +165,35 @@ async def verify_schema() -> None:
     _print("verify", f"{len(expected)} tabelas dos models presentes")
 
 
+async def ensure_meili_settings() -> None:
+    """Best-effort: cria o índice Meili e aplica os settings (filtráveis/facetas).
+
+    Faz `/api/q/count` e `/search` nunca darem 500 por atributo não-filtrável,
+    sem depender de reindex. NÃO empurra documentos — isso é o `sync_meili`
+    (--reindex), pesado e sob demanda. Se o Meili estiver fora no boot, loga e
+    segue; nunca derruba o backend.
+    """
+    try:
+        from meilisearch_python_sdk import AsyncClient
+
+        from meili_index import INDEX_NAME, PRIMARY_KEY
+        from sync_meili import MEILI_KEY, MEILI_URL, _apply_settings
+
+        async with AsyncClient(MEILI_URL, MEILI_KEY) as client:
+            try:
+                await client.create_index(INDEX_NAME, primary_key=PRIMARY_KEY)
+            except Exception:
+                pass  # índice já existe
+            await _apply_settings(client.index(INDEX_NAME))
+        _print("meili", f"settings aplicados em {MEILI_URL} (filtráveis/facetas)")
+    except Exception as exc:  # noqa: BLE001
+        _print(
+            "meili",
+            f"settings não aplicados ({type(exc).__name__}) — Meili indisponível no boot?",
+            "!",
+        )
+
+
 async def main() -> None:
     admin_url = _admin_url(DATABASE_URL)
     db_name = _database_name(DATABASE_URL)
@@ -183,6 +212,9 @@ async def main() -> None:
 
         # Trava: aborta se o schema não bater com os models do backend.
         await verify_schema()
+
+    # Meili: aplica settings (idempotente, leve). Best-effort, fora do lock.
+    await ensure_meili_settings()
 
     print("✔ db_prepare concluído", flush=True)
 
