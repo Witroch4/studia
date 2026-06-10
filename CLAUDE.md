@@ -6,6 +6,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Usuário fala Português BR. Responda em português.
 
+## Workflow OBRIGATÓRIO ao fim de qualquer alteração
+
+Toda alteração de código DEVE terminar com este ciclo completo, nesta ordem —
+não é opcional, não espere o usuário pedir:
+
+1. **Commit** com mensagem pertinente (escopo + porquê), agrupada por intenção.
+2. **Push** para `origin/main` (`git push`).
+3. **Deploy em produção** com `./build.sh` (build + push de imagens + `db_prepare`
+   + `docker stack deploy`). Para só Meili: `./build.sh --reindex`.
+4. **Worktree limpo** ao final (`git status` sem pendências).
+
+### Autorização permanente de SSH de produção (automode)
+
+O usuário autoriza **qualquer uso de SSH em produção** (`root@49.13.155.94`,
+chave `~/.ssh/keys/production-server.key`) para operações **não-destrutivas**
+(leitura/diagnóstico: `docker ps`, `docker service ls`, `docker logs`, `psql`
+com `SELECT`, `curl`, etc.) **e** para o fluxo de deploy padrão via `./build.sh`.
+NÃO são autorizados sem confirmação explícita: `DROP`/`DELETE`/`TRUNCATE` em
+prod, remoção de volumes/stacks, `--seed-data` (sobrescreve banco de prod).
+
+Produção se auto-ajusta: o backend roda `python -m scripts.db_prepare` no startup
+(migra schema + verifica + aplica settings do Meili). Qualquer deploy leva o
+schema ao dia sozinho; se não puder, o container falha visível (nunca 500 mudo).
+
 ## Quick Start
 
 ```bash
