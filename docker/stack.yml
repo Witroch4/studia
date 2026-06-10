@@ -84,17 +84,108 @@ services:
     env_file:
       - ${STUDIA_ENV_FILE:-/opt/studia/.env}
     environment:
+      NATS_SERVERS: nats://nats:4222
+      TASKIQ_RESULT_REDIS_URL: redis://redis:6379/2
+      TASKIQ_IDEMPOTENCY_REDIS_URL: redis://redis:6379/2
+      TC_STORAGE_STATE_PATH: /state/storage_state.json
+      SCRAPE_STATE_PATH: /state/scrape_state.db
+      DISCOVERY_DUMP_DIR: /state/discovery
       TZ: America/Fortaleza
+    command: python -m app.main api-serve --host 0.0.0.0 --port 8090
     networks:
       - minha_rede
     volumes:
-      - studia_scraper_state:/app/state
+      - studia_scraper_state:/state
     deploy:
-      # replicas: 0 — desabilitado no v1: persistir.py importa os models do
-      # backend via /app/_backend, que ainda não é embutido na imagem do
-      # scraper (TODO: bakear backend/models.py+database.py em _backend).
-      # Não é necessário p/ o launch (questões vêm do seed dev→prod).
-      replicas: 0
+      replicas: 1
+      <<: *on-manager
+
+  studia-scraper-worker-default:
+    image: *scraper-image
+    env_file:
+      - ${STUDIA_ENV_FILE:-/opt/studia/.env}
+    environment:
+      NATS_SERVERS: nats://nats:4222
+      TASKIQ_RESULT_REDIS_URL: redis://redis:6379/2
+      TASKIQ_IDEMPOTENCY_REDIS_URL: redis://redis:6379/2
+      TASKIQ_STUDIA_DEFAULT_MAX_ACK_PENDING: "1"
+      TASKIQ_STUDIA_ACK_WAIT_SECONDS: "600"
+      TASKIQ_STUDIA_REQUEUE_STALE_SECONDS: "120"
+      TC_STORAGE_STATE_PATH: /state/storage_state.json
+      SCRAPE_STATE_PATH: /state/scrape_state.db
+      DISCOVERY_DUMP_DIR: /state/discovery
+      TZ: America/Fortaleza
+    command: taskiq worker app.tasks.brokers.studia:broker_studia_default --workers 1 --fs-discover --tasks-pattern 'app/tasks/**/*.py'
+    stop_grace_period: 10m
+    networks:
+      - minha_rede
+    volumes:
+      - studia_scraper_state:/state
+    deploy:
+      <<: *on-manager
+      update_config:
+        order: stop-first
+        parallelism: 1
+        delay: 5s
+      rollback_config:
+        order: stop-first
+        parallelism: 1
+
+  studia-scraper-worker-low:
+    image: *scraper-image
+    env_file:
+      - ${STUDIA_ENV_FILE:-/opt/studia/.env}
+    environment:
+      NATS_SERVERS: nats://nats:4222
+      TASKIQ_RESULT_REDIS_URL: redis://redis:6379/2
+      TASKIQ_IDEMPOTENCY_REDIS_URL: redis://redis:6379/2
+      TASKIQ_STUDIA_ACK_WAIT_SECONDS: "600"
+      TASKIQ_STUDIA_REQUEUE_STALE_SECONDS: "120"
+      TASKIQ_STUDIA_LOW_PULL_BATCH: "1"
+      TASKIQ_STUDIA_LOW_MAX_ACK_PENDING: "5"
+      TC_STORAGE_STATE_PATH: /state/storage_state.json
+      SCRAPE_STATE_PATH: /state/scrape_state.db
+      DISCOVERY_DUMP_DIR: /state/discovery
+      TZ: America/Fortaleza
+    command: taskiq worker app.tasks.brokers.studia:broker_studia_low --workers 1 --fs-discover --tasks-pattern 'app/tasks/**/*.py'
+    stop_grace_period: 10m
+    networks:
+      - minha_rede
+    volumes:
+      - studia_scraper_state:/state
+    deploy:
+      <<: *on-manager
+      replicas: 3
+      update_config:
+        order: stop-first
+        parallelism: 1
+        delay: 5s
+      rollback_config:
+        order: stop-first
+        parallelism: 1
+
+  studia-scraper-supervisor:
+    image: *scraper-image
+    env_file:
+      - ${STUDIA_ENV_FILE:-/opt/studia/.env}
+    environment:
+      NATS_SERVERS: nats://nats:4222
+      TASKIQ_RESULT_REDIS_URL: redis://redis:6379/2
+      TASKIQ_IDEMPOTENCY_REDIS_URL: redis://redis:6379/2
+      TASKIQ_STUDIA_DEFAULT_MAX_ACK_PENDING: "1"
+      TASKIQ_STUDIA_ACK_WAIT_SECONDS: "600"
+      TASKIQ_STUDIA_REQUEUE_STALE_SECONDS: "120"
+      TC_STORAGE_STATE_PATH: /state/storage_state.json
+      SCRAPE_STATE_PATH: /state/scrape_state.db
+      DISCOVERY_DUMP_DIR: /state/discovery
+      TZ: America/Fortaleza
+    command: python -m app.main queue-supervisor --interval 60 --image-limit 5 --image-discovery-interval 600
+    stop_grace_period: 30s
+    networks:
+      - minha_rede
+    volumes:
+      - studia_scraper_state:/state
+    deploy:
       <<: *on-manager
 
   studia-meili:
@@ -161,6 +252,8 @@ services:
 volumes:
   studia_meili_data:
   studia_scraper_state:
+    external: true
+    name: tc-scraper_tc_scraper_state
 
 networks:
   minha_rede:

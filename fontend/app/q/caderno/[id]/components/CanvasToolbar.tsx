@@ -98,7 +98,7 @@ export function CanvasToolbar({
 
           <label className="flex h-8 items-center gap-2 rounded border border-gray-700 bg-gray-950/70 px-2 text-gray-400">
             <span className="sr-only">Espessura</span>
-            <span className="font-mono text-[11px] text-gray-500" aria-hidden="true">
+            <span className="w-8 text-right font-mono text-[11px] text-gray-500" aria-hidden="true">
               {width}px
             </span>
             <input
@@ -136,16 +136,26 @@ export function CanvasToolbar({
         Calc
       </button>
 
-      {(saving || saveError) && (
-        <span
-          role="status"
-          aria-live="polite"
-          className={`text-[11px] ${saveError ? "text-amber-300" : "text-gray-500"}`}
-          title={saveError ?? undefined}
-        >
-          {saving ? "Salvando..." : "Erro ao salvar"}
+      {/* Slot de largura fixa: montar/desmontar texto aqui mudava a largura da
+          toolbar a cada autosave e fazia o card inteiro reflowar. */}
+      <span
+        role="status"
+        aria-live="polite"
+        className="flex h-8 w-4 items-center justify-center"
+        title={saveError ? `Erro ao salvar: ${saveError}` : saving ? "Salvando anotações" : undefined}
+      >
+        {saving ? (
+          <span
+            className="h-3 w-3 animate-spin rounded-full border-2 border-gray-600 border-t-cyan-400"
+            aria-hidden="true"
+          />
+        ) : saveError ? (
+          <Icon name="error" size={14} className="text-amber-300" aria-hidden="true" />
+        ) : null}
+        <span className="sr-only">
+          {saving ? "Salvando anotações" : saveError ? "Erro ao salvar anotações" : ""}
         </span>
-      )}
+      </span>
     </div>
   );
 }

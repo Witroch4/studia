@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useHotkeys, ATALHOS_TC } from "../../../hooks/useHotkeys";
+import QuestionHtml from "../../../components/QuestionHtml";
 
 /**
  * /q/questao/[id] — Resolver questão única.
@@ -17,6 +18,7 @@ interface Alternativa {
   id: number;
   letra: string;
   texto_md: string;
+  texto_html: string | null;
   correta: boolean | null;
   ordem: number;
 }
@@ -115,9 +117,10 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
           <span className="text-gray-500">{q.materia?.nome} › {q.assuntos[0]?.nome}</span>
         </div>
 
-        <article
+        <QuestionHtml
+          as="article"
           className="prose prose-invert prose-cyan max-w-none mb-4"
-          dangerouslySetInnerHTML={{ __html: q.enunciado_html }}
+          html={q.enunciado_html}
         />
 
         <ol className="space-y-2 mb-6">
@@ -139,7 +142,7 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
                   <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-700 font-semibold text-sm shrink-0">
                     {alt.letra}
                   </span>
-                  <span dangerouslySetInnerHTML={{ __html: alt.texto_md || "" }} />
+                  <QuestionHtml as="span" html={alt.texto_html || alt.texto_md || ""} />
                 </button>
               </li>
             );

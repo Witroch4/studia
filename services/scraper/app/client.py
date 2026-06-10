@@ -36,9 +36,10 @@ def classificar_resposta(r: httpx.Response) -> str | None:
         return "acesso_negado"
     if r.status_code == 429:
         return "rate_limit"
-    if r.status_code == 452:
-        # 452: TC retorna isso quando a SESSÃO está queimada (não IP).
-        # Re-login resolve. Validado via DevTools 2026-06-07.
+    if r.status_code in (401, 452):
+        # 401: Unauthorized — sessão expirou (pausa longa, cookies vencidos)
+        # 452: TC retorna quando SESSÃO está queimada (anti-bot disfarçado)
+        # Ambos resolvem com re-login.
         return "sessao_queimada"
     if r.status_code in (301, 302) and "/login" in r.headers.get("location", ""):
         return "sessao_expirou"

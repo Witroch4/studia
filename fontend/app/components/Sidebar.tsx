@@ -16,6 +16,8 @@ const navItems = [
   { href: "/flashcards", label: "Flashcards", icon: "style" },
   { href: "/disciplinas", label: "Disciplinas", icon: "library_books" },
   { href: "/q/filtrar", label: "Questões", icon: "fact_check" },
+  { href: "/q/guias", label: "Guias", icon: "menu_book" },
+  { href: "/q/coletar", label: "Coletar TC", icon: "cloud_download" },
   { href: "/concorrencia", label: "Concorrência", icon: "leaderboard" },
   { href: "/jobs", label: "Jobs IA", icon: "monitoring" },
   { href: "#", label: "Planejamento", icon: "calendar_month" },

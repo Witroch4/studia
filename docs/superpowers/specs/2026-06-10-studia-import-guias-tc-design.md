@@ -237,6 +237,22 @@ Guia: `done` somente quando todos os cadernos estão `materialized`.
 
 ---
 
+## 10.1 Ajustes na implementação (as-built)
+
+- **Fonte autoritativa dos cadernos**: `listar-pelo-guia` só traz o id do caderno
+  de questões (`cadernoQuestaoRecenteId`) quando o usuário **já tinha salvo** o
+  guia. Para guias novos, o id vem dos **itens da pasta** criada por "salvar
+  todos" (`/api/pastas-cadernos/{pasta}/itens`, campo `id` + `quantidadeItens`).
+  Por isso o import faz `resolver → salvar-todos → merge(itens_pasta, cadernos_guia)`
+  (`_merge_cadernos`): a pasta dá id/nome/total; o guia enriquece capítulos/ordem.
+- **Busca de guias**: `GET /api/guias/busca?busca={termo}&pagina={n}` retorna
+  `list[].editalUrl` (slug do guia). Exposto como scraper `GET /guia/buscar` e
+  backend `GET /api/q/guias/buscar-tc?termo=`, marcando quais já foram importados
+  (match por prefixo do slug). A UI `/q/guias` busca e importa com um clique —
+  os 16 guias da OAB aparecem para importar em lote.
+- **Ordem de registro dos routers**: `guias_router` é incluído ANTES de `q_router`
+  no `backend/main.py`, senão `/api/q/guias` cai no catch-all `/api/q/{questao_id}`.
+
 ## 11. Critérios de aceite
 
 - Colar `https://www.tecconcursos.com.br/guias/oab-2026` cria um `Guia` com os 20

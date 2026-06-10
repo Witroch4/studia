@@ -12,16 +12,16 @@
 #          /opt/witdev-platform/residential-proxy/routing.json > /tmp/r.json && \
 #          cat /tmp/r.json > /opt/witdev-platform/residential-proxy/routing.json && \
 #          docker exec $(docker ps --filter name=residential-proxy -q|head -1) touch /etc/rp/.reload'
-#   6. docker compose -f docker-compose.prod.yml run --rm scraper python scripts/test_tc_access.py
+#   6. docker compose -f docker-compose.prod.yml run --rm scraper-api python scripts/test_tc_access.py
 #      ↳ deve mostrar IP 177.37.138.135 (residencial) se proxy ativo
 #   7. nohup docker compose -f docker-compose.prod.yml up > scrape.log 2>&1 &
 #   8. tail -f scrape.log
 
 services:
-  scraper:
+  scraper-api:
     build:
       context: .
-    container_name: tc-scraper-prod
+    container_name: tc-scraper-api-prod
     restart: unless-stopped
     env_file:
       - .env.prod
@@ -31,13 +31,16 @@ services:
     networks:
       - shared   # tem que estar na minha_rede pra resolver residential-proxy:1080
     command: >
-      python scripts/scrape_lote.py /app/scripts/cadernos_petrobras.json
+      python -m app.main api-serve --host 0.0.0.0 --port 8090
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=INFO
       - TC_STORAGE_STATE_PATH=/state/storage_state.json
       - SCRAPE_STATE_PATH=/state/scrape_state.db
       - DISCOVERY_DUMP_DIR=/state/discovery
+      - NATS_SERVERS=${NATS_SERVERS:-nats://nats:4222}
+      - TASKIQ_RESULT_REDIS_URL=${TASKIQ_RESULT_REDIS_URL:-redis://redis:6379/2}
+      - TASKIQ_IDEMPOTENCY_REDIS_URL=${TASKIQ_IDEMPOTENCY_REDIS_URL:-redis://redis:6379/2}
       # ─── Saída via IP residencial (witdev proxy) ───────────────────
       # Espera RP_SERVICE_SECRET em .env.prod
       - RESIDENTIAL_PROXY_URL=socks5h://tc-scraper:${RP_SERVICE_SECRET}@residential-proxy:1080
@@ -48,6 +51,70 @@ services:
       - IMPRIMIR_BURST_MIN=45.0
       - IMPRIMIR_BURST_MAX=90.0
       - IMPRIMIR_BLOCK_PAUSE=300.0   # 5min em 403/429
+
+  scraper-worker-default:
+    build:
+      context: .
+    container_name: tc-scraper-worker-default-prod
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    volumes:
+      - ./state:/state
+      - ./scripts:/app/scripts:ro
+    networks:
+      - shared
+    command: >
+      taskiq worker app.tasks.brokers.studia:broker_studia_default
+      --workers 1 --fs-discover --tasks-pattern 'app/tasks/**/*.py'
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - TC_STORAGE_STATE_PATH=/state/storage_state.json
+      - SCRAPE_STATE_PATH=/state/scrape_state.db
+      - DISCOVERY_DUMP_DIR=/state/discovery
+      - NATS_SERVERS=${NATS_SERVERS:-nats://nats:4222}
+      - TASKIQ_RESULT_REDIS_URL=${TASKIQ_RESULT_REDIS_URL:-redis://redis:6379/2}
+      - TASKIQ_IDEMPOTENCY_REDIS_URL=${TASKIQ_IDEMPOTENCY_REDIS_URL:-redis://redis:6379/2}
+      - RESIDENTIAL_PROXY_URL=socks5h://tc-scraper:${RP_SERVICE_SECRET}@residential-proxy:1080
+      - IMPRIMIR_PAUSE_MIN=6.0
+      - IMPRIMIR_PAUSE_MAX=12.0
+      - IMPRIMIR_BURST_EVERY=15
+      - IMPRIMIR_BURST_MIN=45.0
+      - IMPRIMIR_BURST_MAX=90.0
+      - IMPRIMIR_BLOCK_PAUSE=300.0
+
+  scraper-worker-low:
+    build:
+      context: .
+    container_name: tc-scraper-worker-low-prod
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    volumes:
+      - ./state:/state
+      - ./scripts:/app/scripts:ro
+    networks:
+      - shared
+    command: >
+      taskiq worker app.tasks.brokers.studia:broker_studia_low
+      --workers 5 --fs-discover --tasks-pattern 'app/tasks/**/*.py'
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - TC_STORAGE_STATE_PATH=/state/storage_state.json
+      - SCRAPE_STATE_PATH=/state/scrape_state.db
+      - DISCOVERY_DUMP_DIR=/state/discovery
+      - NATS_SERVERS=${NATS_SERVERS:-nats://nats:4222}
+      - TASKIQ_RESULT_REDIS_URL=${TASKIQ_RESULT_REDIS_URL:-redis://redis:6379/2}
+      - TASKIQ_IDEMPOTENCY_REDIS_URL=${TASKIQ_IDEMPOTENCY_REDIS_URL:-redis://redis:6379/2}
+      - RESIDENTIAL_PROXY_URL=socks5h://tc-scraper:${RP_SERVICE_SECRET}@residential-proxy:1080
+      - IMPRIMIR_PAUSE_MIN=6.0
+      - IMPRIMIR_PAUSE_MAX=12.0
+      - IMPRIMIR_BURST_EVERY=15
+      - IMPRIMIR_BURST_MIN=45.0
+      - IMPRIMIR_BURST_MAX=90.0
+      - IMPRIMIR_BLOCK_PAUSE=300.0
 
 networks:
   shared:

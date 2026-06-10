@@ -78,7 +78,8 @@ build_one() {
     scraper)
       log_info "build scraper → $(img scraper)"
       docker build $(cache_flag) --platform "$PLATFORM" \
-        -t "$(img scraper)" "$SCRIPT_DIR/services/scraper" ;;
+        -f "$SCRIPT_DIR/services/scraper/Dockerfile.prod" \
+        -t "$(img scraper)" "$SCRIPT_DIR" ;;
     frontend)
       log_info "build frontend → $(img frontend)  (NEXT_PUBLIC_API_URL=https://$HOST_DOMAIN)"
       docker build $(cache_flag) --platform "$PLATFORM" --target production \
@@ -136,23 +137,44 @@ mn_cid=$(docker ps --filter label=com.docker.swarm.service.name=minio_minio -q |
 mn_user=$(docker exec "$mn_cid" printenv MINIO_ROOT_USER)
 mn_pass=$(docker exec "$mn_cid" printenv MINIO_ROOT_PASSWORD)
 
+tc_cid=$(docker ps --filter label=com.docker.swarm.service.name=tc-scraper_tc-scraper -q | head -1)
+tc_email=""
+tc_password=""
+tc_storage_state_path="/state/storage_state.json"
+residential_proxy_url=""
+if [ -n "$tc_cid" ]; then
+  tc_email=$(docker exec "$tc_cid" printenv TC_EMAIL 2>/dev/null || true)
+  tc_password=$(docker exec "$tc_cid" printenv TC_PASSWORD 2>/dev/null || true)
+  tc_storage_state_path=$(docker exec "$tc_cid" printenv TC_STORAGE_STATE_PATH 2>/dev/null || echo "/state/storage_state.json")
+  residential_proxy_url=$(docker exec "$tc_cid" printenv RESIDENTIAL_PROXY_URL 2>/dev/null || true)
+fi
+
 umask 077
-cat > "$ENV_FILE" <<EOF
-# Gerado por build.sh — NÃO versionar. Senhas derivadas dos secrets de infra.
-DATABASE_URL=postgresql+asyncpg://postgres:${pg_pass_url}@postgres:5432/studia
-REDIS_URL=redis://redis:6379/1
-MINIO_ENDPOINT=minio:9000
-MINIO_ACCESS_KEY=${mn_user}
-MINIO_SECRET_KEY=${mn_pass}
-MEILI_URL=http://studia-meili:7700
-MEILI_KEY=${MEILI_KEY}
-MEILI_MASTER_KEY=${MEILI_KEY}
-SCRAPER_URL=http://studia-scraper:8090
-GEMINI_API_KEY=${GEMINI_API_KEY}
-BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-BETTER_AUTH_URL=https://studia.witdev.com.br
-NEXT_PUBLIC_API_URL=https://studia.witdev.com.br
-EOF
+{
+  echo "# Gerado por build.sh — NÃO versionar. Senhas derivadas dos secrets de infra."
+  printf 'DATABASE_URL=postgresql+asyncpg://postgres:%s@postgres:5432/studia\n' "$pg_pass_url"
+  echo "REDIS_URL=redis://redis:6379/1"
+  echo "MINIO_ENDPOINT=minio:9000"
+  printf 'MINIO_ACCESS_KEY=%s\n' "$mn_user"
+  printf 'MINIO_SECRET_KEY=%s\n' "$mn_pass"
+  echo "MEILI_URL=http://studia-meili:7700"
+  printf 'MEILI_KEY=%s\n' "$MEILI_KEY"
+  printf 'MEILI_MASTER_KEY=%s\n' "$MEILI_KEY"
+  echo "SCRAPER_URL=http://studia-scraper:8090"
+  printf 'GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY"
+  printf 'BETTER_AUTH_SECRET=%s\n' "$BETTER_AUTH_SECRET"
+  echo "BETTER_AUTH_URL=https://studia.witdev.com.br"
+  echo "NEXT_PUBLIC_API_URL=https://studia.witdev.com.br"
+  echo "NATS_SERVERS=nats://nats:4222"
+  echo "TASKIQ_RESULT_REDIS_URL=redis://redis:6379/2"
+  echo "TASKIQ_IDEMPOTENCY_REDIS_URL=redis://redis:6379/2"
+  echo "TC_STORAGE_STATE_PATH=/state/storage_state.json"
+  echo "SCRAPE_STATE_PATH=/state/scrape_state.db"
+  echo "DISCOVERY_DUMP_DIR=/state/discovery"
+  [ -n "$tc_email" ] && printf 'TC_EMAIL=%s\n' "$tc_email"
+  [ -n "$tc_password" ] && printf 'TC_PASSWORD=%s\n' "$tc_password"
+  [ -n "$residential_proxy_url" ] && printf 'RESIDENTIAL_PROXY_URL=%s\n' "$residential_proxy_url"
+} > "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 echo "  ✓ .env escrito ($(wc -l < "$ENV_FILE") linhas)"
 REMOTE

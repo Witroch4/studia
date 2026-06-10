@@ -12,9 +12,9 @@ import os
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import Integer, func, select
+from sqlalchemy import Integer, bindparam, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -40,6 +40,13 @@ router = APIRouter(prefix="/api/q", tags=["questoes"])
 MEILI_URL = os.getenv("MEILI_URL", "http://localhost:7700")
 MEILI_KEY = os.getenv("MEILI_KEY", "dev_master_key_studia_2026")
 SCRAPER_URL = os.getenv("SCRAPER_URL", "http://scraper:8090")
+
+KNOWN_TC_CADERNO_TOTALS: dict[int, int] = {
+    95872872: 29_774,
+    95872884: 15_298,
+    95872821: 22_455,
+    95872853: 11_364,
+}
 
 DEFAULT_FACETS = ["banca", "orgao", "cargo", "ano", "materia", "assuntos", "tipo", "status"]
 
@@ -145,48 +152,198 @@ async def search(req: SearchReq) -> dict[str, Any]:
 class ColetarReq(BaseModel):
     url: str = Field(..., description="URL do caderno TC ou apenas o ID")
     relogin: bool = Field(False, description="Refazer login antes (se trocou IP)")
+    expected_total: int | None = Field(None, description="Total conhecido do caderno, se já houver")
+    page_size: int = Field(200, ge=1, le=200, description="Tamanho da faixa TC")
 
 
-@router.post("/coletar")
-async def coletar(req: ColetarReq, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    """Coleta o caderno via endpoint OURO + dedup automática + reindexa Meili.
-
-    Idempotente: a coluna `id_externo` em `questoes` é UNIQUE, então repetir
-    o mesmo caderno faz UPSERT sem duplicar. Adicionalmente, o `ScrapeState`
-    do scraper marca por idQuestao e pula reprocessamento.
-    """
+@router.post("/coletar", status_code=status.HTTP_202_ACCEPTED)
+async def coletar(req: ColetarReq) -> dict[str, Any]:
+    """Enfileira a coleta de um caderno TC no scraper TaskIQ/NATS."""
     caderno_id = extrair_caderno_id(req.url)
+    expected_total = req.expected_total or KNOWN_TC_CADERNO_TOTALS.get(caderno_id)
 
-    # Snapshot pré-coleta (para reportar dedup)
-    pre_total = (await db.execute(select(func.count(Questao.id)))).scalar_one()
-
-    # Chama scraper via HTTP (long-running ok porque /imprimir é rápido)
-    async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10, read=600, write=10, pool=30)) as c:
-        r = await c.post(
-            f"{SCRAPER_URL}/run/caderno-imprimir",
-            json={"caderno_id": caderno_id, "relogin": req.relogin},
+    if expected_total is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Informe o total esperado do caderno. A UI nao faz descoberta sincrona no TC.",
         )
-        if r.status_code != 200:
-            raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:300]}")
-        resultado = r.json()
 
-    # Snapshot pós-coleta
-    pos_total = (await db.execute(select(func.count(Questao.id)))).scalar_one()
-    novas = pos_total - pre_total
-    atualizadas = max(0, resultado.get("ok", 0) - novas)
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=3, read=8, write=5, pool=10)) as c:
+            r = await c.post(
+                f"{SCRAPER_URL}/enqueue/caderno",
+                json={
+                    "caderno_id": caderno_id,
+                    "expected_total": expected_total,
+                    "page_size": req.page_size,
+                    "enqueue_limit": 1,
+                    "discover_total": False,
+                    "relogin": req.relogin,
+                },
+            )
+    except httpx.TimeoutException as exc:
+        raise HTTPException(
+            504,
+            "scraper demorou para confirmar o job; a UI nao ficou presa. Tente novamente em alguns segundos.",
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"scraper indisponivel: {exc}") from exc
 
-    # Reindexa no Meilisearch (apenas as do caderno, em batch)
-    novas_questoes = await _meili_reindex_recentes(db, limit=resultado.get("ok", 0))
+    if r.status_code != 200:
+        raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:300]}")
+    job = r.json()
+
+    message = "job registrado; processamento segue em background"
+    if job.get("status") == "blocked":
+        message = "job registrado; TC esta em cooldown/bloqueio e o supervisor retomara a faixa exata automaticamente"
+    elif job.get("enqueued_units", 0) > 0:
+        message = "job registrado; primeira faixa enfileirada e UI liberada"
 
     return {
         "caderno_id": caderno_id,
-        "scraper": resultado,
-        "pre_total": pre_total,
-        "pos_total": pos_total,
-        "novas": novas,
-        "atualizadas": atualizadas,
-        "meili_reindexadas": novas_questoes,
+        "expected_total": expected_total,
+        "job_id": job["job_id"],
+        "status": job["status"],
+        "total_units": job["total_units"],
+        "enqueued_units": job["enqueued_units"],
+        "message": message,
     }
+
+
+@router.get("/coletar/jobs")
+async def listar_jobs_coleta(
+    caderno_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Resumo dos jobs ativos de coleta TC para a UI acompanhar progresso real."""
+    caderno_where = ""
+    params: dict[str, Any] = {}
+    if caderno_id is not None:
+        caderno_where = "AND CAST(j.external_id AS INTEGER) = :caderno_id"
+        params["caderno_id"] = caderno_id
+
+    job_rows = (
+        await db.execute(
+            text(
+                f"""
+                SELECT
+                  j.id AS job_id,
+                  CAST(j.external_id AS INTEGER) AS caderno_id,
+                  j.status,
+                  j.expected_total,
+                  j.total_units,
+                  j.done_units,
+                  j.failed_units,
+                  j.blocked_units,
+                  j.updated_at,
+                  COALESCE(SUM(CASE WHEN u.status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_units,
+                  COALESCE(SUM(CASE WHEN u.status = 'queued' THEN 1 ELSE 0 END), 0) AS queued_units,
+                  COALESCE(SUM(CASE WHEN u.status = 'running' THEN 1 ELSE 0 END), 0) AS running_units,
+                  COALESCE(SUM(CASE WHEN u.status = 'done' THEN u.questoes_ok ELSE 0 END), 0) AS questoes_ok_done
+                FROM tc_jobs j
+                LEFT JOIN tc_caderno_units u ON u.job_id = j.id
+                WHERE j.kind = 'caderno'
+                  AND j.status IN ('pending', 'running', 'blocked')
+                  {caderno_where}
+                GROUP BY
+                  j.id,
+                  j.external_id,
+                  j.status,
+                  j.expected_total,
+                  j.total_units,
+                  j.done_units,
+                  j.failed_units,
+                  j.blocked_units,
+                  j.updated_at
+                ORDER BY j.updated_at DESC, j.id DESC
+                """
+            ),
+            params,
+        )
+    ).mappings().all()
+
+    if not job_rows:
+        return {"jobs": []}
+
+    job_ids = [int(row["job_id"]) for row in job_rows]
+    unit_rows = (
+        await db.execute(
+            text(
+                """
+                SELECT
+                  job_id,
+                  inicio,
+                  page_size,
+                  status,
+                  attempts,
+                  block_reason,
+                  blocked_until,
+                  leased_until
+                FROM tc_caderno_units
+                WHERE job_id IN :job_ids
+                  AND status IN ('blocked', 'running', 'queued')
+                ORDER BY job_id, inicio
+                """
+            ).bindparams(bindparam("job_ids", expanding=True)),
+            {"job_ids": job_ids},
+        )
+    ).mappings().all()
+
+    units_by_job: dict[int, list[dict[str, Any]]] = {}
+    for row in unit_rows:
+        units_by_job.setdefault(int(row["job_id"]), []).append(
+            {
+                "inicio": int(row["inicio"]),
+                "page_size": int(row["page_size"]),
+                "status": str(row["status"]),
+                "attempts": int(row["attempts"] or 0),
+                "block_reason": row["block_reason"],
+                "blocked_until": row["blocked_until"],
+                "leased_until": row["leased_until"],
+            }
+        )
+
+    jobs: list[dict[str, Any]] = []
+    for row in job_rows:
+        total_units = int(row["total_units"] or 0)
+        done_units = int(row["done_units"] or 0)
+        expected_total = int(row["expected_total"] or 0)
+        questoes_ok_done = int(row["questoes_ok_done"] or 0)
+        blocked_ranges = [
+            unit for unit in units_by_job.get(int(row["job_id"]), []) if unit["status"] == "blocked"
+        ]
+        running_ranges = [
+            unit for unit in units_by_job.get(int(row["job_id"]), []) if unit["status"] == "running"
+        ]
+        queued_ranges = [
+            unit for unit in units_by_job.get(int(row["job_id"]), []) if unit["status"] == "queued"
+        ]
+        jobs.append(
+            {
+                "job_id": int(row["job_id"]),
+                "caderno_id": int(row["caderno_id"]),
+                "status": str(row["status"]),
+                "expected_total": expected_total,
+                "total_units": total_units,
+                "done_units": done_units,
+                "failed_units": int(row["failed_units"] or 0),
+                "blocked_units": int(row["blocked_units"] or 0),
+                "pending_units": int(row["pending_units"] or 0),
+                "queued_units": int(row["queued_units"] or 0),
+                "running_units": int(row["running_units"] or 0),
+                "questoes_ok_done": questoes_ok_done,
+                "pct_units_done": round((done_units / total_units) * 100, 2) if total_units else 0.0,
+                "pct_questions_done": round((questoes_ok_done / expected_total) * 100, 2)
+                if expected_total
+                else 0.0,
+                "updated_at": row["updated_at"],
+                "blocked_ranges": blocked_ranges,
+                "running_ranges": running_ranges,
+                "queued_ranges": queued_ranges,
+            }
+        )
+
+    return {"jobs": jobs}
 
 
 async def _meili_reindex_recentes(db: AsyncSession, limit: int = 500) -> int:
@@ -842,7 +999,7 @@ async def detalhe(questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[s
         "materia": {"id": materia.id, "nome": materia.nome} if materia else None,
         "assuntos": [{"id": a.id, "nome": a.nome} for a in q.assuntos],
         "alternativas": [
-            {"id": alt.id, "letra": alt.letra, "texto_md": alt.texto_md, "correta": alt.correta, "ordem": alt.ordem}
+            {"id": alt.id, "letra": alt.letra, "texto_md": alt.texto_md, "texto_html": alt.texto_html, "correta": alt.correta, "ordem": alt.ordem}
             for alt in sorted(q.alternativas, key=lambda x: x.ordem or 0)
         ],
     }

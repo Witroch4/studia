@@ -127,6 +127,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Guias de estudo importados do TC (cascata guia → pasta → cadernos → questões).
+# Registrado ANTES de q_router para que `/api/q/guias` não caia no catch-all
+# `/api/q/{questao_id}`.
+from guias_router import router as guias_router  # noqa: E402
+app.include_router(guias_router)
+
 # witdev-tec-master: questões/cadernos/IA
 from q_router import router as q_router  # noqa: E402
 app.include_router(q_router)

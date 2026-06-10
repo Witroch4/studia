@@ -168,3 +168,79 @@ ssh user@server "tar czf - tc-scraper/state" | tar xzf - -C ./
 # Ou só copia o relatório
 scp user@server:tc-scraper/scripts/cadernos_petrobras.relatorio.json .
 ```
+
+## 8. TaskIQ/NATS Phase 1 smoke
+
+Smoke local/dev da base TaskIQ/NATS:
+
+```bash
+docker compose -f docker-compose.dev.yml build scraper scraper-worker-default scraper-worker-low
+docker compose -f docker-compose.dev.yml up -d scraper scraper-worker-default
+docker compose -f docker-compose.dev.yml exec scraper python -m app.tasks.smoke
+docker compose -f docker-compose.dev.yml logs --tail=200 scraper-worker-default
+```
+
+Checagem esperada do ledger para o caderno `95872884`:
+
+```bash
+docker exec postgres psql -U postgres -d studia -c "
+SELECT caderno_id, count(*) AS units, min(inicio) AS first_inicio, max(inicio) AS last_inicio
+FROM tc_caderno_units
+WHERE caderno_id = 95872884
+GROUP BY caderno_id;
+"
+```
+
+Resultado esperado com `page_size=200`: `77` unidades, `first_inicio=0`, `last_inicio=15200`.
+
+Checagem de nomes na overlay de produção:
+
+```bash
+ssh -i ~/.ssh/keys/production-server.key root@49.13.155.94 \
+  'CID=$(docker ps --filter name=tc-scraper_tc-scraper -q | head -1); for h in nats redis postgres residential-proxy minio; do echo -n "$h "; docker exec "$CID" getent hosts "$h"; done'
+```
+
+Em produção, o compose usa `NATS_SERVERS=nats://nats:4222`. O alias `platform-nats` é apenas do ambiente dev local.
+
+## 9. TaskIQ/NATS Phase 2 cadernos reais
+
+Planejar um caderno sem publicar task real:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8090/enqueue/caderno \
+  -H 'content-type: application/json' \
+  -d '{"caderno_id":95872884,"expected_total":15298,"page_size":200,"enqueue_limit":0}'
+```
+
+Disparar coleta real por faixas de 200. Por padrão, só a primeira faixa
+elegível entra no NATS; quando ela termina, a própria task enfileira exatamente
+a próxima menor faixa elegível do mesmo caderno:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8090/enqueue/caderno \
+  -H 'content-type: application/json' \
+  -d '{"caderno_id":95872884,"expected_total":15298,"page_size":200}'
+```
+
+Disparar via descoberta automática do total:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8090/enqueue/caderno \
+  -H 'content-type: application/json' \
+  -d '{"caderno_id":95872884,"page_size":200,"discover_total":true,"relogin":true}'
+```
+
+Cada unidade é fixa por `(caderno_id, inicio, page_size)`. Se `inicio=1200`
+falhar, a unidade fica `failed` ou `blocked`; novo enqueue do mesmo caderno só
+reenfileira unidades elegíveis, nunca as unidades `done`.
+
+Checagem por faixa:
+
+```bash
+docker exec postgres psql -U postgres -d studia -c "
+SELECT inicio, page_size, status, attempts, questoes_ok, block_reason, blocked_until
+FROM tc_caderno_units
+WHERE caderno_id = 95872884
+ORDER BY inicio;
+"
+```

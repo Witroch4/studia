@@ -25,6 +25,13 @@ beautifulsoup4 = "^4.12.0"
 lxml = "^5.3.0"
 python-dotenv = "^1.0.0"
 minio = "^7.2.0"
+taskiq = "^0.12.0"
+taskiq-nats = "^0.6.0"
+nats-py = "^2.11.0"
+taskiq-redis = "^1.2.0"
+redis = "^7.2.0"
+pytest = "^8.3.0"
+pytest-asyncio = "^0.24.0"
 
 [build-system]
 requires = ["poetry-core"]

@@ -97,8 +97,63 @@ services:
       - TC_STORAGE_STATE_PATH=/state/storage_state.json
       - SCRAPE_STATE_PATH=/state/scrape_state.db
       - DISCOVERY_DUMP_DIR=/state/discovery
+      - NATS_SERVERS=${NATS_SERVERS:-nats://platform-nats:4222}
+      - TASKIQ_RESULT_REDIS_URL=redis://redis:6379/2
+      - TASKIQ_IDEMPOTENCY_REDIS_URL=redis://redis:6379/2
     networks:
       - shared
+
+  scraper-worker-default:
+    build:
+      context: ./services/scraper
+    container_name: studia-scraper-worker-default-dev
+    volumes:
+      - ./services/scraper:/app
+      - ./backend:/backend:ro
+      - scraper_state:/state
+    command: taskiq worker app.tasks.brokers.studia:broker_studia_default --workers 1 --fs-discover --tasks-pattern 'app/tasks/**/*.py'
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/studia
+      - TC_BASE=https://www.tecconcursos.com.br
+      - TC_EMAIL=${TC_EMAIL:-}
+      - TC_PASSWORD=${TC_PASSWORD:-}
+      - TC_STORAGE_STATE_PATH=/state/storage_state.json
+      - SCRAPE_STATE_PATH=/state/scrape_state.db
+      - DISCOVERY_DUMP_DIR=/state/discovery
+      - NATS_SERVERS=${NATS_SERVERS:-nats://platform-nats:4222}
+      - TASKIQ_RESULT_REDIS_URL=redis://redis:6379/2
+      - TASKIQ_IDEMPOTENCY_REDIS_URL=redis://redis:6379/2
+    networks:
+      - shared
+      - studia-net
+
+  scraper-worker-low:
+    build:
+      context: ./services/scraper
+    container_name: studia-scraper-worker-low-dev
+    volumes:
+      - ./services/scraper:/app
+      - ./backend:/backend:ro
+      - scraper_state:/state
+    command: taskiq worker app.tasks.brokers.studia:broker_studia_low --workers 5 --fs-discover --tasks-pattern 'app/tasks/**/*.py'
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/studia
+      - TC_BASE=https://www.tecconcursos.com.br
+      - TC_EMAIL=${TC_EMAIL:-}
+      - TC_PASSWORD=${TC_PASSWORD:-}
+      - TC_STORAGE_STATE_PATH=/state/storage_state.json
+      - SCRAPE_STATE_PATH=/state/scrape_state.db
+      - DISCOVERY_DUMP_DIR=/state/discovery
+      - NATS_SERVERS=${NATS_SERVERS:-nats://platform-nats:4222}
+      - TASKIQ_RESULT_REDIS_URL=redis://redis:6379/2
+      - TASKIQ_IDEMPOTENCY_REDIS_URL=redis://redis:6379/2
+    networks:
+      - shared
+      - studia-net
 
   frontend:
     image: node:24-alpine

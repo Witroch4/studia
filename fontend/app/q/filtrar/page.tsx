@@ -240,7 +240,10 @@ export default function FiltrarPage() {
 
           {categoria === "Banca" && (
             <ul className="space-y-1">
-              {Object.entries(contagem.facets["banca"] || {}).map(([nome, n]) => (
+              {Object.entries(contagem.facets["banca"] || {})
+                .filter(([nome]) => !busca || nome.toLowerCase().includes(busca.toLowerCase()))
+                .sort((a, b) => b[1] - a[1])
+                .map(([nome, n]) => (
                 <li key={nome}>
                   <button
                     onClick={() => setFiltros((f) => ({ ...f, banca: f.banca?.includes(nome) ? f.banca.filter((b) => b !== nome) : [...(f.banca || []), nome] }))}

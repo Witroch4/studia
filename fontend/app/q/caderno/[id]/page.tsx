@@ -9,6 +9,7 @@ import { CanvasToolbar } from "./components/CanvasToolbar";
 import { QuestionCanvasOverlay } from "./components/QuestionCanvasOverlay";
 import { ScientificCalculator } from "./components/ScientificCalculator";
 import { StrikableAlternative } from "./components/StrikableAlternative";
+import QuestionHtml from "../../../components/QuestionHtml";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
 
@@ -16,6 +17,7 @@ interface Alternativa {
   id: number;
   letra: string;
   texto_md: string;
+  texto_html: string | null;
   correta: boolean | null;
   ordem: number;
 }
@@ -349,7 +351,9 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                 {questao.assuntos.length === 0 && <span className="text-gray-600">Sem classificação</span>}
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-2 text-lg text-gray-500">
+            {/* flex-1 (basis 0) impede a toolbar de reivindicar a largura
+                max-content e esmagar o título; ela quebra no próprio espaço. */}
+            <div className="flex flex-1 min-w-0 flex-wrap items-center justify-end gap-2 text-lg text-gray-500">
               <CanvasToolbar
                 active={canvasActive}
                 tool={canvasTool}
@@ -396,13 +400,14 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
 
           {/* ─── Enunciado + alternativas ─── */}
           <div className="p-5">
-            <article
+            <QuestionHtml
+              as="article"
               onDoubleClick={() => annotations.toggleStrike({ type: "statement-block", index: 0 })}
               className={`prose prose-invert prose-cyan max-w-none mb-4 ${
                 isStruck({ type: "statement-block", index: 0 }) ? "text-gray-500 line-through decoration-red-500 decoration-2" : ""
               }`}
               title="Dois cliques riscam ou restauram o enunciado"
-              dangerouslySetInnerHTML={{ __html: questao.enunciado_html }}
+              html={questao.enunciado_html}
             />
 
             <ol className="space-y-1.5 mb-5">
@@ -426,7 +431,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                         "border-gray-700 hover:bg-gray-800/40"
                       }`}
                     >
-                      <span className="flex-1" dangerouslySetInnerHTML={{ __html: alt.texto_md || "" }} />
+                      <QuestionHtml as="span" className="flex-1" html={alt.texto_html || alt.texto_md || ""} />
                     </StrikableAlternative>
                   </li>
                 );

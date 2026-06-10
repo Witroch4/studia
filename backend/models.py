@@ -406,7 +406,67 @@ class CadernoQuestoes(Base):
     filtros: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     question_ids: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     total: Mapped[int] = mapped_column(Integer, default=0)
+    # Idempotência da materialização a partir de um caderno do TC.
+    tc_caderno_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, unique=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+# ─── Guias de estudo (importados do TC) ─────────────────────────
+
+
+class Guia(Base):
+    __tablename__ = "guias"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tc_guia_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    slug: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    nome: Mapped[str] = mapped_column(String(512))
+    banca: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    tc_pasta_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    total_cadernos: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    cadernos: Mapped[list["GuiaCaderno"]] = relationship(
+        back_populates="guia", cascade="all, delete-orphan"
+    )
+
+
+class GuiaCaderno(Base):
+    __tablename__ = "guia_cadernos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guia_id: Mapped[int] = mapped_column(
+        ForeignKey("guias.id", ondelete="CASCADE"), index=True
+    )
+    tc_caderno_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    tc_caderno_base: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    nome: Mapped[str] = mapped_column(String(512))
+    disciplina: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    total_questoes: Mapped[int] = mapped_column(Integer, default=0)
+    total_capitulos: Mapped[int] = mapped_column(Integer, default=0)
+    ordem: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # CadernoQuestoes materializado no studIA (quando coleta concluída).
+    caderno_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cadernos_questoes.id", ondelete="SET NULL"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    guia: Mapped["Guia"] = relationship(back_populates="cadernos")
+
+    __table_args__ = (
+        UniqueConstraint("guia_id", "tc_caderno_id", name="uq_guia_caderno"),
+    )
 
 
 class Alternativa(Base):

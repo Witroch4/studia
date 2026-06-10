@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.config import get_settings
 from app.observability import get_logger
 from app.schemas import QuestaoApi, letra_from_numero
+from app.textmd import html_to_md as _html_to_md
 
 log = get_logger(__name__)
 
@@ -69,17 +70,6 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
 
 
 # ─── Helpers ─────────────────────────────────────────────────────
-
-
-def _html_to_md(html: str | None) -> str | None:
-    if not html:
-        return None
-    try:
-        from markdownify import markdownify
-        return markdownify(html, heading_style="ATX").strip()
-    except Exception as e:  # noqa: BLE001
-        log.warning("md.fallback", err=str(e))
-        return html
 
 
 async def _upsert_taxonomia(session: AsyncSession, q: QuestaoApi) -> dict[str, int | None]:

@@ -60,6 +60,43 @@ class Settings(BaseSettings):
     scrape_state_path: Path = Path("./scrape_state.db")
     discovery_dump_dir: Path = Path("./discovery")
 
+    # TaskIQ/NATS studIA
+    nats_servers: str = "nats://nats:4222"
+    taskiq_result_redis_url: str = "redis://redis:6379/2"
+    taskiq_idempotency_redis_url: str = "redis://redis:6379/2"
+    taskiq_idempotency_ttl_seconds: int = 604800
+    taskiq_studia_stream: str = "TASKIQ_STUDIA"
+    taskiq_studia_default_subject: str = "taskiq.studia.default"
+    taskiq_studia_low_subject: str = "taskiq.studia.low"
+    taskiq_studia_default_durable: str = "studia-default-workers"
+    taskiq_studia_low_durable: str = "studia-low-workers"
+    taskiq_studia_default_pull_batch: int = 1
+    # 1 = serial: o limite real é o anti-bot do TC; paralelizar queima a sessão
+    taskiq_studia_default_max_ack_pending: int = 1
+    taskiq_studia_low_pull_batch: int = 1
+    taskiq_studia_low_max_ack_pending: int = 5
+    taskiq_studia_ack_wait_seconds: int = 600
+    taskiq_studia_requeue_stale_seconds: int = 120
+    taskiq_studia_max_deliver: int = 3
+    taskiq_studia_image_target_active: int = 5
+    tc_page_size: int = 200
+    # Sessão queimada é recuperável via relogin automático — cooldown curto
+    tc_block_401_452_seconds: int = 1800
+    tc_block_403_429_seconds: int = 7200
+
+    @property
+    def nats_servers_list(self) -> list[str]:
+        return [
+            server.strip()
+            for server in self.nats_servers.split(",")
+            if server.strip()
+        ]
+
+    # Meili: indexação incremental por página (auto-reindex durante a coleta).
+    # Vêm do /opt/studia/.env (MEILI_URL/MEILI_KEY). Se ausentes, o push é pulado.
+    meili_url: str | None = None
+    meili_key: str | None = None
+
     # Futuro: integração com platform-api
     backend_url: str | None = None
     platform_api_key: str | None = None
