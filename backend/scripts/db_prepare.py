@@ -4,9 +4,17 @@ Roda como one-shot antes do `docker stack deploy` (ver build.sh). Idempotente
 e seguro para reexecução. Faz, em ordem:
 
     1. Espera o PostgreSQL aceitar conexões (com retries)
-    2. Cria o database 'studia' se ele não existir
-    3. Habilita a extensão pgvector + roda as migrações (migrate.py:
+    2. Adquire um advisory lock (serializa bootstrap entre réplicas Swarm)
+    3. Cria o database 'studia' se ele não existir
+    4. Habilita a extensão pgvector + roda as migrações (migrate.py:
        create_all de tabelas novas + ALTER incremental de colunas faltantes)
+    5. VERIFICA que toda tabela definida nos models existe no banco — se faltar
+       qualquer uma, sai com código 1 (aborta o deploy em build.sh).
+
+O passo 5 é a garantia operacional: o deploy nunca sobe com schema defasado.
+Se a imagem do backend não tiver os models novos (ex.: `guias`), o create_all
+não cria a tabela, a verificação falha e o `set -e` do build.sh interrompe o
+`docker stack deploy` — em vez de subir um backend que dá 500 em produção.
 
 Uso:
     python -m scripts.db_prepare
@@ -18,6 +26,7 @@ postgresql+asyncpg://user:pass@host:5432/studia).
 import asyncio
 import os
 import sys
+from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
 
 from sqlalchemy import text
@@ -29,6 +38,7 @@ DATABASE_URL = os.getenv(
 )
 RETRIES = int(os.environ.get("DB_CONNECT_RETRIES", "30"))
 RETRY_DELAY_S = float(os.environ.get("DB_CONNECT_SLEEP_MS", "2000")) / 1000
+BOOTSTRAP_LOCK_ID = int(os.environ.get("DB_PREPARE_LOCK_ID", "2026061001"))
 
 
 def _database_name(url: str) -> str:
@@ -99,6 +109,62 @@ async def ensure_database(admin_url: str, db_name: str) -> None:
         await engine.dispose()
 
 
+@asynccontextmanager
+async def bootstrap_lock(admin_url: str):
+    """Serializa o bootstrap entre containers/réplicas concorrentes (Swarm)."""
+    engine = create_async_engine(admin_url, isolation_level="AUTOCOMMIT")
+    conn = await engine.connect()
+    try:
+        await conn.execute(
+            text("SELECT pg_advisory_lock(:lock_id)"), {"lock_id": BOOTSTRAP_LOCK_ID}
+        )
+        _print("lock", f"advisory lock {BOOTSTRAP_LOCK_ID} adquirido")
+        yield
+    finally:
+        try:
+            await conn.execute(
+                text("SELECT pg_advisory_unlock(:lock_id)"),
+                {"lock_id": BOOTSTRAP_LOCK_ID},
+            )
+        finally:
+            await conn.close()
+            await engine.dispose()
+
+
+async def verify_schema() -> None:
+    """Garante que TODA tabela definida nos models existe no banco.
+
+    Esta é a trava operacional: se a imagem do backend não tiver um model novo
+    (ex.: `guias`), o create_all não cria a tabela e esta verificação sai com
+    código 1 — o `set -e` do build.sh aborta o `docker stack deploy` e produção
+    nunca sobe com schema defasado.
+    """
+    from models import Base  # mesmos models que o backend usa em runtime
+
+    expected = {t.name for t in Base.metadata.sorted_tables}
+    engine = create_async_engine(DATABASE_URL)
+    try:
+        async with engine.connect() as conn:
+            rows = (
+                await conn.execute(
+                    text(
+                        "SELECT table_name FROM information_schema.tables "
+                        "WHERE table_schema = 'public'"
+                    )
+                )
+            ).scalars().all()
+        present = set(rows)
+    finally:
+        await engine.dispose()
+
+    missing = sorted(expected - present)
+    if missing:
+        _print("verify", f"tabelas faltando no banco: {', '.join(missing)}", "✗")
+        _print("verify", "a imagem do backend está defasada ou a migração falhou", "✗")
+        sys.exit(1)
+    _print("verify", f"{len(expected)} tabelas dos models presentes")
+
+
 async def main() -> None:
     admin_url = _admin_url(DATABASE_URL)
     db_name = _database_name(DATABASE_URL)
@@ -107,12 +173,17 @@ async def main() -> None:
     await wait_for_postgres(admin_url)
     await ensure_database(admin_url, db_name)
 
-    # migrate.py importa `engine` ligado ao DATABASE_URL (studia já existe agora):
-    # habilita pgvector, cria tabelas novas (create_all) e aplica ALTERs faltantes.
-    from migrate import migrate
+    async with bootstrap_lock(admin_url):
+        # migrate.py importa `engine` ligado ao DATABASE_URL (studia já existe):
+        # habilita pgvector, cria tabelas novas (create_all) e aplica ALTERs.
+        from migrate import migrate
 
-    await migrate()
-    _print("migrate", "schema pronto (pgvector + tabelas)")
+        await migrate()
+        _print("migrate", "schema pronto (pgvector + tabelas)")
+
+        # Trava: aborta se o schema não bater com os models do backend.
+        await verify_schema()
+
     print("✔ db_prepare concluído", flush=True)
 
 

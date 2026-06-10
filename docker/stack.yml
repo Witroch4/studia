@@ -42,14 +42,19 @@ services:
       MEILI_URL: http://studia-meili:7700
       SCRAPER_URL: http://studia-scraper:8090
       TZ: America/Fortaleza
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    # Auto-cura: roda migrações ANTES de servir. Em qualquer deploy/restart
+    # (build.sh, Portainer, scale, docker service update), o backend leva o
+    # schema ao dia (migrate + verify) e só então sobe o uvicorn. Se o schema
+    # não puder bater com os models, db_prepare sai 1 e o container reinicia —
+    # falha visível, nunca 500 silencioso em produção.
+    command: sh -c "python -m scripts.db_prepare && exec uvicorn main:app --host 0.0.0.0 --port 8000"
     networks:
       - minha_rede
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\""]
       interval: 30s
       timeout: 10s
-      start_period: 20s
+      start_period: 90s
       retries: 5
     deploy:
       <<: *on-manager
