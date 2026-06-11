@@ -94,7 +94,7 @@ export default function UserNav({ variant = "desktop" }: { variant?: "desktop" |
         </div>
         <span className="material-symbols-outlined text-gray-500 text-[18px]">unfold_more</span>
       </button>
-      {open && <Menu name={name} email={email} role={role} onLogout={handleLogout} loggingOut={loggingOut} />}
+      {open && <Menu name={name} email={email} role={role} plano={plano} onLogout={handleLogout} loggingOut={loggingOut} />}
     </div>
   );
 }
