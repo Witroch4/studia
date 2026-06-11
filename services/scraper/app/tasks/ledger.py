@@ -124,7 +124,12 @@ class CadernoJob:
 
 
 async def ensure_ledger_schema(conn: AsyncConnection) -> None:
-    for stmt in LEDGER_DDL.split(";"):
+    # Remove comentários de linha ANTES de splitar: um `;` dentro de um
+    # comentário `--` quebraria o split e geraria SQL inválido.
+    sql_sem_comentarios = "\n".join(
+        line.split("--", 1)[0] for line in LEDGER_DDL.splitlines()
+    )
+    for stmt in sql_sem_comentarios.split(";"):
         sql = stmt.strip()
         if sql:
             await conn.execute(text(sql))
