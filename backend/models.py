@@ -342,6 +342,9 @@ class Resolucao(Base):
         ForeignKey("cadernos_questoes.id", ondelete="SET NULL"), nullable=True, index=True
     )
     usuario_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    # Better Auth usa id string ("user".id é text) — este é o vínculo real com o
+    # dono da resolução (usado no limite diário de questões e nas estatísticas).
+    usuario_uid: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     resposta: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     acertou: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     tempo_segundos: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -498,3 +501,82 @@ class Alternativa(Base):
     ordem: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     questao: Mapped["Questao"] = relationship(back_populates="alternativas")
+
+
+# ─── Assinaturas (Stripe) ───────────────────────────────────────
+
+
+class Assinatura(Base):
+    """Assinatura Stripe de um usuário Better Auth (`usuario_uid` = "user".id).
+
+    Plano grátis = sem linha aqui (ou status inativo). Plano pago = linha com
+    status 'active'/'trialing' e `current_period_end` no futuro → libera
+    questões ilimitadas. Atualizada pelos webhooks do Stripe.
+    """
+
+    __tablename__ = "assinaturas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    usuario_uid: Mapped[str] = mapped_column(String(64), index=True)
+    stripe_customer_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True, unique=True, index=True
+    )
+    price_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="incomplete", index=True)
+    current_period_end: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+# ─── Estatísticas e fórum do TC por questão ─────────────────────
+
+
+class QuestaoEstatistica(Base):
+    """Estatísticas agregadas do TC de uma questão (puxadas na coleta)."""
+
+    __tablename__ = "questao_estatisticas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    questao_id: Mapped[int] = mapped_column(
+        ForeignKey("questoes.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    total_resolucoes: Mapped[int] = mapped_column(Integer, default=0)
+    total_acertos: Mapped[int] = mapped_column(Integer, default=0)
+    percentual_acertos: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Distribuição das respostas: {"A": 1234, "B": 567, ...} ou {"CERTO": .., "ERRADO": ..}.
+    distribuicao_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    fonte: Mapped[str] = mapped_column(String(16), default="tc")
+    coletado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class QuestaoComentario(Base):
+    """Comentário/fórum do TC associado a uma questão (puxado na coleta)."""
+
+    __tablename__ = "questao_comentarios"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    questao_id: Mapped[int] = mapped_column(
+        ForeignKey("questoes.id", ondelete="CASCADE"), index=True
+    )
+    # Idempotência: id do comentário no TC (upsert por este campo).
+    tc_comentario_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, unique=True, index=True
+    )
+    tc_parent_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    autor_nome: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    autor_tipo: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)  # professor | aluno
+    texto_html: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    texto_md: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    curtidas: Mapped[int] = mapped_column(Integer, default=0)
+    publicado_em: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

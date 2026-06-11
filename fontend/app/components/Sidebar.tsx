@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
+import { useSession } from "@/lib/auth-client";
 
 // Carregado só no cliente: usa useSession (better-auth/react), que não pode
 // rodar no prerender/SSR enquanto o better-auth está externalizado.
@@ -11,14 +12,17 @@ const UserNav = dynamic(() => import("./UserNav"), {
   loading: () => <div className="h-12" />,
 });
 
-const navItems = [
+type NavItem = { href: string; label: string; icon: string; adminOnly?: boolean };
+
+const navItems: NavItem[] = [
   { href: "/", label: "Home", icon: "home" },
   { href: "/flashcards", label: "Flashcards", icon: "style" },
   { href: "/disciplinas", label: "Disciplinas", icon: "library_books" },
   { href: "/q/filtrar", label: "Questões", icon: "fact_check" },
   { href: "/q/cadernos", label: "Minhas Pastas", icon: "folder" },
   { href: "/q/guias", label: "Guias", icon: "menu_book" },
-  { href: "/q/coletar", label: "Coletar TC", icon: "cloud_download" },
+  // Coleta TC: área de administração — só admin vê e usa (backend também exige admin).
+  { href: "/q/coletar", label: "Coletar TC", icon: "cloud_download", adminOnly: true },
   { href: "/concorrencia", label: "Concorrência", icon: "leaderboard" },
   { href: "/jobs", label: "Jobs IA", icon: "monitoring" },
   { href: "#", label: "Planejamento", icon: "calendar_month" },
@@ -30,6 +34,9 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as { role?: string } | undefined)?.role === "admin";
+  const itensVisiveis = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <>
@@ -43,7 +50,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
-          {navItems.map((item) => {
+          {itensVisiveis.map((item) => {
             const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href) && item.href !== "#";
             return (
               <Link

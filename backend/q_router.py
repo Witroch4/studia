@@ -19,7 +19,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from auth import CurrentUser, require_admin, require_user
 from database import get_db
+from entitlements import garantir_pode_resolver, resumo_limite
 from models import (
     Alternativa,
     Banca,
@@ -184,8 +186,8 @@ class ColetarReq(BaseModel):
 
 
 @router.post("/coletar", status_code=status.HTTP_202_ACCEPTED)
-async def coletar(req: ColetarReq) -> dict[str, Any]:
-    """Enfileira a coleta de um caderno TC no scraper TaskIQ/NATS."""
+async def coletar(req: ColetarReq, _admin: CurrentUser = Depends(require_admin)) -> dict[str, Any]:
+    """Enfileira a coleta de um caderno TC no scraper TaskIQ/NATS. (admin)"""
     caderno_id = extrair_caderno_id(req.url)
     expected_total = req.expected_total or KNOWN_TC_CADERNO_TOTALS.get(caderno_id)
 
@@ -240,9 +242,10 @@ async def coletar(req: ColetarReq) -> dict[str, Any]:
 @router.get("/coletar/jobs")
 async def listar_jobs_coleta(
     caderno_id: int | None = None,
+    _admin: CurrentUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Resumo dos jobs ativos de coleta TC para a UI acompanhar progresso real."""
+    """Resumo dos jobs ativos de coleta TC para a UI acompanhar progresso real. (admin)"""
     caderno_where = ""
     params: dict[str, Any] = {}
     if caderno_id is not None:
@@ -257,6 +260,7 @@ async def listar_jobs_coleta(
                   j.id AS job_id,
                   CAST(j.external_id AS INTEGER) AS caderno_id,
                   j.status,
+                  COALESCE(j.paused_by_user, false) AS paused,
                   j.expected_total,
                   j.total_units,
                   j.done_units,
@@ -276,6 +280,7 @@ async def listar_jobs_coleta(
                   j.id,
                   j.external_id,
                   j.status,
+                  j.paused_by_user,
                   j.expected_total,
                   j.total_units,
                   j.done_units,
@@ -350,6 +355,7 @@ async def listar_jobs_coleta(
                 "job_id": int(row["job_id"]),
                 "caderno_id": int(row["caderno_id"]),
                 "status": str(row["status"]),
+                "paused": bool(row["paused"]),
                 "expected_total": expected_total,
                 "total_units": total_units,
                 "done_units": done_units,
@@ -371,6 +377,31 @@ async def listar_jobs_coleta(
         )
 
     return {"jobs": jobs}
+
+
+async def _scraper_job_action(job_id: int, action: str) -> dict[str, Any]:
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=3, read=10, write=5, pool=12)) as c:
+            r = await c.post(f"{SCRAPER_URL}/job/{job_id}/{action}")
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"scraper indisponível: {exc}") from exc
+    if r.status_code == 404:
+        raise HTTPException(404, "job não encontrado")
+    if r.status_code != 200:
+        raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:200]}")
+    return r.json()
+
+
+@router.post("/coletar/jobs/{job_id}/pausar")
+async def pausar_job(job_id: int, _admin: CurrentUser = Depends(require_admin)) -> dict[str, Any]:
+    """Pausa a coleta de um job — supervisor para de enfileirar novas faixas. (admin)"""
+    return await _scraper_job_action(job_id, "pause")
+
+
+@router.post("/coletar/jobs/{job_id}/retomar")
+async def retomar_job(job_id: int, _admin: CurrentUser = Depends(require_admin)) -> dict[str, Any]:
+    """Retoma a coleta de um job pausado. (admin)"""
+    return await _scraper_job_action(job_id, "resume")
 
 
 async def _meili_reindex_recentes(db: AsyncSession, limit: int = 500) -> int:
@@ -625,13 +656,31 @@ def _annotation_scope(caderno_id: int, questao_id: int):
     )
 
 
+@router.get("/limite")
+async def limite_diario(
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Estado do limite diário do usuário (para o contador "7/10 hoje" na UI)."""
+    return await resumo_limite(db, user)
+
+
 @router.post("/{questao_id}/responder")
-async def responder(questao_id: int, req: ResponderReq, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def responder(
+    questao_id: int,
+    req: ResponderReq,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
     q = (await db.execute(
         select(Questao).options(selectinload(Questao.alternativas)).where(Questao.id == questao_id)
     )).scalar_one_or_none()
     if not q:
         raise HTTPException(404, "questao não encontrada")
+
+    # Plano grátis: bloqueia a partir da 11ª questão NOVA do dia (402). Admin e
+    # assinante ativo passam direto. Repetir questão já contada hoje é livre.
+    await garantir_pode_resolver(db, user, questao_id)
 
     # Normaliza pra comparar.
     # Em CERTO_ERRADO o gabarito é a *palavra* ("CERTO"/"ERRADO") mas a resposta
@@ -653,6 +702,7 @@ async def responder(questao_id: int, req: ResponderReq, db: AsyncSession = Depen
     res = Resolucao(
         questao_id=questao_id,
         caderno_id=req.caderno_id,
+        usuario_uid=user.id,
         resposta=resp,
         acertou=acertou,
         tempo_segundos=req.tempo_segundos,
@@ -668,6 +718,7 @@ async def responder(questao_id: int, req: ResponderReq, db: AsyncSession = Depen
         "acertou": acertou,
         "gabarito": q.gabarito,
         "stats": {"resolvidas": total, "acertos": acertos, "erros": erros},
+        "limite": await resumo_limite(db, user),
     }
 
 

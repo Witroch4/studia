@@ -165,6 +165,30 @@ async def verify_schema() -> None:
     _print("verify", f"{len(expected)} tabelas dos models presentes")
 
 
+async def ensure_scraper_compat_columns() -> None:
+    """Garante colunas do ledger do scraper que o backend consulta.
+
+    `tc_jobs` é criada/migrada pelo serviço scraper (ledger). Mas o backend já
+    consulta `tc_jobs.paused_by_user` (pausar/retomar coleta). Para o backend
+    nunca dar 500 caso suba antes do scraper aplicar o ledger novo, garantimos a
+    coluna aqui de forma idempotente (IF EXISTS — não cria a tabela se ausente).
+    """
+    engine = create_async_engine(DATABASE_URL, isolation_level="AUTOCOMMIT")
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(
+                text(
+                    "ALTER TABLE IF EXISTS tc_jobs "
+                    "ADD COLUMN IF NOT EXISTS paused_by_user BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
+        _print("compat", "tc_jobs.paused_by_user garantida (pausar/retomar coleta)")
+    except Exception as exc:  # noqa: BLE001
+        _print("compat", f"skip tc_jobs.paused_by_user ({type(exc).__name__})", "!")
+    finally:
+        await engine.dispose()
+
+
 async def ensure_meili_settings() -> None:
     """Best-effort: cria o índice Meili e aplica os settings (filtráveis/facetas).
 
@@ -212,6 +236,9 @@ async def main() -> None:
 
         # Trava: aborta se o schema não bater com os models do backend.
         await verify_schema()
+
+        # Compat com o ledger do scraper (coluna que o backend consulta).
+        await ensure_scraper_compat_columns()
 
     # Meili: aplica settings (idempotente, leve). Best-effort, fora do lock.
     await ensure_meili_settings()

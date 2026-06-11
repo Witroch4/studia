@@ -119,9 +119,23 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="studIA API", version="0.2.0", lifespan=lifespan)
 
+# Em prod front e back são same-origin (Traefik), mas mantemos a allowlist
+# explícita p/ dev (cross-origin) e para qualquer origem extra via env.
+# allow_credentials=True exige origens explícitas (não "*") — o cookie do
+# Better Auth só viaja com credenciais habilitadas dos dois lados.
+import os as _os  # noqa: E402
+
+_DEFAULT_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://studia.witdev.com.br",
+]
+_extra_origins = [o.strip() for o in _os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+CORS_ALLOWED = list(dict.fromkeys(_DEFAULT_ORIGINS + _extra_origins))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=CORS_ALLOWED,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -136,6 +150,10 @@ app.include_router(guias_router)
 # witdev-tec-master: questões/cadernos/IA
 from q_router import router as q_router  # noqa: E402
 app.include_router(q_router)
+
+# Assinatura / billing (Stripe)
+from billing_router import router as billing_router  # noqa: E402
+app.include_router(billing_router)
 
 
 # ─── Health ──────────────────────────────────────────────

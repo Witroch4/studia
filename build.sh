@@ -99,9 +99,16 @@ sync_remote_env() {
   [[ -f "$LOCAL_ENV_FILE" ]] || die "sem .env local em $LOCAL_ENV_FILE (preciso de GEMINI_API_KEY e BETTER_AUTH_SECRET)"
 
   local gemini better_secret meili_key pg_pass
+  local stripe_pub stripe_sec stripe_whsec stripe_price
   gemini="$(grep -E '^GEMINI_API_KEY=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
   better_secret="$(grep -E '^BETTER_AUTH_SECRET=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
+  # Stripe (assinatura) — chaves de teste; tokens simples sem espaços.
+  stripe_pub="$(grep -E '^STRIPE_PUBLISHABLE_KEY=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
+  stripe_sec="$(grep -E '^STRIPE_SECRET_KEY=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
+  stripe_whsec="$(grep -E '^STRIPE_WEBHOOK_SECRET=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
+  stripe_price="$(grep -E '^STRIPE_PRICE_ID=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
   meili_key="${MEILI_MASTER_KEY:-$(openssl rand -hex 24)}"
+  [[ -n "$stripe_sec" ]] || log_warn "STRIPE_SECRET_KEY ausente no .env local (assinatura ficará desabilitada)"
   [[ -n "$gemini" ]] || log_warn "GEMINI_API_KEY ausente no .env local"
   [[ -n "$better_secret" ]] || die "BETTER_AUTH_SECRET ausente no .env local (necessário p/ Better Auth)"
 
@@ -120,7 +127,7 @@ sync_remote_env() {
   # PG password + MinIO creds dos containers de infra. Grava 0600.
   GEMINI_API_KEY="$gemini" BETTER_AUTH_SECRET="$better_secret" MEILI_KEY="$meili_key" PG_PASS_RAW="$pg_pass" \
   ssh -i "$PROD_SSH_KEY" -o BatchMode=yes -o ConnectTimeout=20 \
-      "$PROD_SSH_HOST" "GEMINI_API_KEY='$gemini' BETTER_AUTH_SECRET='$better_secret' MEILI_KEY='$meili_key' PG_PASS_RAW='$pg_pass' bash -s" <<'REMOTE'
+      "$PROD_SSH_HOST" "GEMINI_API_KEY='$gemini' BETTER_AUTH_SECRET='$better_secret' MEILI_KEY='$meili_key' PG_PASS_RAW='$pg_pass' STRIPE_PUBLISHABLE_KEY='$stripe_pub' STRIPE_SECRET_KEY='$stripe_sec' STRIPE_WEBHOOK_SECRET='$stripe_whsec' STRIPE_PRICE_ID='$stripe_price' bash -s" <<'REMOTE'
 set -euo pipefail
 ENV_FILE=/opt/studia/.env
 
@@ -163,6 +170,10 @@ umask 077
   echo "SCRAPER_URL=http://studia-scraper:8090"
   printf 'GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY"
   printf 'BETTER_AUTH_SECRET=%s\n' "$BETTER_AUTH_SECRET"
+  [ -n "${STRIPE_PUBLISHABLE_KEY:-}" ] && printf 'STRIPE_PUBLISHABLE_KEY=%s\n' "$STRIPE_PUBLISHABLE_KEY"
+  [ -n "${STRIPE_SECRET_KEY:-}" ] && printf 'STRIPE_SECRET_KEY=%s\n' "$STRIPE_SECRET_KEY"
+  [ -n "${STRIPE_WEBHOOK_SECRET:-}" ] && printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$STRIPE_WEBHOOK_SECRET"
+  [ -n "${STRIPE_PRICE_ID:-}" ] && printf 'STRIPE_PRICE_ID=%s\n' "$STRIPE_PRICE_ID"
   echo "BETTER_AUTH_URL=https://studia.witdev.com.br"
   echo "NEXT_PUBLIC_API_URL=https://studia.witdev.com.br"
   echo "NATS_SERVERS=nats://nats:4222"

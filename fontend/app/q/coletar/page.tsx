@@ -36,6 +36,7 @@ interface JobAtivo {
   job_id: number;
   caderno_id: number;
   status: string;
+  paused: boolean;
   expected_total: number;
   total_units: number;
   done_units: number;
@@ -113,6 +114,32 @@ export default function ColetarPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [erroJobs, setErroJobs] = useState<string | null>(null);
   const [jobs, setJobs] = useState<JobAtivo[]>([]);
+  const [pausando, setPausando] = useState<number | null>(null);
+
+  async function alternarPausa(job: JobAtivo) {
+    setPausando(job.job_id);
+    const acao = job.paused ? "retomar" : "pausar";
+    try {
+      const r = await fetch(`${API}/api/q/coletar/jobs/${job.job_id}/${acao}`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => null);
+        setErroJobs(d?.detail || `Falha ao ${acao} (HTTP ${r.status})`);
+      } else {
+        // Atualização otimista + refresh real.
+        setJobs((prev) =>
+          prev.map((j) => (j.job_id === job.job_id ? { ...j, paused: !j.paused } : j))
+        );
+        void carregarJobs(true);
+      }
+    } catch (e) {
+      setErroJobs((e as Error).message);
+    } finally {
+      setPausando(null);
+    }
+  }
 
   function extrairId(s: string): string | null {
     const t = s.trim();
@@ -133,7 +160,7 @@ export default function ColetarPage() {
       setCarregandoJobs(true);
     }
     try {
-      const r = await fetch(`${API}/api/q/coletar/jobs`, { cache: "no-store" });
+      const r = await fetch(`${API}/api/q/coletar/jobs`, { cache: "no-store", credentials: "include" });
       const text = await r.text();
       let data: { jobs?: JobAtivo[] } = {};
       try {
@@ -181,6 +208,7 @@ export default function ColetarPage() {
     try {
       const r = await fetch(`${API}/api/q/coletar`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, relogin, expected_total: expectedTotal }),
         signal: controller.signal,
@@ -309,7 +337,29 @@ export default function ColetarPage() {
                           <span className="ml-2 text-cyan-400">Job #{job.job_id}</span>
                         </div>
                         <div className="mt-1 text-xs text-gray-400">
-                          Status: {statusTexto(job.status)} · {job.questoes_ok_done.toLocaleString("pt-BR")} / {job.expected_total.toLocaleString("pt-BR")} questoes · {job.done_units}/{job.total_units} faixas
+                          Status: {statusTexto(job.status)}
+                          {job.paused && (
+                            <span className="ml-1.5 inline-flex items-center gap-1 rounded-full border border-amber-700 bg-amber-900/40 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">
+                              <span className="material-symbols-outlined text-[12px]">pause</span> Pausado
+                            </span>
+                          )}
+                          {" · "}{job.questoes_ok_done.toLocaleString("pt-BR")} / {job.expected_total.toLocaleString("pt-BR")} questoes · {job.done_units}/{job.total_units} faixas
+                        </div>
+                        <div className="mt-2">
+                          <button
+                            onClick={() => alternarPausa(job)}
+                            disabled={pausando === job.job_id}
+                            className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
+                              job.paused
+                                ? "border border-green-700 bg-green-900/40 text-green-300 hover:bg-green-900/60"
+                                : "border border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700"
+                            }`}
+                          >
+                            <span className={`material-symbols-outlined text-[14px] ${pausando === job.job_id ? "animate-spin" : ""}`}>
+                              {pausando === job.job_id ? "progress_activity" : job.paused ? "play_arrow" : "pause"}
+                            </span>
+                            {job.paused ? "Retomar" : "Pausar"}
+                          </button>
                         </div>
                         {primeiraFaixa && (
                           <div className="mt-2 text-xs text-amber-300">

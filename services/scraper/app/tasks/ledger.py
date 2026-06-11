@@ -35,6 +35,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_tc_jobs_active_caderno
 ON tc_jobs (kind, external_id)
 WHERE kind = 'caderno' AND status IN ('pending', 'running', 'blocked');
 
+-- Pausa manual via UI: quando TRUE, o supervisor para de enfileirar novas
+-- faixas deste job (units em voo terminam; o progresso fica salvo).
+ALTER TABLE tc_jobs
+ADD COLUMN IF NOT EXISTS paused_by_user BOOLEAN NOT NULL DEFAULT FALSE;
+
 CREATE TABLE IF NOT EXISTS tc_caderno_units (
   id BIGSERIAL PRIMARY KEY,
   job_id BIGINT NOT NULL REFERENCES tc_jobs(id) ON DELETE CASCADE,
@@ -483,6 +488,7 @@ async def list_active_caderno_jobs(session: AsyncSession) -> list[CadernoJob]:
                 FROM tc_jobs
                 WHERE kind = 'caderno'
                   AND status IN ('pending', 'running', 'blocked')
+                  AND paused_by_user IS NOT TRUE
                 ORDER BY id
                 """
             )
@@ -498,6 +504,58 @@ async def list_active_caderno_jobs(session: AsyncSession) -> list[CadernoJob]:
         )
         for row in rows
     ]
+
+
+async def set_caderno_job_paused(
+    session: AsyncSession, *, job_id: int, paused: bool
+) -> bool:
+    """Marca/desmarca pausa manual do job. Retorna True se o job existe."""
+    res = await session.execute(
+        text(
+            """
+            UPDATE tc_jobs
+            SET paused_by_user = :paused, updated_at = now()
+            WHERE id = :job_id AND kind = 'caderno'
+            """
+        ),
+        {"paused": paused, "job_id": job_id},
+    )
+    return (res.rowcount or 0) > 0
+
+
+async def is_caderno_paused(session: AsyncSession, *, caderno_id: int) -> bool:
+    """True se o job ativo deste caderno está pausado pelo usuário."""
+    row = (
+        await session.execute(
+            text(
+                """
+                SELECT paused_by_user
+                FROM tc_jobs
+                WHERE kind = 'caderno'
+                  AND external_id = :cid
+                  AND status IN ('pending', 'running', 'blocked')
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ),
+            {"cid": str(caderno_id)},
+        )
+    ).scalar_one_or_none()
+    return bool(row)
+
+
+async def release_unit_to_pending(session: AsyncSession, *, unit_id: int) -> None:
+    """Devolve uma unit em voo pra 'pending' (sem perder progresso) — usado na pausa."""
+    await session.execute(
+        text(
+            """
+            UPDATE tc_caderno_units
+            SET status = 'pending', leased_until = NULL, task_id = NULL, updated_at = now()
+            WHERE id = :unit_id AND status IN ('running', 'queued')
+            """
+        ),
+        {"unit_id": unit_id},
+    )
 
 
 async def record_caderno_membership(

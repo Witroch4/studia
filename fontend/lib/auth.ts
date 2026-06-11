@@ -29,9 +29,11 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
-    // App pessoal: só o admin cria usuários (via seed / painel /conta). Sem signup público.
-    disableSignUp: true,
-    minPasswordLength: 4,
+    // Cadastro público: qualquer pessoa se registra e entra no plano grátis
+    // (limite de 10 questões/dia). A conta semeada continua admin; novos
+    // cadastros recebem role "user" (defaultRole do plugin admin).
+    disableSignUp: false,
+    minPasswordLength: 6,
   },
 
   session: {

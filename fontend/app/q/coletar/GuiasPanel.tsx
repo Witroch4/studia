@@ -63,7 +63,7 @@ export default function GuiasPanel() {
 
   const carregar = useCallback(async () => {
     try {
-      const r = await fetch(`${API}/api/q/guias`, { cache: "no-store" });
+      const r = await fetch(`${API}/api/q/guias`, { cache: "no-store", credentials: "include" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       setGuias(Array.isArray(data.guias) ? data.guias : []);
@@ -90,6 +90,7 @@ export default function GuiasPanel() {
     try {
       const r = await fetch(`${API}/api/q/guias/importar`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: targetUrl.trim(), iniciar_coleta: iniciarColeta }),
       });
@@ -115,6 +116,7 @@ export default function GuiasPanel() {
     try {
       const r = await fetch(`${API}/api/q/guias/buscar-tc?termo=${encodeURIComponent(termo.trim())}`, {
         cache: "no-store",
+        credentials: "include",
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();

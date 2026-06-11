@@ -21,7 +21,7 @@ import asyncio
 from typing import Annotated, Any
 
 import typer
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from app.auth import login_and_save_state
@@ -339,6 +339,38 @@ async def enqueue_caderno(body: EnqueueCadernoBody) -> EnqueueCadernoResponse:
         )
     finally:
         await engine.dispose()
+
+
+async def _set_job_paused(job_id: int, paused: bool) -> dict[str, Any]:
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.tasks.ledger import ensure_ledger_schema, set_caderno_job_paused
+
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    try:
+        async with engine.begin() as conn:
+            await ensure_ledger_schema(conn)
+        Session = async_sessionmaker(engine, expire_on_commit=False)
+        async with Session.begin() as session:
+            ok = await set_caderno_job_paused(session, job_id=job_id, paused=paused)
+        if not ok:
+            raise HTTPException(404, "job não encontrado")
+        return {"job_id": job_id, "paused": paused}
+    finally:
+        await engine.dispose()
+
+
+@api.post("/job/{job_id}/pause")
+async def pause_job(job_id: int) -> dict[str, Any]:
+    """Pausa a coleta do job (supervisor para de enfileirar novas faixas)."""
+    return await _set_job_paused(job_id, True)
+
+
+@api.post("/job/{job_id}/resume")
+async def resume_job(job_id: int) -> dict[str, Any]:
+    """Retoma a coleta do job pausado."""
+    return await _set_job_paused(job_id, False)
 
 
 @api.post("/enqueue/imagens", response_model=EnqueueImagensResponse)

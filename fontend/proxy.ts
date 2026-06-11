@@ -6,7 +6,7 @@ import { getSessionCookie } from "better-auth/cookies";
  * Só checa a PRESENÇA do cookie de sessão — NÃO bate no banco. A validação
  * real acontece no servidor/quando o cookieCache expira.
  */
-const PUBLIC_ROUTES = ["/login"];
+const PUBLIC_ROUTES = ["/login", "/cadastro"];
 
 export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -98,6 +98,7 @@ export default function GuiaDetalhePage() {
     try {
       const r = await fetch(`${API}/api/q/guias/${guiaId}/materializar`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
@@ -119,7 +120,7 @@ export default function GuiaDetalhePage() {
     setAcao("coletar");
     setMsg(null);
     try {
-      const r = await fetch(`${API}/api/q/guias/${guiaId}/coletar`, { method: "POST" });
+      const r = await fetch(`${API}/api/q/guias/${guiaId}/coletar`, { method: "POST", credentials: "include" });
       const data = await r.json();
       if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
       setMsg(`${data.enqueued} caderno(s) reenfileirados para coleta.`);

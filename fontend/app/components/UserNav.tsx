@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient, useSession } from "@/lib/auth-client";
+import { apiJson } from "@/lib/api";
 
 function initialsOf(name?: string | null, email?: string | null) {
   const base = (name || email || "").trim();
@@ -23,7 +24,19 @@ export default function UserNav({ variant = "desktop" }: { variant?: "desktop" |
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [plano, setPlano] = useState<"free" | "pro" | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!session?.user) return;
+    let vivo = true;
+    apiJson<{ plano: "free" | "pro" }>("/api/billing/status")
+      .then((d) => vivo && setPlano(d.plano))
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, [session?.user]);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -63,7 +76,7 @@ export default function UserNav({ variant = "desktop" }: { variant?: "desktop" |
         <button onClick={() => setOpen((v) => !v)} className="block rounded-full focus:outline-none focus:ring-2 focus:ring-primary">
           {Avatar}
         </button>
-        {open && <Menu name={name} email={email} role={role} onLogout={handleLogout} loggingOut={loggingOut} />}
+        {open && <Menu name={name} email={email} role={role} plano={plano} onLogout={handleLogout} loggingOut={loggingOut} />}
       </div>
     );
   }
@@ -90,30 +103,52 @@ function Menu({
   name,
   email,
   role,
+  plano,
   onLogout,
   loggingOut,
 }: {
   name: string;
   email: string;
   role: string;
+  plano: "free" | "pro" | null;
   onLogout: () => void;
   loggingOut: boolean;
 }) {
+  const isAdmin = role === "admin";
+  const isPro = isAdmin || plano === "pro";
   return (
     <div className="absolute bottom-full right-0 mb-2 w-60 rounded-xl border border-border-dark bg-surface-dark shadow-xl overflow-hidden z-50 animate-in">
       <div className="px-4 py-3 border-b border-border-dark/60">
         <p className="text-sm font-semibold text-white truncate">{name}</p>
         <p className="text-xs text-gray-500 truncate">{email}</p>
-        <span className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide"
-          style={{
-            color: role === "admin" ? "var(--color-secondary)" : "var(--color-primary)",
-            background: role === "admin" ? "rgba(139,92,246,0.12)" : "rgba(6,182,212,0.12)",
-          }}>
-          <span className="material-symbols-outlined text-[12px]">{role === "admin" ? "shield_person" : "person"}</span>
-          {role}
-        </span>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide"
+            style={{
+              color: isAdmin ? "var(--color-secondary)" : "var(--color-primary)",
+              background: isAdmin ? "rgba(139,92,246,0.12)" : "rgba(6,182,212,0.12)",
+            }}>
+            <span className="material-symbols-outlined text-[12px]">{isAdmin ? "shield_person" : "person"}</span>
+            {role}
+          </span>
+          {plano && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide"
+              style={{
+                color: isPro ? "var(--color-secondary)" : "#9ca3af",
+                background: isPro ? "rgba(139,92,246,0.12)" : "rgba(148,163,184,0.12)",
+              }}>
+              <span className="material-symbols-outlined text-[12px]">{isPro ? "workspace_premium" : "bolt"}</span>
+              {isPro ? "Pro" : "Grátis"}
+            </span>
+          )}
+        </div>
       </div>
       <div className="p-1">
+        {!isPro && (
+          <Link href="/assinar" className="flex items-center gap-3 px-3 py-2 text-sm text-secondary rounded-lg hover:bg-secondary/10 transition-colors font-medium">
+            <span className="material-symbols-outlined text-[18px]">workspace_premium</span>
+            Assinar Pro
+          </Link>
+        )}
         <Link href="/conta" className="flex items-center gap-3 px-3 py-2 text-sm text-gray-300 rounded-lg hover:bg-gray-800 hover:text-white transition-colors">
           <span className="material-symbols-outlined text-[18px] text-primary/70">manage_accounts</span>
           Minha conta

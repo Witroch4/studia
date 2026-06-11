@@ -27,12 +27,14 @@ from app.tasks.brokers.studia import broker_studia_default
 from app.tasks.enqueue import enqueue
 from app.tasks.ledger import (
     ensure_ledger_schema,
+    is_caderno_paused,
     lease_caderno_unit,
     list_enqueueable_caderno_units,
     mark_caderno_unit_blocked,
     mark_caderno_unit_done,
     mark_caderno_unit_failed,
     record_caderno_membership,
+    release_unit_to_pending,
 )
 
 log = get_logger(__name__)
@@ -107,6 +109,19 @@ async def execute_caderno_page_unit(
                 inicio=inicio,
                 page_size=page_size,
             )
+
+        # Pausa manual: se o usuário pausou o job, devolve a unit pra 'pending'
+        # (re-enfileira no retomar) e não bate no TC.
+        async with Session.begin() as session:
+            if await is_caderno_paused(session, caderno_id=caderno_id):
+                await release_unit_to_pending(session, unit_id=unit["id"])
+                log.info("tc_unit.paused", caderno_id=caderno_id, inicio=inicio)
+                return CadernoUnitResult(
+                    status="skipped",
+                    caderno_id=caderno_id,
+                    inicio=inicio,
+                    page_size=page_size,
+                )
 
         try:
             if relogin:

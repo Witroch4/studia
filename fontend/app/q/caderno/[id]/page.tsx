@@ -83,6 +83,10 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const [canvasColor, setCanvasColor] = useState("#22c55e");
   const [canvasWidth, setCanvasWidth] = useState(5);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [limite, setLimite] = useState<{
+    usado: number; limite: number; restantes: number | null; ilimitado: boolean;
+  } | null>(null);
+  const [paywall, setPaywall] = useState<string | null>(null);
   const questionCardRef = useRef<HTMLDivElement | null>(null);
   const startedAt = useRef<number>(0);
 
@@ -112,6 +116,15 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       .catch(console.error);
     carregarStatsCaderno();
   }, [id, carregarStatsCaderno]);
+
+  // Limite diário de questões (plano grátis) — alimenta o contador "X/10 hoje".
+  const carregarLimite = useCallback(() => {
+    fetch(`${API}/api/q/limite`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((l) => l && setLimite(l))
+      .catch(() => {});
+  }, []);
+  useEffect(() => { carregarLimite(); }, [carregarLimite]);
 
   // Favoritas persistidas — carrega os IDs uma vez, sincroniza a estrela por questão
   const [favIds, setFavIds] = useState<Set<number>>(new Set());
@@ -173,11 +186,20 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     try {
       const r = await fetch(`${API}/api/q/${questao.id}/responder`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ resposta: selecionada, tempo_segundos, caderno_id: caderno.id }),
       });
+      if (r.status === 402) {
+        // Limite diário do plano grátis atingido → mostra paywall.
+        const err = await r.json().catch(() => null);
+        setResolvida(false);
+        setPaywall(err?.detail?.mensagem || "Você atingiu o limite de questões de hoje do plano grátis.");
+        return;
+      }
       const data = await r.json();
       setAcertou(data.acertou);
+      if (data.limite) setLimite(data.limite);
       carregarStatsCaderno();
     } catch (e) {
       console.error(e);
@@ -607,6 +629,38 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ─── Contador do limite diário (plano grátis) ─── */}
+      {limite && !limite.ilimitado && (
+        <button
+          onClick={() => router.push("/assinar")}
+          title="Limite diário do plano grátis — clique para assinar"
+          className="fixed bottom-4 right-4 z-40 flex items-center gap-1.5 rounded-full border border-border-dark bg-surface-dark/95 px-3 py-1.5 text-xs font-medium text-gray-300 shadow-lg backdrop-blur hover:border-secondary/50 hover:text-white transition"
+        >
+          <span className="material-symbols-outlined text-[16px] text-secondary">bolt</span>
+          {limite.usado}/{limite.limite} hoje
+        </button>
+      )}
+
+      {/* ─── Paywall: limite diário atingido ─── */}
+      {paywall && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setPaywall(null)}>
+          <div className="w-full max-w-sm rounded-2xl border border-secondary/30 bg-surface-dark p-7 text-center shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <span className="material-symbols-outlined text-secondary text-5xl">workspace_premium</span>
+            <h2 className="mt-3 text-lg font-bold text-white">Limite diário atingido</h2>
+            <p className="mt-2 text-sm text-gray-400">{paywall}</p>
+            <button
+              onClick={() => router.push("/assinar")}
+              className="mt-6 w-full rounded-lg bg-secondary py-2.5 text-sm font-semibold text-white hover:opacity-90 transition"
+            >
+              Assinar studIA Pro
+            </button>
+            <button onClick={() => setPaywall(null)} className="mt-2 w-full rounded-lg py-2 text-xs text-gray-500 hover:text-gray-300">
+              Continuar amanhã
+            </button>
+          </div>
         </div>
       )}
     </div>

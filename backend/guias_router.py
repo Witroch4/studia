@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from auth import CurrentUser, require_admin
 from database import get_db
 from models import CadernoQuestoes, Guia, GuiaCaderno
 
@@ -112,7 +113,11 @@ def _guia_dict(g: Guia) -> dict[str, Any]:
 
 
 @router.post("/importar", status_code=status.HTTP_202_ACCEPTED)
-async def importar_guia(req: ImportarGuiaReq, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def importar_guia(
+    req: ImportarGuiaReq,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
     """Resolve o guia, persiste cadernos, salva no TC e enfileira a coleta."""
     resolved = await _scraper_post(
         "/guia/resolver", {"url": req.url, "relogin": req.relogin}, _RESOLVE_TIMEOUT
@@ -248,7 +253,11 @@ def _merge_cadernos(itens_pasta: list[dict], cadernos_guia: list[dict]) -> list[
 
 
 @router.get("/buscar-tc")
-async def buscar_guias_tc(termo: str, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def buscar_guias_tc(
+    termo: str,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
     """Busca guias no TC por palavra-chave e marca quais já foram importados."""
     try:
         async with httpx.AsyncClient(timeout=_SAVE_TIMEOUT) as c:
@@ -375,7 +384,11 @@ async def detalhe_guia(guia_id: int, db: AsyncSession = Depends(get_db)) -> dict
 
 
 @router.post("/{guia_id}/coletar")
-async def coletar_guia(guia_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def coletar_guia(
+    guia_id: int,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
     """(Re)enfileira a coleta dos cadernos do guia que ainda não estão completos.
 
     Idempotente: cadernos já `done` no ledger são ignorados pelo scraper.
@@ -407,7 +420,10 @@ async def coletar_guia(guia_id: int, db: AsyncSession = Depends(get_db)) -> dict
 
 @router.post("/{guia_id}/materializar")
 async def materializar_guia(
-    guia_id: int, req: MaterializarReq | None = None, db: AsyncSession = Depends(get_db)
+    guia_id: int,
+    req: MaterializarReq | None = None,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Cria/atualiza um CadernoQuestoes por caderno com coleta concluída.
 

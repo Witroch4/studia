@@ -100,6 +100,7 @@ export default function GuiasPage() {
     try {
       const r = await fetch(`${API}/api/q/guias/importar`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: targetUrl.trim(), iniciar_coleta: iniciarColeta }),
       });
@@ -131,6 +132,7 @@ export default function GuiasPage() {
     try {
       const r = await fetch(`${API}/api/q/guias/buscar-tc?termo=${encodeURIComponent(termo.trim())}`, {
         cache: "no-store",
+        credentials: "include",
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();

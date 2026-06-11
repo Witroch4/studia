@@ -2,14 +2,13 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
-function LoginForm() {
+function CadastroForm() {
   const router = useRouter();
-  const params = useSearchParams();
-  const redirect = params.get("redirect") || "/";
 
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -19,25 +18,28 @@ function LoginForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
-    const { error } = await authClient.signIn.email({ email, password });
-    setLoading(false);
-    if (error) {
-      setError(error.message || "Não foi possível entrar. Verifique e-mail e senha.");
+    if (password.length < 6) {
+      setError("A senha precisa de ao menos 6 caracteres.");
       return;
     }
-    router.push(redirect);
+    setLoading(true);
+    const { error } = await authClient.signUp.email({ name, email, password });
+    setLoading(false);
+    if (error) {
+      setError(error.message || "Não foi possível criar a conta. Tente outro e-mail.");
+      return;
+    }
+    // Better Auth já cria a sessão no signup → vai direto pra home.
+    router.push("/");
     router.refresh();
   }
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center px-4 bg-bg-dark relative overflow-hidden">
-      {/* glows de fundo */}
       <div className="pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-secondary/10 blur-3xl" />
 
       <div className="relative w-full max-w-sm">
-        {/* logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <span className="material-symbols-outlined text-primary text-4xl">school</span>
           <span className="text-3xl font-bold tracking-tight text-white">
@@ -46,10 +48,30 @@ function LoginForm() {
         </div>
 
         <div className="rounded-2xl border border-border-dark bg-surface-dark p-7 shadow-xl">
-          <h1 className="text-xl font-bold text-white">Entrar</h1>
-          <p className="mt-1 text-sm text-gray-500">Acesse sua plataforma de estudos</p>
+          <h1 className="text-xl font-bold text-white">Criar conta</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Grátis — resolva até 10 questões por dia.
+          </p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div>
+              <label className="block text-[0.7rem] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+                Nome
+              </label>
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 text-[20px] pointer-events-none">person</span>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Seu nome"
+                  className="w-full rounded-lg border border-border-dark bg-bg-dark py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-gray-600 outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-[0.7rem] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
                 E-mail
@@ -59,7 +81,6 @@ function LoginForm() {
                 <input
                   type="email"
                   required
-                  autoFocus
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="voce@email.com"
@@ -79,7 +100,7 @@ function LoginForm() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••"
+                  placeholder="mínimo 6 caracteres"
                   className="w-full rounded-lg border border-border-dark bg-bg-dark py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-gray-600 outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 />
                 <button
@@ -106,15 +127,15 @@ function LoginForm() {
               className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(6,182,212,0.30)] hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               {loading && <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>}
-              {loading ? "Entrando…" : "Entrar"}
+              {loading ? "Criando…" : "Criar conta grátis"}
             </button>
           </form>
         </div>
 
         <p className="mt-6 text-center text-xs text-gray-500">
-          Não tem conta?{" "}
-          <Link href="/cadastro" className="text-primary hover:underline font-medium">
-            Criar conta grátis
+          Já tem conta?{" "}
+          <Link href="/login" className="text-primary hover:underline font-medium">
+            Entrar
           </Link>
         </p>
       </div>
@@ -122,10 +143,10 @@ function LoginForm() {
   );
 }
 
-export default function LoginPage() {
+export default function CadastroPage() {
   return (
     <Suspense fallback={null}>
-      <LoginForm />
+      <CadastroForm />
     </Suspense>
   );
 }
