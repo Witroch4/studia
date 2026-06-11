@@ -1,9 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
-import { useSession } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth-client";
 
 // Carregado só no cliente: usa useSession (better-auth/react), que não pode
 // rodar no prerender/SSR enquanto o better-auth está externalizado.
@@ -34,8 +35,18 @@ const navItems: NavItem[] = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { data: session } = useSession();
-  const isAdmin = (session?.user as { role?: string } | undefined)?.role === "admin";
+  // better-auth é externalizado → o hook useSession quebra no prerender/SSR.
+  // Lemos a sessão só no cliente (useEffect), sem layout shift do sidebar.
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    authClient
+      .getSession()
+      .then((res) => {
+        const role = (res?.data?.user as { role?: string } | undefined)?.role;
+        setIsAdmin(role === "admin");
+      })
+      .catch(() => {});
+  }, []);
   const itensVisiveis = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   return (
