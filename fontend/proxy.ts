@@ -5,24 +5,42 @@ import { getSessionCookie } from "better-auth/cookies";
  * Proteção otimista de rotas (estilo proxy do platform-core).
  * Só checa a PRESENÇA do cookie de sessão — NÃO bate no banco. A validação
  * real acontece no servidor/quando o cookieCache expira.
+ *
+ * Público: a landing ("/"), as páginas de auth e os arquivos de SEO. Todo o
+ * resto (o app em /painel, /q, /disciplinas, …) exige sessão.
  */
-const PUBLIC_ROUTES = ["/login", "/cadastro"];
+const AUTH_PREFIXES = ["/login", "/cadastro"];
+
+// Rotas de metadata que o matcher não exclui por extensão (precisam ser
+// alcançáveis por crawlers sem login). /icon.svg já passa pelo matcher (.svg).
+const SEO_FILES = new Set([
+  "/robots.txt",
+  "/sitemap.xml",
+  "/manifest.webmanifest",
+  "/opengraph-image",
+  "/twitter-image",
+  "/apple-icon",
+]);
 
 export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSession = getSessionCookie(request);
-  const isPublic = PUBLIC_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
 
-  // Não logado tentando rota privada → /login (com redirect de volta)
-  if (!isPublic && !hasSession) {
-    const url = new URL("/login", request.url);
-    if (pathname !== "/") url.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(url);
+  const isLanding = pathname === "/";
+  const isAuthPage = AUTH_PREFIXES.some((r) => pathname === r || pathname.startsWith(r + "/"));
+  const isPublic = isLanding || isAuthPage || SEO_FILES.has(pathname);
+
+  // Logado na landing ou nas páginas de auth → vai pro painel (sem flash).
+  // Crawler/visitante sem cookie continua vendo a landing normalmente.
+  if (hasSession && (isLanding || isAuthPage)) {
+    return NextResponse.redirect(new URL("/painel", request.url));
   }
 
-  // Já logado tentando /login → manda pra home
-  if (isPublic && hasSession) {
-    return NextResponse.redirect(new URL("/", request.url));
+  // Não logado tentando rota privada → /login (com redirect de volta).
+  if (!isPublic && !hasSession) {
+    const url = new URL("/login", request.url);
+    url.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(url);
   }
 
   return NextResponse.next();

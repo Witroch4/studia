@@ -35,7 +35,8 @@ export const siteConfig = {
   ],
 } as const;
 
-/** Rotas públicas indexáveis (alimenta o sitemap). */
-export const publicRoutes = ["/", "/login", "/cadastro", "/assinar"] as const;
+/** Rotas públicas indexáveis (alimenta o sitemap). /assinar exige login,
+ *  então fica fora do índice — o funil entra por /cadastro. */
+export const publicRoutes = ["/", "/login", "/cadastro"] as const;
 
 export type SiteConfig = typeof siteConfig;
