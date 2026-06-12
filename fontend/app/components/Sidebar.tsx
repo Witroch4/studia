@@ -27,11 +27,11 @@ const navItems: NavItem[] = [
   { href: "/q/coletar", label: "Coletar TC", icon: "cloud_download", adminOnly: true },
   { href: "/concorrencia", label: "Concorrência", icon: "leaderboard" },
   { href: "/jobs", label: "Jobs IA", icon: "monitoring" },
-  { href: "#", label: "Planejamento", icon: "calendar_month" },
-  { href: "#", label: "Revisões", icon: "autorenew" },
-  { href: "#", label: "Histórico", icon: "history" },
-  { href: "#", label: "Estatísticas", icon: "bar_chart" },
-  { href: "#", label: "Simulados", icon: "quiz" },
+  { href: "/em-breve?f=Planejamento", label: "Planejamento", icon: "calendar_month" },
+  { href: "/em-breve?f=Revisões", label: "Revisões", icon: "autorenew" },
+  { href: "/em-breve?f=Histórico", label: "Histórico", icon: "history" },
+  { href: "/em-breve?f=Estatísticas", label: "Estatísticas", icon: "bar_chart" },
+  { href: "/em-breve?f=Simulados", label: "Simulados", icon: "quiz" },
 ];
 
 export default function Sidebar() {
@@ -60,7 +60,7 @@ export default function Sidebar() {
 
         <nav className="flex-1 p-4 space-y-1">
           {itensVisiveis.map((item) => {
-            const isActive = item.href === "/painel" ? pathname === "/painel" : pathname.startsWith(item.href) && item.href !== "#";
+            const isActive = item.href === "/painel" ? pathname === "/painel" : !item.href.startsWith("/em-breve") && pathname.startsWith(item.href);
             return (
               <Link
                 key={item.label}
