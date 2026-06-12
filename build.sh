@@ -201,7 +201,12 @@ run_db_prepare() {
   ssh_prod "bash -lc 'set -e
 net=\"--network minha_rede\"
 if [ \"\$(docker network inspect -f \"{{.Attachable}}\" minha_rede 2>/dev/null || echo false)\" != \"true\" ]; then
-  cid=\$(docker ps --filter label=com.docker.stack.namespace=$STACK_NAME -q | head -1)
+  # Preferir um container ESTÁVEL (backend 1/1) como doador de namespace —
+  # senão o head -1 pode pegar um serviço em crash-loop (ex.: studia_worker 0/1)
+  # que sai entre o docker ps e o docker run (\"non running container is exited\").
+  cid=\$(docker ps --filter label=com.docker.swarm.service.name=${STACK_NAME}_backend -q | head -1)
+  [ -n \"\$cid\" ] || cid=\$(docker ps --filter label=com.docker.swarm.service.name=${STACK_NAME}_studia-scraper -q | head -1)
+  [ -n \"\$cid\" ] || cid=\$(docker ps --filter label=com.docker.stack.namespace=$STACK_NAME -q | head -1)
   [ -n \"\$cid\" ] || cid=\$(docker ps --filter network=minha_rede -q | head -1)
   [ -n \"\$cid\" ] || { echo \"nenhum container em minha_rede p/ emprestar namespace\" >&2; exit 1; }
   net=\"--network container:\$cid\"
@@ -216,7 +221,8 @@ run_reindex() {
   ssh_prod "bash -lc 'set -e
 net=\"--network minha_rede\"
 if [ \"\$(docker network inspect -f \"{{.Attachable}}\" minha_rede 2>/dev/null || echo false)\" != \"true\" ]; then
-  cid=\$(docker ps --filter network=minha_rede -q | head -1)
+  cid=\$(docker ps --filter label=com.docker.swarm.service.name=${STACK_NAME}_backend -q | head -1)
+  [ -n \"\$cid\" ] || cid=\$(docker ps --filter network=minha_rede -q | head -1)
   [ -n \"\$cid\" ] || { echo \"sem container em minha_rede\" >&2; exit 1; }
   net=\"--network container:\$cid\"
 fi
