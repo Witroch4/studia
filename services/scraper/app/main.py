@@ -211,12 +211,22 @@ class SalvarCadernosBody(BaseModel):
 
 async def _with_tc_client(coro_factory, *, relogin: bool = False):
     from app.auth import load_cookies_for_httpx
+    from app.schemas import SessionExpired
 
     if relogin:
         await login_and_save_state(headless=True)
     cookies = load_cookies_for_httpx()
     async with TcClient(cookies) as client:
-        return await coro_factory(client)
+        try:
+            return await coro_factory(client)
+        except SessionExpired:
+            # Sessão queimada no meio da operação (401/302 → login). Reloga uma
+            # vez e retenta com cookies novos — as ops de guia (resolver/salvar)
+            # passam a se auto-curar igual à coleta de caderno.
+            log.warning("tc_with_client.relogin_retry")
+            await login_and_save_state(headless=True)
+            async with TcClient(load_cookies_for_httpx()) as client2:
+                return await coro_factory(client2)
 
 
 @api.post("/guia/resolver")
