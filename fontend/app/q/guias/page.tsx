@@ -16,56 +16,26 @@ interface GuiaCard {
   questoes_esperadas: number;
   questoes_coletadas: number;
   cadernos_materializados: number;
+  coleta_completa: boolean;
   pct: number;
 }
 
-interface BuscaGuia {
-  slug: string;
-  url: string;
-  ano: number | null;
-  orgao: string | null;
-  banca: string | null;
-  data_prova: string | null;
-  guia_id: number | null;
-}
+type Situacao = { label: string; classe: string };
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: "Pendente",
-  saving: "Salvando cadernos",
-  collecting: "Coletando",
-  done: "Concluído",
-  error: "Erro",
-};
-
-function statusBadge(status: string): string {
-  switch (status) {
-    case "done":
-      return "bg-green-900/40 text-green-300 border-green-700";
-    case "collecting":
-      return "bg-cyan-900/40 text-cyan-300 border-cyan-700";
-    case "error":
-      return "bg-red-900/40 text-red-300 border-red-700";
-    default:
-      return "bg-gray-800 text-gray-300 border-gray-700";
+function situacaoGuia(g: GuiaCard): Situacao {
+  if (g.cadernos_total > 0 && g.cadernos_materializados >= g.cadernos_total) {
+    return { label: "Pronto p/ estudar", classe: "bg-green-900/40 text-green-300 border-green-700" };
   }
+  if (g.coleta_completa) {
+    return { label: "Pronto p/ montar", classe: "bg-cyan-900/40 text-cyan-300 border-cyan-700" };
+  }
+  return { label: `Coletando ${g.pct.toFixed(0)}%`, classe: "bg-yellow-900/40 text-yellow-300 border-yellow-700" };
 }
 
 export default function GuiasPage() {
   const [guias, setGuias] = useState<GuiaCard[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
-
-  const [url, setUrl] = useState("");
-  const [iniciarColeta, setIniciarColeta] = useState(true);
-  const [importando, setImportando] = useState(false);
-  const [importandoSlug, setImportandoSlug] = useState<string | null>(null);
-  const [erroImport, setErroImport] = useState<string | null>(null);
-  const [okImport, setOkImport] = useState<string | null>(null);
-
-  const [termo, setTermo] = useState("");
-  const [buscando, setBuscando] = useState(false);
-  const [resultados, setResultados] = useState<BuscaGuia[]>([]);
-  const [erroBusca, setErroBusca] = useState<string | null>(null);
 
   const carregar = useCallback(async (silent = false) => {
     if (!silent) setCarregando(true);
@@ -78,7 +48,7 @@ export default function GuiasPage() {
     } catch (e) {
       setErro((e as Error).message || "Falha ao carregar guias.");
     } finally {
-      if (!silent) setCarregando(false);
+      setCarregando(false);
     }
   }, []);
 
@@ -88,62 +58,6 @@ export default function GuiasPage() {
     return () => window.clearInterval(t);
   }, [carregar]);
 
-  async function importarUrl(targetUrl: string, slug?: string) {
-    if (!targetUrl.trim()) {
-      setErroImport("Cole a URL base do guia (ex.: https://www.tecconcursos.com.br/guias/oab-2026).");
-      return;
-    }
-    setErroImport(null);
-    setOkImport(null);
-    if (slug) setImportandoSlug(slug);
-    else setImportando(true);
-    try {
-      const r = await fetch(`${API}/api/q/guias/importar`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: targetUrl.trim(), iniciar_coleta: iniciarColeta }),
-      });
-      const data = await r.json();
-      if (!r.ok) {
-        setErroImport(data.detail || data.message || `HTTP ${r.status}`);
-      } else {
-        setOkImport(
-          `${data.nome} — ${data.cadernos} cadernos${
-            iniciarColeta ? `, ${data.enqueued} enfileirados` : ""
-          }.`
-        );
-        if (!slug) setUrl("");
-        void carregar(true);
-        if (termo) void buscar();
-      }
-    } catch (e) {
-      setErroImport((e as Error).message);
-    } finally {
-      setImportando(false);
-      setImportandoSlug(null);
-    }
-  }
-
-  async function buscar() {
-    if (!termo.trim()) return;
-    setBuscando(true);
-    setErroBusca(null);
-    try {
-      const r = await fetch(`${API}/api/q/guias/buscar-tc?termo=${encodeURIComponent(termo.trim())}`, {
-        cache: "no-store",
-        credentials: "include",
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json();
-      setResultados(Array.isArray(data.guias) ? data.guias : []);
-    } catch (e) {
-      setErroBusca((e as Error).message);
-    } finally {
-      setBuscando(false);
-    }
-  }
-
   return (
     <div className="min-h-screen bg-bg-dark text-text-dark">
       <header className="border-b border-border-dark px-6 py-5">
@@ -152,123 +66,15 @@ export default function GuiasPage() {
           Guias de Estudos
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Importe um guia completo do TecConcursos pela URL base. O sistema salva os
-          cadernos, coleta as questões e materializa um caderno de estudo por matéria.
+          Escolha um guia e monte os cadernos por matéria para estudar — cada matéria
+          vira um caderno de questões na ordem oficial do TecConcursos.
         </p>
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
-        {/* Importar */}
-        <section className="rounded-xl border border-border-dark bg-surface-dark p-5">
-          <h2 className="text-sm font-semibold text-gray-100 mb-3">Importar guia por URL</h2>
-          <div className="flex flex-col md:flex-row gap-3">
-            <input
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://www.tecconcursos.com.br/guias/oab-2026"
-              className="flex-1 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-primary font-mono"
-              disabled={importando}
-            />
-            <button
-              onClick={() => void importarUrl(url)}
-              disabled={importando}
-              className="bg-primary hover:bg-primary-600 disabled:bg-gray-700 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-semibold text-on-primary whitespace-nowrap"
-            >
-              {importando ? "Importando…" : "Importar guia"}
-            </button>
-          </div>
-          <label className="flex items-center gap-2 text-sm mt-3 cursor-pointer text-gray-300">
-            <input
-              type="checkbox"
-              checked={iniciarColeta}
-              onChange={(e) => setIniciarColeta(e.target.checked)}
-              disabled={importando}
-            />
-            Iniciar a coleta das questões logo após importar
-          </label>
-          {erroImport && (
-            <div className="mt-3 bg-red-950 border border-red-700 rounded p-3 text-sm">
-              <strong className="text-red-400">Erro:</strong> {erroImport}
-            </div>
-          )}
-          {okImport && (
-            <div className="mt-3 bg-green-950 border border-green-700 rounded p-3 text-sm text-green-200">
-              ✓ {okImport}
-            </div>
-          )}
-        </section>
-
-        {/* Buscar guias no TC */}
-        <section className="rounded-xl border border-border-dark bg-surface-dark p-5">
-          <h2 className="text-sm font-semibold text-gray-100 mb-3">Buscar guias no TecConcursos</h2>
-          <div className="flex flex-col md:flex-row gap-3">
-            <input
-              type="text"
-              value={termo}
-              onChange={(e) => setTermo(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && void buscar()}
-              placeholder="Palavra-chave (ex.: oab, sefaz, trt)"
-              className="flex-1 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-primary"
-              disabled={buscando}
-            />
-            <button
-              onClick={() => void buscar()}
-              disabled={buscando || !termo.trim()}
-              className="bg-gray-800 hover:bg-gray-700 disabled:opacity-60 px-6 py-3 rounded-lg font-semibold whitespace-nowrap"
-            >
-              {buscando ? "Buscando…" : "Buscar"}
-            </button>
-          </div>
-          {erroBusca && (
-            <div className="mt-3 bg-red-950 border border-red-700 rounded p-3 text-sm">
-              <strong className="text-red-400">Erro:</strong> {erroBusca}
-            </div>
-          )}
-          {resultados.length > 0 && (
-            <div className="mt-4">
-              <div className="text-xs text-gray-500 mb-2">{resultados.length} guias encontrados</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                {resultados.map((g) => (
-                  <div
-                    key={g.slug}
-                    className="rounded-lg border border-border-dark bg-gray-950/50 p-3 flex items-center justify-between gap-2"
-                  >
-                    <div className="min-w-0">
-                      <div className="font-medium text-gray-200 text-sm truncate">
-                        {g.orgao} {g.ano}
-                      </div>
-                      <div className="text-xs text-gray-500 truncate">
-                        {g.banca}{g.data_prova ? ` · prova ${g.data_prova.slice(0, 10)}` : ""}
-                      </div>
-                    </div>
-                    {g.guia_id ? (
-                      <Link
-                        href={`/q/guias/${g.guia_id}`}
-                        className="text-xs bg-green-900/40 text-green-300 border border-green-700 px-3 py-1.5 rounded whitespace-nowrap"
-                      >
-                        Importado →
-                      </Link>
-                    ) : (
-                      <button
-                        onClick={() => void importarUrl(g.url, g.slug)}
-                        disabled={importandoSlug === g.slug}
-                        className="text-xs bg-primary hover:bg-primary-600 disabled:bg-gray-700 text-on-primary px-3 py-1.5 rounded font-semibold whitespace-nowrap"
-                      >
-                        {importandoSlug === g.slug ? "Importando…" : "Importar"}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* Lista de guias */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-100">Guias importados</h2>
+            <h2 className="text-lg font-semibold text-gray-100">Guias disponíveis</h2>
             <button
               onClick={() => void carregar()}
               disabled={carregando}
@@ -286,55 +92,56 @@ export default function GuiasPage() {
 
           {!erro && guias.length === 0 && !carregando && (
             <div className="text-sm text-gray-500 border border-dashed border-gray-700 rounded-lg p-8 text-center">
-              Nenhum guia importado ainda. Cole uma URL acima para começar.
+              Nenhum guia disponível ainda.
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {guias.map((g) => (
-              <Link
-                key={g.id}
-                href={`/q/guias/${g.id}`}
-                className="rounded-xl border border-border-dark bg-surface-dark hover:border-primary transition-colors p-5 flex flex-col gap-3"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-semibold text-gray-100 truncate">{g.nome}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {g.banca ? `Banca: ${g.banca} · ` : ""}
-                      {g.cadernos_total} cadernos
+            {guias.map((g) => {
+              const sit = situacaoGuia(g);
+              return (
+                <Link
+                  key={g.id}
+                  href={`/q/guias/${g.id}`}
+                  className="rounded-xl border border-border-dark bg-surface-dark hover:border-primary transition-colors p-5 flex flex-col gap-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-gray-100 truncate">{g.nome}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {g.banca ? `Banca: ${g.banca} · ` : ""}
+                        {g.cadernos_total} cadernos
+                      </div>
+                    </div>
+                    <span
+                      className={`text-[10px] uppercase font-semibold px-2 py-1 rounded border whitespace-nowrap ${sit.classe}`}
+                    >
+                      {sit.label}
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                      <span>
+                        {g.questoes_coletadas.toLocaleString("pt-BR")} /{" "}
+                        {g.questoes_esperadas.toLocaleString("pt-BR")} questões
+                      </span>
+                      <span>{g.pct.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all"
+                        style={{ width: `${Math.min(100, g.pct)}%` }}
+                      />
                     </div>
                   </div>
-                  <span
-                    className={`text-[10px] uppercase font-semibold px-2 py-1 rounded border ${statusBadge(
-                      g.status
-                    )}`}
-                  >
-                    {STATUS_LABEL[g.status] || g.status}
-                  </span>
-                </div>
 
-                <div>
-                  <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-                    <span>
-                      {g.questoes_coletadas.toLocaleString("pt-BR")} /{" "}
-                      {g.questoes_esperadas.toLocaleString("pt-BR")} questões
-                    </span>
-                    <span>{g.pct.toFixed(1)}%</span>
+                  <div className="text-xs text-gray-500">
+                    {g.cadernos_materializados}/{g.cadernos_total} cadernos prontos para estudo
                   </div>
-                  <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
-                    <div
-                      className="h-full bg-primary transition-all"
-                      style={{ width: `${Math.min(100, g.pct)}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="text-xs text-gray-500">
-                  {g.cadernos_materializados}/{g.cadernos_total} cadernos prontos para estudo
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         </section>
       </main>

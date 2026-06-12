@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import CurrentUser, require_admin
+from auth import CurrentUser, require_admin, require_user
 from database import get_db
 from models import CadernoQuestoes, Guia, GuiaCaderno
 
@@ -52,6 +52,9 @@ class ImportarGuiaReq(BaseModel):
 class MaterializarReq(BaseModel):
     forcar: bool = Field(
         False, description="Materializar mesmo cadernos com coleta incompleta"
+    )
+    tc_caderno_id: int | None = Field(
+        None, description="Se informado, materializa só esse caderno do guia"
     )
 
 
@@ -309,8 +312,10 @@ async def listar_guias(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     for gc in rows:
         cadernos_by_guia.setdefault(gc.guia_id, []).append(gc)
 
-    # Contagem coletada por caderno (membership)
-    coletado = await _coletado_por_caderno(db, [gc.tc_caderno_id for gc in rows])
+    # Contagem coletada + status de job por caderno (membership + jobs)
+    tc_ids_all = [gc.tc_caderno_id for gc in rows]
+    coletado = await _coletado_por_caderno(db, tc_ids_all)
+    jobs_all = await _jobs_por_caderno(db, tc_ids_all)
 
     out = []
     for g in guias:
@@ -318,6 +323,12 @@ async def listar_guias(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
         esperado = sum(c.total_questoes for c in cads)
         col = sum(coletado.get(c.tc_caderno_id, 0) for c in cads)
         materializados = sum(1 for c in cads if c.caderno_id)
+        # Coleta completa: todo caderno com job 'done' ou já coletado o esperado.
+        coleta_completa = bool(cads) and all(
+            jobs_all.get(c.tc_caderno_id, {}).get("status") == "done"
+            or (c.total_questoes > 0 and coletado.get(c.tc_caderno_id, 0) >= c.total_questoes)
+            for c in cads
+        )
         out.append(
             {
                 **_guia_dict(g),
@@ -325,6 +336,7 @@ async def listar_guias(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
                 "questoes_esperadas": esperado,
                 "questoes_coletadas": col,
                 "cadernos_materializados": materializados,
+                "coleta_completa": coleta_completa,
                 "pct": round((col / esperado) * 100, 1) if esperado else 0.0,
             }
         )
@@ -374,11 +386,17 @@ async def detalhe_guia(guia_id: int, db: AsyncSession = Depends(get_db)) -> dict
 
     esperado = sum(c.total_questoes for c in cads)
     col_total = sum(coletado.get(c.tc_caderno_id, 0) for c in cads)
+    coleta_completa = bool(cads) and all(
+        jobs.get(c.tc_caderno_id, {}).get("status") == "done"
+        or (c.total_questoes > 0 and coletado.get(c.tc_caderno_id, 0) >= c.total_questoes)
+        for c in cads
+    )
     return {
         **_guia_dict(guia),
         "questoes_esperadas": esperado,
         "questoes_coletadas": col_total,
         "pct": round((col_total / esperado) * 100, 1) if esperado else 0.0,
+        "coleta_completa": coleta_completa,
         "cadernos": cadernos_out,
     }
 
@@ -422,16 +440,19 @@ async def coletar_guia(
 async def materializar_guia(
     guia_id: int,
     req: MaterializarReq | None = None,
-    _admin: CurrentUser = Depends(require_admin),
+    _user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Cria/atualiza um CadernoQuestoes por caderno com coleta concluída.
 
     Por padrão só materializa cadernos completos (job `done` ou coletado ≥
-    esperado). Use `forcar=true` para incluir cadernos parciais.
-    Idempotente por `CadernoQuestoes.tc_caderno_id`. Usa a ordem real (membership).
+    esperado). Use `forcar=true` para incluir cadernos parciais. Se
+    `tc_caderno_id` for informado, materializa só esse caderno (botão "Salvar"
+    por matéria). Idempotente por `CadernoQuestoes.tc_caderno_id`. Usa a ordem
+    real (membership). Disponível para qualquer aluno logado.
     """
     forcar = bool(req and req.forcar)
+    so_caderno = req.tc_caderno_id if req else None
     guia = (await db.execute(select(Guia).where(Guia.id == guia_id))).scalar_one_or_none()
     if not guia:
         raise HTTPException(404, "Guia não encontrado")
@@ -439,6 +460,10 @@ async def materializar_guia(
     cads = (
         await db.execute(select(GuiaCaderno).where(GuiaCaderno.guia_id == guia_id))
     ).scalars().all()
+    if so_caderno is not None:
+        cads = [c for c in cads if c.tc_caderno_id == so_caderno]
+        if not cads:
+            raise HTTPException(404, "Caderno não pertence a este guia")
     jobs = await _jobs_por_caderno(db, [c.tc_caderno_id for c in cads])
 
     materializados = []
@@ -478,7 +503,14 @@ async def materializar_guia(
             {"tc_caderno_id": c.tc_caderno_id, "caderno_id": caderno.id, "total": len(ids)}
         )
 
-    if cads and all(c.status == "materialized" for c in cads):
+    # Releitura de TODOS os cadernos (cads pode estar filtrado a um só): o guia
+    # vira 'done' apenas quando todos estiverem materializados.
+    todos = (
+        await db.execute(
+            select(GuiaCaderno.status).where(GuiaCaderno.guia_id == guia_id)
+        )
+    ).scalars().all()
+    if todos and all(s == "materialized" for s in todos):
         guia.status = "done"
     await db.commit()
     return {
@@ -626,9 +658,11 @@ async def _question_ids_ordenados(db: AsyncSession, tc_caderno_id: int) -> list[
 def _caderno_status(c: GuiaCaderno, coletado: int, job: dict[str, Any]) -> str:
     if c.caderno_id:
         return "materialized"
-    if c.total_questoes and coletado >= c.total_questoes:
-        return "collected"
     job_status = job.get("status")
+    # Job concluído = coleta terminou, mesmo que o total venha um pouco abaixo do
+    # esperado pelo TC (anuladas/duplicadas que deduplicam). Pronto p/ salvar.
+    if job_status == "done" or (c.total_questoes and coletado >= c.total_questoes):
+        return "collected"
     if job_status == "blocked":
         return "blocked"
     if job_status in {"running", "pending"} or coletado > 0:

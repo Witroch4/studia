@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { authClient } from "@/lib/auth-client";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
 
@@ -33,6 +34,7 @@ interface GuiaDetalhe {
   questoes_esperadas: number;
   questoes_coletadas: number;
   pct: number;
+  coleta_completa: boolean;
   cadernos: CadernoDetalhe[];
 }
 
@@ -68,6 +70,39 @@ export default function GuiaDetalhePage() {
   const [erro, setErro] = useState<string | null>(null);
   const [acao, setAcao] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [salvando, setSalvando] = useState<number | null>(null);
+
+  useEffect(() => {
+    authClient
+      .getSession()
+      .then((res) => {
+        const role = (res?.data?.user as { role?: string } | undefined)?.role;
+        setIsAdmin(role === "admin");
+      })
+      .catch(() => setIsAdmin(false));
+  }, []);
+
+  async function salvarCaderno(tcCadernoId: number) {
+    setSalvando(tcCadernoId);
+    setMsg(null);
+    try {
+      const r = await fetch(`${API}/api/q/guias/${guiaId}/materializar`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tc_caderno_id: tcCadernoId }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+      if (!data.total) throw new Error("Caderno ainda não terminou de coletar.");
+      void carregar(true);
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setSalvando(null);
+    }
+  }
 
   const carregar = useCallback(
     async (silent = false) => {
@@ -185,15 +220,17 @@ export default function GuiaDetalhePage() {
               disabled={acao !== null}
               className="text-sm bg-primary hover:bg-primary-600 disabled:bg-gray-700 px-4 py-2 rounded font-semibold text-on-primary"
             >
-              {acao === "materializar" ? "Materializando…" : "Materializar concluídos"}
+              {acao === "materializar" ? "Salvando…" : "Salvar todos os cadernos"}
             </button>
-            <button
-              onClick={() => void retomarColeta()}
-              disabled={acao !== null}
-              className="text-sm bg-gray-800 hover:bg-gray-700 disabled:opacity-60 px-4 py-2 rounded font-semibold"
-            >
-              {acao === "coletar" ? "Reenfileirando…" : "Retomar coleta"}
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => void retomarColeta()}
+                disabled={acao !== null}
+                className="text-sm bg-gray-800 hover:bg-gray-700 disabled:opacity-60 px-4 py-2 rounded font-semibold"
+              >
+                {acao === "coletar" ? "Reenfileirando…" : "Retomar coleta"}
+              </button>
+            )}
             <button
               onClick={() => void carregar()}
               className="text-sm bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded"
@@ -245,8 +282,19 @@ export default function GuiaDetalhePage() {
                     >
                       Estudar →
                     </Link>
+                  ) : c.status === "collected" || c.job_status === "done" ? (
+                    <button
+                      onClick={() => void salvarCaderno(c.tc_caderno_id)}
+                      disabled={salvando === c.tc_caderno_id}
+                      className="text-xs bg-cyan-900/40 hover:bg-cyan-900/60 text-cyan-200 border border-cyan-700 px-3 py-2 rounded font-semibold whitespace-nowrap disabled:opacity-50 inline-flex items-center gap-1"
+                    >
+                      <span className={`material-symbols-outlined text-[14px] ${salvando === c.tc_caderno_id ? "animate-spin" : ""}`}>
+                        {salvando === c.tc_caderno_id ? "progress_activity" : "bookmark_add"}
+                      </span>
+                      Salvar
+                    </button>
                   ) : (
-                    <span className="text-xs text-gray-600 w-18 text-center">—</span>
+                    <span className="text-xs text-gray-600 w-18 text-center">coletando…</span>
                   )}
                 </div>
               </div>
