@@ -291,6 +291,9 @@ def _limpar_nome_caderno(raw: str | None) -> str | None:
     nome = re.sub(r"\s+", " ", raw).strip()
     # remove sufixo do site (ex.: "Meu Caderno - TEC Concursos")
     nome = re.split(r"\s*[-|]\s*TEC\s*Concursos", nome, maxsplit=1, flags=re.I)[0].strip()
+    # o título da página vem como "Caderno {nome}"; tira o prefixo uma vez
+    # ("Caderno Caderno de Estudo" -> "Caderno de Estudo").
+    nome = re.sub(r"^Caderno\s+", "", nome, count=1).strip()
     return nome or None
 
 
