@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import Logo from "@/app/components/Logo";
 
 function CadastroForm() {
   const router = useRouter();
@@ -29,8 +30,8 @@ function CadastroForm() {
       setError(error.message || "Não foi possível criar a conta. Tente outro e-mail.");
       return;
     }
-    // Better Auth já cria a sessão no signup → vai direto pra home.
-    router.push("/");
+    // Better Auth já cria a sessão no signup → vai direto pro painel.
+    router.push("/painel");
     router.refresh();
   }
 
@@ -40,12 +41,9 @@ function CadastroForm() {
       <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-secondary/10 blur-3xl" />
 
       <div className="relative w-full max-w-sm">
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <span className="material-symbols-outlined text-primary text-4xl">school</span>
-          <span className="text-3xl font-bold tracking-tight text-white">
-            stud<span className="text-primary">IA</span>
-          </span>
-        </div>
+        <Link href="/" className="flex items-center justify-center mb-8">
+          <Logo size={40} wordClassName="text-3xl" />
+        </Link>
 
         <div className="rounded-2xl border border-border-dark bg-surface-dark p-7 shadow-xl">
           <h1 className="text-xl font-bold text-white">Criar conta</h1>

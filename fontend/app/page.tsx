@@ -1,250 +1,563 @@
-import { StatCard, ProgressBar } from "./components/ds";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { siteConfig } from "@/lib/site";
+import { LogoMark } from "./components/Logo";
+import LandingHeader from "./components/landing/LandingHeader";
+import RedirectIfAuthed from "./components/RedirectIfAuthed";
 
-const disciplinas = [
-  { nome: "Cálculo Numérico", tempo: "10h06min", acertos: 210, erros: 53, total: 263, pct: 80 },
-  { nome: "Mecânica dos Fluídos", tempo: "17h18min", acertos: 59, erros: 16, total: 75, pct: 79 },
-  { nome: "Resistência dos Materiais", tempo: "3h45min", acertos: 98, erros: 24, total: 122, pct: 80 },
-  { nome: "Termodinâmica", tempo: "6h25min", acertos: 22, erros: 7, total: 29, pct: 76 },
-  { nome: "Física III (Eletromagnetismo)", tempo: "6h50min", acertos: 4, erros: 3, total: 7, pct: 57 },
-  { nome: "Algoritmos e Estrutura de Dados", tempo: "10h42min", acertos: 41, erros: 8, total: 49, pct: 84 },
+export const metadata: Metadata = {
+  title: { absolute: siteConfig.title },
+  description: siteConfig.description,
+  alternates: { canonical: "/" },
+};
+
+/* ── conteúdo ──────────────────────────────────────────────────────────── */
+
+const STATS = [
+  { v: "100k+", l: "questões catalogadas" },
+  { v: "Todas", l: "as grandes bancas" },
+  { v: "IA", l: "resumos & flashcards" },
+  { v: "R$0", l: "para começar" },
 ];
 
-function pctColor(pct: number) {
-  if (pct >= 80) return "bg-accent-success/20 text-accent-success";
-  if (pct >= 70) return "bg-secondary/20 text-secondary";
-  return "bg-accent-error/20 text-accent-error";
-}
+const BANCAS = [
+  "Cebraspe",
+  "FGV",
+  "FCC",
+  "VUNESP",
+  "Cesgranrio",
+  "IBFC",
+  "Quadrix",
+  "Instituto AOCP",
+  "IADES",
+  "FUNDATEC",
+];
 
-export default function Home() {
+const FEATURES = [
+  {
+    icon: "fact_check",
+    title: "Banco de questões",
+    body: "Resolva questões reais das maiores bancas, com filtros por matéria, banca e assunto — e cadernos pra organizar tudo.",
+    big: true,
+  },
+  {
+    icon: "bolt",
+    title: "Flashcards inteligentes",
+    body: "Repetição espaçada que agenda a revisão na hora certa pra fixar de verdade, sem decoreba.",
+  },
+  {
+    icon: "auto_awesome",
+    title: "PDF vira aula com IA",
+    body: "Suba o PDF; a IA gera resumo, fórmulas e flashcards automaticamente.",
+  },
+  {
+    icon: "forum",
+    title: "Tutor por aula",
+    body: "Converse com uma IA que conhece o conteúdo da aula e tira sua dúvida na hora.",
+  },
+  {
+    icon: "menu_book",
+    title: "Guias de estudo",
+    body: "Importe guias inteiros e estude com ordem, foco e progresso visível.",
+  },
+  {
+    icon: "insights",
+    title: "Estatísticas & constância",
+    body: "Acompanhe acertos, horas e ofensiva diária pra manter o ritmo até a aprovação.",
+  },
+];
+
+const STEPS = [
+  { n: "01", t: "Crie sua conta grátis", d: "Em segundos, sem cartão de crédito. Você já entra resolvendo questões." },
+  { n: "02", t: "Escolha como estudar", d: "Questões por banca, flashcards de revisão ou suba o PDF da sua aula." },
+  { n: "03", t: "Deixe a IA acelerar", d: "Resumos, explicações e revisões aparecem no tempo certo pra você render mais." },
+];
+
+const PLANS = [
+  {
+    name: "Grátis",
+    price: "R$0",
+    period: "para sempre",
+    desc: "O suficiente pra criar o hábito e conhecer a plataforma.",
+    cta: "Criar conta grátis",
+    href: "/cadastro",
+    featured: false,
+    perks: ["10 questões por dia", "Flashcards com repetição espaçada", "1 disciplina com IA", "Estatísticas básicas"],
+  },
+  {
+    name: "Pro",
+    price: "R$29,90",
+    period: "/mês",
+    desc: "Tudo liberado pra quem está no foco da aprovação.",
+    cta: "Assinar o Pro",
+    href: "/assinar",
+    featured: true,
+    perks: [
+      "Questões ilimitadas",
+      "Disciplinas e PDFs ilimitados com IA",
+      "Tutor por aula sem limite",
+      "Guias completos + estatísticas avançadas",
+    ],
+  },
+];
+
+const FAQ = [
+  {
+    q: "Preciso de cartão de crédito pra começar?",
+    a: "Não. O plano grátis é de verdade: você cria a conta e já começa a resolver questões, sem cartão.",
+  },
+  {
+    q: "Quais bancas estão disponíveis?",
+    a: "As principais bancas de concurso do país — Cebraspe, FGV, FCC, VUNESP, Cesgranrio e outras — com questões filtráveis por matéria e assunto.",
+  },
+  {
+    q: "Como a IA gera os resumos e flashcards?",
+    a: "Você sobe o PDF da aula e a IA lê o material inteiro, gera um resumo estruturado, extrai fórmulas e cria flashcards prontos pra revisão.",
+  },
+  {
+    q: "Posso cancelar o Pro quando quiser?",
+    a: "Sim. A assinatura é mensal e sem fidelidade — você cancela quando quiser e mantém o acesso até o fim do período pago.",
+  },
+  {
+    q: "Funciona no celular?",
+    a: "Funciona. A studIA é responsiva e instalável como app (PWA), então você estuda no computador ou no celular com a mesma conta.",
+  },
+];
+
+/* ── JSON-LD ───────────────────────────────────────────────────────────── */
+
+function JsonLd() {
+  const graph = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${siteConfig.url}/#organization`,
+        name: siteConfig.name,
+        url: siteConfig.url,
+        logo: `${siteConfig.url}/studia-mark.svg`,
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${siteConfig.url}/#website`,
+        url: siteConfig.url,
+        name: siteConfig.name,
+        description: siteConfig.description,
+        inLanguage: "pt-BR",
+        publisher: { "@id": `${siteConfig.url}/#organization` },
+      },
+      {
+        "@type": "SoftwareApplication",
+        name: siteConfig.name,
+        applicationCategory: "EducationalApplication",
+        operatingSystem: "Web",
+        description: siteConfig.description,
+        offers: [
+          { "@type": "Offer", price: "0", priceCurrency: "BRL", name: "Grátis" },
+          { "@type": "Offer", price: "29.90", priceCurrency: "BRL", name: "Pro" },
+        ],
+      },
+      {
+        "@type": "FAQPage",
+        mainEntity: FAQ.map((f) => ({
+          "@type": "Question",
+          name: f.q,
+          acceptedAnswer: { "@type": "Answer", text: f.a },
+        })),
+      },
+    ],
+  };
   return (
-    <>
-      <header className="hidden md:flex sticky top-0 z-40 bg-bg-dark/80 backdrop-blur-md border-b border-border-dark px-8 py-4 justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <div className="flex items-center gap-4">
-          <button className="p-2 rounded-full hover:bg-gray-800 text-gray-300 relative">
-            <span className="material-symbols-outlined">notifications</span>
-            <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-secondary animate-pulse" />
-          </button>
-        </div>
-      </header>
-
-      <main className="w-full px-4 md:px-8 py-8 overflow-y-auto h-full">
-        {/* Title + Actions */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <div className="text-3xl font-bold text-white">Visão Geral</div>
-          <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-cyan-600 text-white rounded-lg shadow-lg shadow-cyan-500/30 transition-all font-medium">
-              <span className="material-symbols-outlined text-sm">add</span>
-              Registrar Estudo
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-surface-dark border border-gray-600 hover:bg-gray-700 text-gray-200 rounded-lg transition-all font-medium">
-              <span className="material-symbols-outlined text-sm">language</span>
-              Meu Plano
-              <span className="material-symbols-outlined text-sm">expand_more</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            title="Total de Horas"
-            icon="schedule"
-            iconColor="primary"
-            progress={65}
-          >
-            <span className="text-4xl font-bold text-white">
-              55h<span className="text-2xl text-gray-400">08min</span>
-            </span>
-          </StatCard>
-
-          <StatCard
-            title="Precisão Técnica"
-            icon="precision_manufacturing"
-            iconColor="secondary"
-            progress={80}
-          >
-            <div className="flex items-end justify-between w-full">
-              <div>
-                <span className="text-sm text-accent-success font-medium">434 Acertos</span>
-                <div className="text-xs text-accent-error font-medium">111 Erros</div>
-              </div>
-              <span className="text-4xl font-bold text-white">80%</span>
-            </div>
-          </StatCard>
-
-          <StatCard
-            title="Cronograma do Semestre"
-            icon="calendar_month"
-            iconColor="success"
-            progress={19}
-          >
-            <div className="flex items-end justify-between w-full">
-              <div>
-                <span className="text-sm text-accent-success font-medium">17 Tópicos Concluídos</span>
-                <div className="text-xs text-amber-500 font-medium">72 Pendentes</div>
-              </div>
-              <span className="text-4xl font-bold text-white">19%</span>
-            </div>
-          </StatCard>
-
-          <div className="bg-gradient-to-br from-gray-800 to-black p-6 rounded-xl shadow-sm border border-gray-700 flex items-center justify-center text-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-secondary/10" />
-            <p className="text-gray-200 italic font-light z-10 text-sm">
-              &ldquo;A engenharia é a arte de modelar materiais que não entendemos completamente, em formas que não podemos analisar com precisão, para suportar forças que não podemos avaliar adequadamente.&rdquo;
-            </p>
-          </div>
-        </div>
-
-        {/* Streak */}
-        <div className="bg-surface-dark p-6 rounded-xl shadow-sm border border-border-dark mb-8">
-          <div className="flex justify-between items-end mb-4">
-            <div>
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Constância nos Estudos</h3>
-              <p className="text-gray-200 mt-1">
-                Você está há <span className="font-bold text-primary">8 dias</span> sem falhar no código!
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {Array.from({ length: 20 }).map((_, i) => {
-              const isSuccess = [2, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 19].includes(i);
-              return (
-                <div
-                  key={i}
-                  className={`flex-shrink-0 w-8 h-8 rounded flex items-center justify-center ${
-                    i < 2
-                      ? "bg-gray-700"
-                      : isSuccess
-                      ? "bg-primary/20 border border-primary/50 text-primary"
-                      : "bg-accent-error/10 border border-accent-error/30 text-accent-error"
-                  }`}
-                >
-                  {i >= 2 && (
-                    <span className="material-symbols-outlined text-sm">
-                      {isSuccess ? "terminal" : "error_outline"}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Bottom Grid: Disciplinas Table + Side Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Disciplinas Table */}
-          <div className="lg:col-span-2 bg-surface-dark p-6 rounded-xl shadow-sm border border-border-dark">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Painel de Disciplinas</h3>
-              <button className="text-gray-400 hover:text-primary transition-colors">
-                <span className="material-symbols-outlined">filter_list</span>
-              </button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-gray-400 uppercase bg-gray-800/50">
-                  <tr>
-                    <th className="px-4 py-3 rounded-l-lg">Disciplinas</th>
-                    <th className="px-4 py-3 text-center">Tempo</th>
-                    <th className="px-4 py-3 text-center text-accent-success">
-                      <span className="material-symbols-outlined text-base align-middle">check</span>
-                    </th>
-                    <th className="px-4 py-3 text-center text-accent-error">
-                      <span className="material-symbols-outlined text-base align-middle">close</span>
-                    </th>
-                    <th className="px-4 py-3 text-center">
-                      <span className="material-symbols-outlined text-base align-middle">edit_note</span>
-                    </th>
-                    <th className="px-4 py-3 text-center rounded-r-lg">%</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {disciplinas.map((d, i) => (
-                    <tr key={d.nome} className={`hover:bg-gray-800/30 transition-colors ${i % 2 === 1 ? "bg-gray-800/10" : ""}`}>
-                      <td className="px-4 py-4 font-medium text-primary">{d.nome}</td>
-                      <td className="px-4 py-4 text-center text-gray-300">{d.tempo}</td>
-                      <td className="px-4 py-4 text-center text-accent-success font-medium">{d.acertos}</td>
-                      <td className="px-4 py-4 text-center text-accent-error font-medium">{d.erros}</td>
-                      <td className="px-4 py-4 text-center text-gray-300">{d.total}</td>
-                      <td className="px-4 py-4 text-center">
-                        <span className={`${pctColor(d.pct)} px-2 py-1 rounded text-xs font-bold`}>{d.pct}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Side Cards */}
-          <div className="flex flex-col gap-8">
-            {/* Weekly Goals */}
-            <div className="bg-surface-dark p-6 rounded-xl shadow-sm border border-border-dark">
-              <div className="flex justify-between items-start mb-6">
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Metas de Estudo Semanal</h3>
-                <span className="material-symbols-outlined text-gray-400 text-sm cursor-pointer hover:text-primary">edit</span>
-              </div>
-              <div className="space-y-6">
-                <GoalProgress label="Horas de Estudo" current="3h35min" target="35h00min" pct={10.3} color="bg-primary" badgeColor="bg-primary/80" />
-                <GoalProgress label="Questões" current="122" target="250" pct={48.8} color="bg-secondary" badgeColor="bg-secondary/80" />
-              </div>
-            </div>
-
-            {/* Skills Radar Placeholder */}
-            <div className="bg-surface-dark p-6 rounded-xl shadow-sm border border-border-dark flex-grow">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Radar de Habilidades</h3>
-              </div>
-              <div className="relative h-64 w-full flex items-center justify-center">
-                <div className="text-gray-500 text-sm flex flex-col items-center gap-2">
-                  <span className="material-symbols-outlined text-4xl text-primary/30">radar</span>
-                  <span>Gráfico de habilidades</span>
-                </div>
-              </div>
-              <div className="flex justify-end gap-2 mt-4">
-                <button className="px-3 py-1 bg-primary text-white text-xs font-bold rounded shadow">TEORIA</button>
-                <button className="px-3 py-1 bg-gray-700 text-gray-300 text-xs font-bold rounded border border-gray-600">PRÁTICA</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-    </>
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(graph) }}
+    />
   );
 }
 
-function GoalProgress({
-  label,
-  current,
-  target,
-  pct,
-  color,
-  badgeColor,
-}: {
-  label: string;
-  current: string;
-  target: string;
-  pct: number;
-  color: string;
-  badgeColor: string;
-}) {
+/* ── página ────────────────────────────────────────────────────────────── */
+
+export default function Landing() {
+  return (
+    <div className="lp-bg lp-grain relative min-h-screen w-full overflow-x-clip text-gray-300">
+      {/* fontes da landing (escopo local; React 19 hoista o <link> pro <head>) */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&display=swap"
+        rel="stylesheet"
+      />
+
+      <JsonLd />
+      <RedirectIfAuthed />
+      <LandingHeader />
+
+      {/* ───────── Hero ───────── */}
+      <section className="relative overflow-hidden px-5 pb-20 pt-32 md:pt-40">
+        <div className="pointer-events-none absolute inset-0 lp-aurora" aria-hidden />
+        <div className="pointer-events-none absolute inset-0 lp-grid" aria-hidden />
+
+        <div className="relative mx-auto grid max-w-6xl items-center gap-14 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="lp-rise">
+            <span className="lp-mono inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.18em] text-primary">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_10px_2px_rgba(6,182,212,0.7)]" />
+              Estudos · Inteligência Artificial
+            </span>
+
+            <h1 className="lp-display mt-6 text-balance text-5xl leading-[1.02] text-white sm:text-6xl md:text-7xl">
+              Estude para concursos como se tivesse um{" "}
+              <em className="lp-grad-text font-normal italic">tutor particular</em> de IA.
+            </h1>
+
+            <p className="mt-6 max-w-xl text-pretty text-base leading-relaxed text-gray-400 md:text-lg">
+              Banco de questões das maiores bancas, flashcards com repetição espaçada e uma IA que
+              transforma o PDF da sua aula em resumo, fórmulas e revisões. Tudo num lugar só.
+            </p>
+
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Link
+                href="/cadastro"
+                className="group inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-white shadow-[0_14px_40px_-12px_rgba(6,182,212,0.8)] transition-all hover:bg-primary-600"
+              >
+                Começar grátis
+                <span className="material-symbols-outlined text-[20px] transition-transform group-hover:translate-x-0.5">
+                  arrow_forward
+                </span>
+              </Link>
+              <a
+                href="#recursos"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/12 bg-white/[0.02] px-6 py-3.5 text-sm font-semibold text-gray-200 transition-colors hover:border-white/25 hover:bg-white/[0.05]"
+              >
+                Ver recursos
+              </a>
+            </div>
+
+            <p className="lp-mono mt-5 text-xs uppercase tracking-wider text-gray-500">
+              Sem cartão · Plano grátis para sempre
+            </p>
+          </div>
+
+          {/* mock de questão flutuante */}
+          <div className="lp-rise relative hidden lg:block" style={{ animationDelay: "0.15s" }}>
+            <div className="absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-br from-primary/20 to-secondary/20 blur-2xl" />
+            <div className="lp-card rounded-2xl p-6 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <span className="lp-mono rounded-md bg-primary/15 px-2 py-1 text-[0.65rem] font-medium uppercase tracking-wider text-primary">
+                  Cebraspe · 2024
+                </span>
+                <span className="lp-mono text-[0.65rem] text-gray-500">Direito Constitucional</span>
+              </div>
+              <p className="mt-4 text-sm leading-relaxed text-gray-200">
+                A respeito dos direitos e garantias fundamentais, julgue o item: a liberdade de
+                expressão é um direito absoluto, não admitindo qualquer restrição.
+              </p>
+              <div className="mt-5 space-y-2">
+                {[
+                  { k: "C", t: "Certo", ok: false },
+                  { k: "E", t: "Errado", ok: true },
+                ].map((o) => (
+                  <div
+                    key={o.k}
+                    className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm ${
+                      o.ok
+                        ? "border-accent-success/40 bg-accent-success/10 text-accent-success"
+                        : "border-white/8 bg-white/[0.02] text-gray-300"
+                    }`}
+                  >
+                    <span className="lp-mono flex h-6 w-6 items-center justify-center rounded-md border border-white/15 text-xs">
+                      {o.k}
+                    </span>
+                    {o.t}
+                    {o.ok && <span className="material-symbols-outlined ml-auto text-[18px]">check_circle</span>}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex items-center gap-2 rounded-lg border border-secondary/30 bg-secondary/10 px-3 py-2.5">
+                <span className="material-symbols-outlined text-[20px] text-secondary">auto_awesome</span>
+                <span className="text-xs text-gray-300">
+                  <span className="font-semibold text-secondary">IA explica:</span> nenhum direito
+                  fundamental é absoluto — todos admitem restrição proporcional.
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* faixa de stats */}
+        <div className="relative mx-auto mt-20 grid max-w-6xl grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/8 bg-white/[0.02] md:grid-cols-4">
+          {STATS.map((s) => (
+            <div key={s.l} className="bg-[#0a0a0c]/40 px-6 py-7 text-center">
+              <div className="lp-display cc-num text-4xl text-white md:text-5xl">{s.v}</div>
+              <div className="lp-mono mt-1 text-[0.7rem] uppercase tracking-wider text-gray-500">{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ───────── Bancas (marquee) ───────── */}
+      <section className="border-y border-white/8 py-7" aria-label="Bancas disponíveis">
+        <div className="mx-auto mb-5 max-w-6xl px-5">
+          <p className="lp-mono text-center text-[0.7rem] uppercase tracking-[0.2em] text-gray-600">
+            Questões das bancas que mais cobram em concurso
+          </p>
+        </div>
+        <div className="relative flex overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_12%,#000_88%,transparent)]">
+          <div className="lp-marquee flex shrink-0 items-center gap-12 pr-12">
+            {[...BANCAS, ...BANCAS].map((b, i) => (
+              <span key={`${b}-${i}`} className="lp-display whitespace-nowrap text-2xl text-gray-600">
+                {b}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ───────── Recursos (bento) ───────── */}
+      <section id="recursos" className="scroll-mt-24 px-5 py-24">
+        <div className="mx-auto max-w-6xl">
+          <SectionHead
+            eyebrow="O que tem dentro"
+            title="Tudo para passar, sem 12 abas abertas"
+            sub="Questões, flashcards e IA conversam entre si — você estuda em vez de organizar ferramenta."
+          />
+
+          <div className="mt-14 grid gap-4 md:grid-cols-3">
+            {FEATURES.map((f) => (
+              <div
+                key={f.title}
+                className={`lp-card group rounded-2xl p-6 ${f.big ? "md:col-span-2" : ""}`}
+              >
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
+                  <span className="material-symbols-outlined text-[24px]">{f.icon}</span>
+                </div>
+                <h3 className="mt-5 text-lg font-semibold text-white">{f.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-400">{f.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ───────── Como funciona ───────── */}
+      <section id="como-funciona" className="scroll-mt-24 px-5 py-24">
+        <div className="mx-auto max-w-6xl">
+          <SectionHead eyebrow="Como funciona" title="Do zero ao ritmo de estudo em 3 passos" />
+          <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-white/8 md:grid-cols-3">
+            {STEPS.map((s) => (
+              <div key={s.n} className="relative bg-white/[0.015] p-8">
+                <span className="lp-display lp-grad-text text-6xl">{s.n}</span>
+                <h3 className="mt-4 text-xl font-semibold text-white">{s.t}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-400">{s.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ───────── Banda de IA ───────── */}
+      <section className="px-5 py-12">
+        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl border border-white/10 p-10 md:p-14">
+          <div className="pointer-events-none absolute inset-0 lp-aurora opacity-80" aria-hidden />
+          <div className="relative grid items-center gap-8 md:grid-cols-[1fr_auto]">
+            <div>
+              <span className="lp-mono text-[0.7rem] uppercase tracking-[0.2em] text-secondary">
+                Movido por IA de ponta
+              </span>
+              <h2 className="lp-display mt-3 text-3xl text-white md:text-5xl">
+                A IA faz o trabalho braçal. Você foca em <em className="lp-grad-text italic">aprender</em>.
+              </h2>
+              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-gray-300 md:text-base">
+                Modelos de última geração leem o PDF inteiro da sua aula, escrevem resumos
+                estruturados, extraem fórmulas e montam flashcards — enquanto um tutor por chat
+                explica cada dúvida com o contexto do material na ponta.
+              </p>
+              <div className="mt-7 flex flex-wrap gap-2.5">
+                {["Resumos automáticos", "Fórmulas extraídas", "Flashcards gerados", "Chat com a aula"].map(
+                  (t) => (
+                    <span
+                      key={t}
+                      className="lp-mono rounded-full border border-white/12 bg-white/[0.03] px-3.5 py-1.5 text-xs text-gray-300"
+                    >
+                      {t}
+                    </span>
+                  ),
+                )}
+              </div>
+            </div>
+            <div className="hidden md:block">
+              <LogoMark size={140} className="opacity-90 drop-shadow-[0_12px_40px_rgba(6,182,212,0.45)]" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ───────── Planos ───────── */}
+      <section id="planos" className="scroll-mt-24 px-5 py-24">
+        <div className="mx-auto max-w-5xl">
+          <SectionHead
+            eyebrow="Planos"
+            title="Comece de graça. Vire Pro quando quiser."
+            sub="Sem fidelidade, sem pegadinha. Cancele a qualquer momento."
+          />
+          <div className="mt-14 grid gap-5 md:grid-cols-2">
+            {PLANS.map((p) => (
+              <div
+                key={p.name}
+                className={`relative rounded-3xl p-8 ${
+                  p.featured
+                    ? "border border-primary/40 bg-gradient-to-b from-primary/[0.08] to-transparent shadow-[0_30px_80px_-40px_rgba(6,182,212,0.6)]"
+                    : "lp-card"
+                }`}
+              >
+                {p.featured && (
+                  <span className="lp-mono absolute -top-3 left-8 rounded-full bg-primary px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-wider text-white">
+                    Mais popular
+                  </span>
+                )}
+                <h3 className="text-lg font-semibold text-white">{p.name}</h3>
+                <p className="mt-1 text-sm text-gray-400">{p.desc}</p>
+                <div className="mt-6 flex items-end gap-1">
+                  <span className="lp-display text-5xl text-white">{p.price}</span>
+                  <span className="lp-mono mb-1.5 text-xs text-gray-500">{p.period}</span>
+                </div>
+                <ul className="mt-7 space-y-3">
+                  {p.perks.map((perk) => (
+                    <li key={perk} className="flex items-start gap-2.5 text-sm text-gray-300">
+                      <span className="material-symbols-outlined mt-0.5 text-[18px] text-primary">check_circle</span>
+                      {perk}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href={p.href}
+                  className={`mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold transition-all ${
+                    p.featured
+                      ? "bg-primary text-white shadow-[0_14px_40px_-12px_rgba(6,182,212,0.8)] hover:bg-primary-600"
+                      : "border border-white/15 text-gray-100 hover:border-white/30 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  {p.cta}
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ───────── FAQ ───────── */}
+      <section id="faq" className="scroll-mt-24 px-5 py-24">
+        <div className="mx-auto max-w-3xl">
+          <SectionHead eyebrow="Dúvidas" title="Perguntas frequentes" />
+          <div className="mt-12 divide-y divide-white/8 border-y border-white/8">
+            {FAQ.map((f) => (
+              <details key={f.q} className="group py-5">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-medium text-white marker:hidden">
+                  {f.q}
+                  <span className="material-symbols-outlined text-gray-500 transition-transform group-open:rotate-45">
+                    add
+                  </span>
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-gray-400">{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ───────── CTA final ───────── */}
+      <section className="px-5 pb-28 pt-8">
+        <div className="relative mx-auto max-w-5xl overflow-hidden rounded-3xl border border-white/10 px-6 py-16 text-center">
+          <div className="pointer-events-none absolute inset-0 lp-grid" aria-hidden />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary to-transparent" />
+          <h2 className="lp-display relative text-4xl text-white md:text-6xl">
+            Sua aprovação começa com a{" "}
+            <span className="lp-grad-text">próxima questão</span>.
+          </h2>
+          <p className="relative mx-auto mt-4 max-w-xl text-sm text-gray-400 md:text-base">
+            Crie a conta grátis e comece a estudar com IA agora — leva menos de um minuto.
+          </p>
+          <Link
+            href="/cadastro"
+            className="group relative mt-9 inline-flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-4 text-sm font-semibold text-white shadow-[0_14px_40px_-12px_rgba(6,182,212,0.8)] transition-all hover:bg-primary-600"
+          >
+            Criar conta grátis
+            <span className="material-symbols-outlined text-[20px] transition-transform group-hover:translate-x-0.5">
+              arrow_forward
+            </span>
+          </Link>
+        </div>
+      </section>
+
+      {/* ───────── Footer ───────── */}
+      <footer className="border-t border-white/8 px-5 py-12">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-8 md:flex-row md:items-start">
+          <div className="max-w-xs text-center md:text-left">
+            <Link href="/" className="inline-flex items-center">
+              <LogoMark size={28} />
+              <span className="ml-2.5 text-xl font-bold tracking-tight text-white">
+                stud<span className="lp-grad-text">IA</span>
+              </span>
+            </Link>
+            <p className="mt-3 text-sm text-gray-500">
+              Estudo inteligente para concursos. Questões, flashcards e IA num lugar só.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-10 text-center sm:grid-cols-3 md:text-left">
+            <FooterCol
+              title="Produto"
+              links={[
+                { t: "Recursos", h: "#recursos" },
+                { t: "Como funciona", h: "#como-funciona" },
+                { t: "Planos", h: "#planos" },
+              ]}
+            />
+            <FooterCol
+              title="Conta"
+              links={[
+                { t: "Entrar", h: "/login" },
+                { t: "Criar conta", h: "/cadastro" },
+                { t: "Assinar Pro", h: "/assinar" },
+              ]}
+            />
+            <FooterCol title="Ajuda" links={[{ t: "Perguntas frequentes", h: "#faq" }]} />
+          </div>
+        </div>
+        <div className="mx-auto mt-10 max-w-6xl border-t border-white/8 pt-6">
+          <p className="lp-mono text-center text-[0.7rem] uppercase tracking-wider text-gray-600">
+            © {new Date().getFullYear()} studIA · feito por {siteConfig.author}
+          </p>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+/* ── helpers ───────────────────────────────────────────────────────────── */
+
+function SectionHead({ eyebrow, title, sub }: { eyebrow: string; title: string; sub?: string }) {
+  return (
+    <div className="max-w-2xl">
+      <span className="lp-mono text-[0.7rem] uppercase tracking-[0.2em] text-primary">{eyebrow}</span>
+      <h2 className="lp-display mt-3 text-3xl leading-tight text-white md:text-5xl">{title}</h2>
+      {sub && <p className="mt-4 text-sm leading-relaxed text-gray-400 md:text-base">{sub}</p>}
+    </div>
+  );
+}
+
+function FooterCol({ title, links }: { title: string; links: { t: string; h: string }[] }) {
   return (
     <div>
-      <div className="flex justify-between text-sm mb-2">
-        <span className="text-gray-400">{current} / {target}</span>
-        <span className="font-medium text-gray-200">{label}</span>
-      </div>
-      <div className="relative pt-1">
-        <div className="flex mb-2 items-center justify-between">
-          <span className={`text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-white ${badgeColor}`}>
-            {pct}%
-          </span>
-        </div>
-        <div className="mb-4">
-          <ProgressBar value={pct} color={color === "bg-secondary" ? "secondary" : "primary"} height={8} />
-        </div>
-      </div>
+      <p className="lp-mono text-[0.7rem] uppercase tracking-wider text-gray-500">{title}</p>
+      <ul className="mt-3 space-y-2.5">
+        {links.map((l) => (
+          <li key={l.t}>
+            <Link href={l.h} className="text-sm text-gray-400 transition-colors hover:text-white">
+              {l.t}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import { authClient } from "@/lib/auth-client";
+import Logo from "./Logo";
 
 // Carregado só no cliente: usa useSession (better-auth/react), que não pode
 // rodar no prerender/SSR enquanto o better-auth está externalizado.
@@ -16,7 +17,7 @@ const UserNav = dynamic(() => import("./UserNav"), {
 type NavItem = { href: string; label: string; icon: string; adminOnly?: boolean };
 
 const navItems: NavItem[] = [
-  { href: "/", label: "Home", icon: "home" },
+  { href: "/painel", label: "Início", icon: "home" },
   { href: "/flashcards", label: "Flashcards", icon: "style" },
   { href: "/disciplinas", label: "Disciplinas", icon: "library_books" },
   { href: "/q/filtrar", label: "Questões", icon: "fact_check" },
@@ -53,16 +54,13 @@ export default function Sidebar() {
     <>
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-64 h-screen sticky top-0 bg-surface-dark border-r border-border-dark flex-shrink-0 overflow-y-auto z-50">
-        <div className="p-6 flex items-center gap-3 border-b border-border-dark/50">
-          <span className="material-symbols-outlined text-primary text-3xl">school</span>
-          <span className="text-2xl font-bold tracking-tight text-white">
-            stud<span className="text-primary">IA</span>
-          </span>
-        </div>
+        <Link href="/painel" className="p-6 flex items-center border-b border-border-dark/50">
+          <Logo size={30} wordClassName="text-2xl" />
+        </Link>
 
         <nav className="flex-1 p-4 space-y-1">
           {itensVisiveis.map((item) => {
-            const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href) && item.href !== "#";
+            const isActive = item.href === "/painel" ? pathname === "/painel" : pathname.startsWith(item.href) && item.href !== "#";
             return (
               <Link
                 key={item.label}
@@ -98,12 +96,9 @@ export default function Sidebar() {
             <button className="p-2 rounded-md hover:bg-gray-800 text-gray-300">
               <span className="material-symbols-outlined">menu</span>
             </button>
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-3xl">school</span>
-              <span className="text-2xl font-bold tracking-tight text-white">
-                stud<span className="text-primary">IA</span>
-              </span>
-            </div>
+            <Link href="/painel" className="flex items-center">
+              <Logo size={28} wordClassName="text-2xl" />
+            </Link>
           </div>
           <div className="flex items-center gap-4">
             <button className="p-2 rounded-full hover:bg-gray-800 text-gray-300 relative">

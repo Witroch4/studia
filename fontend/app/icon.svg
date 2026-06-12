@@ -1,0 +1,14 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="studia-grad" x1="6" y1="4" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22d3ee"/>
+      <stop offset="0.55" stop-color="#06b6d4"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="48" height="48" rx="12" fill="url(#studia-grad)"/>
+  <path d="M24 13 41 20 24 27 7 20Z" fill="#ffffff"/>
+  <path d="M17 23.4 24 26.3 31 23.4V28.6C31 30.9 27.9 32.6 24 32.6 20.1 32.6 17 30.9 17 28.6Z" fill="#ffffff" fill-opacity="0.92"/>
+  <path d="M40.4 20V30.5" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/>
+  <circle cx="40.4" cy="32.4" r="2.1" fill="#ffffff"/>
+</svg>

@@ -4,11 +4,12 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import Logo from "@/app/components/Logo";
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const redirect = params.get("redirect") || "/";
+  const redirect = params.get("redirect") || "/painel";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,12 +39,9 @@ function LoginForm() {
 
       <div className="relative w-full max-w-sm">
         {/* logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <span className="material-symbols-outlined text-primary text-4xl">school</span>
-          <span className="text-3xl font-bold tracking-tight text-white">
-            stud<span className="text-primary">IA</span>
-          </span>
-        </div>
+        <Link href="/" className="flex items-center justify-center mb-8">
+          <Logo size={40} wordClassName="text-3xl" />
+        </Link>
 
         <div className="rounded-2xl border border-border-dark bg-surface-dark p-7 shadow-xl">
           <h1 className="text-xl font-bold text-white">Entrar</h1>

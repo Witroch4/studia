@@ -1,11 +1,56 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import AppShell from "./components/AppShell";
+import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "studIA - Dashboard",
-  description: "Plataforma de estudos inteligente",
+  metadataBase: new URL(siteConfig.url),
+  title: {
+    default: siteConfig.title,
+    template: "%s · studIA",
+  },
+  description: siteConfig.description,
+  applicationName: "studIA",
+  keywords: [...siteConfig.keywords],
+  authors: [{ name: siteConfig.author }],
+  creator: siteConfig.author,
+  publisher: siteConfig.author,
+  category: "education",
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: siteConfig.locale,
+    url: siteConfig.url,
+    siteName: "studIA",
+    title: siteConfig.title,
+    description: siteConfig.description,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteConfig.title,
+    description: siteConfig.description,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/apple-icon" }],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: siteConfig.themeColor,
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
