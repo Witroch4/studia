@@ -227,10 +227,12 @@ class Cargo(Base):
     orgao_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("orgaos.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    nome: Mapped[str] = mapped_column(String(512), index=True)
+    nome: Mapped[str] = mapped_column(Text, index=True)
     ano: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
-    escolaridade: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    area: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    escolaridade: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Texto livre vindo do TC (sem limite confiável): manter TEXT evita
+    # StringDataRightTruncationError que derrubava a faixa inteira na coleta.
+    area: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

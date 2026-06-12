@@ -188,6 +188,23 @@ async def ensure_scraper_compat_columns() -> None:
     finally:
         await engine.dispose()
 
+    # Texto livre do TC (nome/escolaridade/area) sem limite confiável: alarga
+    # colunas legadas VARCHAR(...) para TEXT. migrate.py não altera tipo de
+    # coluna existente, então um cargo com area longa derrubava a faixa inteira
+    # (StringDataRightTruncationError). ALTER ... TYPE TEXT é idempotente.
+    engine = create_async_engine(DATABASE_URL, isolation_level="AUTOCOMMIT")
+    try:
+        async with engine.connect() as conn:
+            for col in ("nome", "escolaridade", "area"):
+                await conn.execute(
+                    text(f'ALTER TABLE IF EXISTS cargos ALTER COLUMN "{col}" TYPE TEXT')
+                )
+        _print("compat", "cargos.nome/escolaridade/area → TEXT (sem truncar coleta)")
+    except Exception as exc:  # noqa: BLE001
+        _print("compat", f"skip cargos TEXT ({type(exc).__name__})", "!")
+    finally:
+        await engine.dispose()
+
 
 async def ensure_meili_settings() -> None:
     """Best-effort: cria o índice Meili e aplica os settings (filtráveis/facetas).
