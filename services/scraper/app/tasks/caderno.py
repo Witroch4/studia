@@ -315,7 +315,7 @@ async def _capturar_caderno_nome_best_effort(caderno_id: int, html: str) -> None
                     UPDATE tc_jobs
                     SET params = jsonb_set(
                         COALESCE(params, '{}'::jsonb),
-                        '{caderno_nome}', to_jsonb(:nome::text), true
+                        '{caderno_nome}', to_jsonb(CAST(:nome AS text)), true
                     )
                     WHERE kind = 'caderno' AND external_id = :cid
                       AND COALESCE(params->>'caderno_nome', '') = ''
