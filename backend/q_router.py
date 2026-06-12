@@ -271,6 +271,10 @@ async def listar_jobs_coleta(
                   j.blocked_units,
                   j.updated_at,
                   j.params ->> 'caderno_nome' AS caderno_nome,
+                  EXISTS (
+                    SELECT 1 FROM tc_caderno_questoes m
+                    WHERE m.caderno_id = CAST(j.external_id AS INTEGER)
+                  ) AS pode_montar,
                   COALESCE(SUM(CASE WHEN u.status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_units,
                   COALESCE(SUM(CASE WHEN u.status = 'queued' THEN 1 ELSE 0 END), 0) AS queued_units,
                   COALESCE(SUM(CASE WHEN u.status = 'running' THEN 1 ELSE 0 END), 0) AS running_units,
@@ -369,6 +373,7 @@ async def listar_jobs_coleta(
                 "job_id": int(row["job_id"]),
                 "caderno_id": int(row["caderno_id"]),
                 "caderno_nome": row["caderno_nome"] or None,
+                "pode_montar": bool(row["pode_montar"]),
                 "status": str(row["status"]),
                 "paused": bool(row["paused"]),
                 "expected_total": expected_total,
@@ -429,14 +434,12 @@ async def materializar_caderno_avulso(
         )
     ).scalars().all()
     ids = [int(i) for i in ids]
-    if not ids:
-        raise HTTPException(400, "Nenhuma questão coletada para este caderno ainda.")
 
     job = (
         await db.execute(
             text(
                 """
-                SELECT status, params ->> 'caderno_nome' AS caderno_nome
+                SELECT status, done_units, params ->> 'caderno_nome' AS caderno_nome
                 FROM tc_jobs
                 WHERE kind = 'caderno' AND external_id = :cid
                 ORDER BY id DESC
@@ -446,6 +449,18 @@ async def materializar_caderno_avulso(
             {"cid": str(caderno_id)},
         )
     ).mappings().first()
+
+    if not ids:
+        # Coleta antiga (anterior ao registro de ordem das questões): as questões
+        # existem no banco, mas falta o mapeamento caderno→questão. Re-coletar
+        # grava o membership e habilita a montagem.
+        if job and int(job["done_units"] or 0) > 0:
+            raise HTTPException(
+                409,
+                "Este caderno foi coletado antes do registro da ordem das questões. "
+                "Re-colete o caderno (cole a URL e colete de novo) para poder montá-lo na pasta.",
+            )
+        raise HTTPException(400, "Nenhuma questão coletada para este caderno ainda.")
     if job and job["status"] != "done" and not forcar:
         raise HTTPException(
             409,
@@ -480,6 +495,69 @@ async def materializar_caderno_avulso(
         "total": caderno.total,
         "primeira_questao_id": ids[0],
         "redirect": f"/q/caderno/{caderno.id}",
+    }
+
+
+@router.post("/coletar/{caderno_id}/recoletar")
+async def recoletar_caderno(
+    caderno_id: int,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Reprocessa um caderno já concluído para registrar a ordem das questões.
+
+    Cadernos coletados antes do registro de membership (`tc_caderno_questoes`)
+    não podem ser montados na pasta. Resetar as faixas para `pending` faz o
+    supervisor reprocessá-las — agora gravando o membership. Re-fetch no TC é
+    inevitável (a ordem só vem de lá); para cadernos grandes leva tempo.
+    """
+    job = (
+        await db.execute(
+            text(
+                """
+                SELECT id, total_units
+                FROM tc_jobs
+                WHERE kind = 'caderno' AND external_id = :cid
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ),
+            {"cid": str(caderno_id)},
+        )
+    ).mappings().first()
+    if not job:
+        raise HTTPException(404, "Nenhum job de coleta para este caderno.")
+
+    await db.execute(
+        text(
+            """
+            UPDATE tc_caderno_units
+            SET status = 'pending', leased_until = NULL, task_id = NULL,
+                attempts = 0, finished_at = NULL, questoes_ok = 0,
+                block_reason = NULL, blocked_until = NULL, last_error = NULL,
+                updated_at = now()
+            WHERE job_id = :jid
+            """
+        ),
+        {"jid": int(job["id"])},
+    )
+    await db.execute(
+        text(
+            """
+            UPDATE tc_jobs
+            SET status = 'running', done_units = 0, failed_units = 0,
+                blocked_units = 0, finished_at = NULL, paused_by_user = FALSE,
+                updated_at = now()
+            WHERE id = :jid
+            """
+        ),
+        {"jid": int(job["id"])},
+    )
+    await db.commit()
+    return {
+        "caderno_id": caderno_id,
+        "faixas": int(job["total_units"] or 0),
+        "message": "re-coleta agendada; o supervisor vai reprocessar as faixas e registrar a ordem das questões",
     }
 
 

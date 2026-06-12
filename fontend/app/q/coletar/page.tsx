@@ -36,6 +36,7 @@ interface JobAtivo {
   job_id: number;
   caderno_id: number;
   caderno_nome: string | null;
+  pode_montar: boolean;
   status: string;
   paused: boolean;
   expected_total: number;
@@ -119,6 +120,32 @@ export default function ColetarPage() {
   const [montando, setMontando] = useState<number | null>(null);
   const [nomesEdit, setNomesEdit] = useState<Record<number, string>>({});
   const [montados, setMontados] = useState<Record<number, { id: number; nome: string; total: number }>>({});
+  const [recoletando, setRecoletando] = useState<number | null>(null);
+
+  async function recoletarCaderno(job: JobAtivo) {
+    if (
+      !confirm(
+        `Re-coletar #${job.caderno_id} para registrar a ordem das ${job.expected_total.toLocaleString("pt-BR")} questões? ` +
+          `Vai reprocessar ${job.total_units} faixas no TC (pode demorar). As questões já existem; isso só registra a ordem.`
+      )
+    )
+      return;
+    setRecoletando(job.caderno_id);
+    setErroJobs(null);
+    try {
+      const r = await fetch(`${API}/api/q/coletar/${job.caderno_id}/recoletar`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const d = await r.json().catch(() => null);
+      if (!r.ok) setErroJobs(d?.detail || `Falha ao re-coletar (HTTP ${r.status})`);
+      else void carregarJobs(true);
+    } catch (e) {
+      setErroJobs((e as Error).message);
+    } finally {
+      setRecoletando(null);
+    }
+  }
 
   async function montarNaPasta(job: JobAtivo) {
     setMontando(job.caderno_id);
@@ -381,7 +408,23 @@ export default function ColetarPage() {
                           )}
                           {" · "}{job.questoes_ok_done.toLocaleString("pt-BR")} / {job.expected_total.toLocaleString("pt-BR")} questoes · {job.done_units}/{job.total_units} faixas
                         </div>
-                        {job.status === "done" ? (
+                        {job.status === "done" && !job.pode_montar ? (
+                          <div className="mt-2 flex flex-col gap-1">
+                            <button
+                              onClick={() => recoletarCaderno(job)}
+                              disabled={recoletando === job.caderno_id}
+                              className="inline-flex w-fit items-center gap-1 rounded border border-amber-700 bg-amber-900/40 px-2.5 py-1 text-xs font-medium text-amber-200 transition hover:bg-amber-900/60 disabled:opacity-50"
+                            >
+                              <span className={`material-symbols-outlined text-[14px] ${recoletando === job.caderno_id ? "animate-spin" : ""}`}>
+                                {recoletando === job.caderno_id ? "progress_activity" : "restart_alt"}
+                              </span>
+                              Re-coletar (registrar ordem)
+                            </button>
+                            <span className="text-[11px] text-gray-500">
+                              Coletado antes do registro de ordem — reprocessar habilita “Montar na pasta”.
+                            </span>
+                          </div>
+                        ) : job.status === "done" ? (
                           montados[job.caderno_id] ? (
                             <div className="mt-2 rounded border border-green-700 bg-green-900/30 p-2 text-xs text-green-300">
                               <span className="material-symbols-outlined text-[14px] align-middle">check_circle</span>{" "}
