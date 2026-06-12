@@ -56,6 +56,9 @@ DEFAULT_FACETS = [
     "area", "formacao", "escolaridade", "regiao",
 ]
 
+# Pasta padrão onde cadernos avulsos importados do TC são montados.
+PASTA_IMPORTADOS = "Importados do TC"
+
 
 _CADERNO_RE = _re.compile(r"/cadernos/(\d+)")
 
@@ -267,6 +270,7 @@ async def listar_jobs_coleta(
                   j.failed_units,
                   j.blocked_units,
                   j.updated_at,
+                  j.params ->> 'caderno_nome' AS caderno_nome,
                   COALESCE(SUM(CASE WHEN u.status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_units,
                   COALESCE(SUM(CASE WHEN u.status = 'queued' THEN 1 ELSE 0 END), 0) AS queued_units,
                   COALESCE(SUM(CASE WHEN u.status = 'running' THEN 1 ELSE 0 END), 0) AS running_units,
@@ -274,7 +278,16 @@ async def listar_jobs_coleta(
                 FROM tc_jobs j
                 LEFT JOIN tc_caderno_units u ON u.job_id = j.id
                 WHERE j.kind = 'caderno'
-                  AND j.status IN ('pending', 'running', 'blocked')
+                  AND (
+                    j.status IN ('pending', 'running', 'blocked')
+                    OR (
+                      j.status = 'done'
+                      AND NOT EXISTS (
+                        SELECT 1 FROM cadernos_questoes cq
+                        WHERE cq.tc_caderno_id = CAST(j.external_id AS INTEGER)
+                      )
+                    )
+                  )
                   {caderno_where}
                 GROUP BY
                   j.id,
@@ -286,7 +299,8 @@ async def listar_jobs_coleta(
                   j.done_units,
                   j.failed_units,
                   j.blocked_units,
-                  j.updated_at
+                  j.updated_at,
+                  j.params
                 ORDER BY j.updated_at DESC, j.id DESC
                 """
             ),
@@ -354,6 +368,7 @@ async def listar_jobs_coleta(
             {
                 "job_id": int(row["job_id"]),
                 "caderno_id": int(row["caderno_id"]),
+                "caderno_nome": row["caderno_nome"] or None,
                 "status": str(row["status"]),
                 "paused": bool(row["paused"]),
                 "expected_total": expected_total,
@@ -377,6 +392,95 @@ async def listar_jobs_coleta(
         )
 
     return {"jobs": jobs}
+
+
+class MaterializarCadernoReq(BaseModel):
+    nome: str | None = None
+    forcar: bool = False
+
+
+@router.post("/coletar/{caderno_id}/materializar")
+async def materializar_caderno_avulso(
+    caderno_id: int,
+    req: MaterializarCadernoReq | None = None,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Monta um caderno avulso do TC como `CadernoQuestoes` na pasta padrão.
+
+    Usa a ordem real das questões coletadas (`tc_caderno_questoes.posicao`) e o
+    nome capturado do TC (`tc_jobs.params.caderno_nome`), editável via `nome`.
+    Idempotente por `tc_caderno_id`. Por padrão exige coleta concluída (job
+    `done`); use `forcar=true` para montar parcial.
+    """
+    forcar = bool(req and req.forcar)
+
+    ids = (
+        await db.execute(
+            text(
+                """
+                SELECT questao_id
+                FROM tc_caderno_questoes
+                WHERE caderno_id = :cid
+                ORDER BY posicao
+                """
+            ),
+            {"cid": caderno_id},
+        )
+    ).scalars().all()
+    ids = [int(i) for i in ids]
+    if not ids:
+        raise HTTPException(400, "Nenhuma questão coletada para este caderno ainda.")
+
+    job = (
+        await db.execute(
+            text(
+                """
+                SELECT status, params ->> 'caderno_nome' AS caderno_nome
+                FROM tc_jobs
+                WHERE kind = 'caderno' AND external_id = :cid
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ),
+            {"cid": str(caderno_id)},
+        )
+    ).mappings().first()
+    if job and job["status"] != "done" and not forcar:
+        raise HTTPException(
+            409,
+            "Coleta ainda não concluída. Use forçar para montar com o que já foi coletado.",
+        )
+
+    nome = (
+        (req.nome.strip() if req and req.nome and req.nome.strip() else None)
+        or (job["caderno_nome"] if job else None)
+        or f"Caderno {caderno_id}"
+    )
+
+    caderno = (
+        await db.execute(
+            select(CadernoQuestoes).where(CadernoQuestoes.tc_caderno_id == caderno_id)
+        )
+    ).scalar_one_or_none()
+    if caderno is None:
+        caderno = CadernoQuestoes(nome=nome, pasta=PASTA_IMPORTADOS, tc_caderno_id=caderno_id)
+        db.add(caderno)
+    caderno.nome = nome
+    caderno.pasta = PASTA_IMPORTADOS
+    caderno.question_ids = ids
+    caderno.total = len(ids)
+    await db.commit()
+    await db.refresh(caderno)
+
+    return {
+        "id": caderno.id,
+        "nome": caderno.nome,
+        "pasta": caderno.pasta,
+        "total": caderno.total,
+        "primeira_questao_id": ids[0],
+        "redirect": f"/q/caderno/{caderno.id}",
+    }
 
 
 async def _scraper_job_action(job_id: int, action: str) -> dict[str, Any]:

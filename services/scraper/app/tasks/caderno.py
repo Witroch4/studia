@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import random
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.auth import load_cookies_for_httpx
@@ -276,6 +278,58 @@ async def coletar_pagina_caderno_tc(
 
 _REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 
+# Captura best-effort do nome do caderno (como aparece no TC) a partir do HTML
+# do warmup, pra materializar o caderno na pasta com o mesmo nome. Guardado em
+# tc_jobs.params['caderno_nome']. Cache em processo evita reescrever a cada faixa.
+_TITLE_RE = re.compile(r"<title>\s*(.*?)\s*</title>", re.S | re.I)
+_NOME_CAPTURADO: set[int] = set()
+
+
+def _limpar_nome_caderno(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    nome = re.sub(r"\s+", " ", raw).strip()
+    # remove sufixo do site (ex.: "Meu Caderno - TEC Concursos")
+    nome = re.split(r"\s*[-|]\s*TEC\s*Concursos", nome, maxsplit=1, flags=re.I)[0].strip()
+    return nome or None
+
+
+async def _capturar_caderno_nome_best_effort(caderno_id: int, html: str) -> None:
+    """Extrai o nome do caderno do HTML do warmup e grava em tc_jobs.params.
+
+    Best-effort: qualquer falha é silenciosa (o nome é editável na UI ao montar).
+    """
+    if caderno_id in _NOME_CAPTURADO:
+        return
+    m = _TITLE_RE.search(html or "")
+    nome = _limpar_nome_caderno(m.group(1) if m else None)
+    if not nome:
+        return
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    """
+                    UPDATE tc_jobs
+                    SET params = jsonb_set(
+                        COALESCE(params, '{}'::jsonb),
+                        '{caderno_nome}', to_jsonb(:nome::text), true
+                    )
+                    WHERE kind = 'caderno' AND external_id = :cid
+                      AND COALESCE(params->>'caderno_nome', '') = ''
+                    """
+                ),
+                {"nome": nome, "cid": str(caderno_id)},
+            )
+        _NOME_CAPTURADO.add(caderno_id)
+        log.info("tc_unit.caderno_nome_capturado", caderno_id=caderno_id, nome=nome)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("tc_unit.caderno_nome_falhou", caderno_id=caderno_id, err=str(exc))
+    finally:
+        await engine.dispose()
+
 
 async def _fetch_page_from_tc(
     caderno_id: int, inicio: int, page_size: int
@@ -302,6 +356,7 @@ async def _fetch_page_from_tc(
                 raise SessionExpired(
                     "warmup redirecionou para login mesmo após relogin"
                 )
+            await _capturar_caderno_nome_best_effort(caderno_id, warm.text)
             return await fetch_pagina(client, caderno_id, inicio, page_size)
     raise SessionExpired("warmup esgotou tentativas")
 

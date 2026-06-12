@@ -35,6 +35,7 @@ interface FaixaAtiva {
 interface JobAtivo {
   job_id: number;
   caderno_id: number;
+  caderno_nome: string | null;
   status: string;
   paused: boolean;
   expected_total: number;
@@ -115,6 +116,34 @@ export default function ColetarPage() {
   const [erroJobs, setErroJobs] = useState<string | null>(null);
   const [jobs, setJobs] = useState<JobAtivo[]>([]);
   const [pausando, setPausando] = useState<number | null>(null);
+  const [montando, setMontando] = useState<number | null>(null);
+  const [nomesEdit, setNomesEdit] = useState<Record<number, string>>({});
+  const [montados, setMontados] = useState<Record<number, { id: number; nome: string; total: number }>>({});
+
+  async function montarNaPasta(job: JobAtivo) {
+    setMontando(job.caderno_id);
+    setErroJobs(null);
+    const nome = (nomesEdit[job.caderno_id] ?? job.caderno_nome ?? "").trim();
+    try {
+      const r = await fetch(`${API}/api/q/coletar/${job.caderno_id}/materializar`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nome ? { nome } : {}),
+      });
+      const d = await r.json().catch(() => null);
+      if (!r.ok) {
+        setErroJobs(d?.detail || `Falha ao montar (HTTP ${r.status})`);
+      } else {
+        setMontados((prev) => ({ ...prev, [job.caderno_id]: { id: d.id, nome: d.nome, total: d.total } }));
+        void carregarJobs(true);
+      }
+    } catch (e) {
+      setErroJobs((e as Error).message);
+    } finally {
+      setMontando(null);
+    }
+  }
 
   async function alternarPausa(job: JobAtivo) {
     setPausando(job.job_id);
@@ -333,9 +362,16 @@ export default function ColetarPage() {
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
                         <div className="text-sm font-semibold text-gray-100">
-                          Caderno #{job.caderno_id}
+                          {job.caderno_nome ? (
+                            <span className="text-cyan-300">{job.caderno_nome}</span>
+                          ) : (
+                            <>Caderno #{job.caderno_id}</>
+                          )}
                           <span className="ml-2 text-cyan-400">Job #{job.job_id}</span>
                         </div>
+                        {job.caderno_nome && (
+                          <div className="text-[11px] text-gray-500">Caderno #{job.caderno_id}</div>
+                        )}
                         <div className="mt-1 text-xs text-gray-400">
                           Status: {statusTexto(job.status)}
                           {job.paused && (
@@ -345,22 +381,56 @@ export default function ColetarPage() {
                           )}
                           {" · "}{job.questoes_ok_done.toLocaleString("pt-BR")} / {job.expected_total.toLocaleString("pt-BR")} questoes · {job.done_units}/{job.total_units} faixas
                         </div>
-                        <div className="mt-2">
-                          <button
-                            onClick={() => alternarPausa(job)}
-                            disabled={pausando === job.job_id}
-                            className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
-                              job.paused
-                                ? "border border-green-700 bg-green-900/40 text-green-300 hover:bg-green-900/60"
-                                : "border border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700"
-                            }`}
-                          >
-                            <span className={`material-symbols-outlined text-[14px] ${pausando === job.job_id ? "animate-spin" : ""}`}>
-                              {pausando === job.job_id ? "progress_activity" : job.paused ? "play_arrow" : "pause"}
-                            </span>
-                            {job.paused ? "Retomar" : "Pausar"}
-                          </button>
-                        </div>
+                        {job.status === "done" ? (
+                          montados[job.caderno_id] ? (
+                            <div className="mt-2 rounded border border-green-700 bg-green-900/30 p-2 text-xs text-green-300">
+                              <span className="material-symbols-outlined text-[14px] align-middle">check_circle</span>{" "}
+                              Montado em <strong>Importados do TC</strong> ·{" "}
+                              <a href={`/q/caderno/${montados[job.caderno_id].id}`} className="underline hover:text-green-200">
+                                abrir “{montados[job.caderno_id].nome}” ({montados[job.caderno_id].total} questões)
+                              </a>
+                            </div>
+                          ) : (
+                            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                              <input
+                                type="text"
+                                value={nomesEdit[job.caderno_id] ?? job.caderno_nome ?? ""}
+                                onChange={(e) =>
+                                  setNomesEdit((prev) => ({ ...prev, [job.caderno_id]: e.target.value }))
+                                }
+                                placeholder={`Caderno ${job.caderno_id}`}
+                                className="w-full sm:w-64 rounded border border-gray-700 bg-gray-800 px-2.5 py-1 text-xs focus:border-cyan-500 focus:outline-none"
+                              />
+                              <button
+                                onClick={() => montarNaPasta(job)}
+                                disabled={montando === job.caderno_id}
+                                className="inline-flex items-center gap-1 rounded border border-cyan-700 bg-cyan-900/40 px-2.5 py-1 text-xs font-medium text-cyan-200 transition hover:bg-cyan-900/60 disabled:opacity-50"
+                              >
+                                <span className={`material-symbols-outlined text-[14px] ${montando === job.caderno_id ? "animate-spin" : ""}`}>
+                                  {montando === job.caderno_id ? "progress_activity" : "create_new_folder"}
+                                </span>
+                                Montar na pasta
+                              </button>
+                            </div>
+                          )
+                        ) : (
+                          <div className="mt-2">
+                            <button
+                              onClick={() => alternarPausa(job)}
+                              disabled={pausando === job.job_id}
+                              className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
+                                job.paused
+                                  ? "border border-green-700 bg-green-900/40 text-green-300 hover:bg-green-900/60"
+                                  : "border border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700"
+                              }`}
+                            >
+                              <span className={`material-symbols-outlined text-[14px] ${pausando === job.job_id ? "animate-spin" : ""}`}>
+                                {pausando === job.job_id ? "progress_activity" : job.paused ? "play_arrow" : "pause"}
+                              </span>
+                              {job.paused ? "Retomar" : "Pausar"}
+                            </button>
+                          </div>
+                        )}
                         {primeiraFaixa && (
                           <div className="mt-2 text-xs text-amber-300">
                             Proxima faixa observada: {faixaResumo(primeiraFaixa)}
