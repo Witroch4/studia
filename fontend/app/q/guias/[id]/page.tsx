@@ -188,10 +188,16 @@ export default function GuiaDetalhePage() {
           {guia.banca && <span>Banca: <strong className="text-gray-300">{guia.banca}</strong></span>}
           <span>{guia.cadernos.length} cadernos</span>
           <span>
-            {guia.questoes_coletadas.toLocaleString("pt-BR")} /{" "}
-            {guia.questoes_esperadas.toLocaleString("pt-BR")} questões ({guia.pct.toFixed(1)}%)
+            {isAdmin ? (
+              <>
+                {guia.questoes_coletadas.toLocaleString("pt-BR")} /{" "}
+                {guia.questoes_esperadas.toLocaleString("pt-BR")} questões ({guia.pct.toFixed(1)}%)
+              </>
+            ) : (
+              <>{guia.questoes_coletadas.toLocaleString("pt-BR")} questões</>
+            )}
           </span>
-          {guia.tc_pasta_id && (
+          {isAdmin && guia.tc_pasta_id && (
             <a
               href={`https://www.tecconcursos.com.br/questoes/pastas/${guia.tc_pasta_id}`}
               target="_blank"
@@ -212,7 +218,10 @@ export default function GuiaDetalhePage() {
             <span className="text-gray-400">{prontos}/{guia.cadernos.length} prontos para estudo</span>
           </div>
           <div className="h-3 rounded-full bg-gray-800 overflow-hidden">
-            <div className="h-full bg-primary transition-all" style={{ width: `${Math.min(100, guia.pct)}%` }} />
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${guia.cadernos.length ? (prontos / guia.cadernos.length) * 100 : 0}%` }}
+            />
           </div>
           <div className="flex flex-wrap gap-2 mt-4">
             <button
@@ -255,17 +264,25 @@ export default function GuiaDetalhePage() {
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-gray-100 truncate">{c.nome}</div>
                   <div className="text-xs text-gray-500 mt-0.5">
-                    {c.questoes_coletadas.toLocaleString("pt-BR")} /{" "}
-                    {c.total_questoes.toLocaleString("pt-BR")} questões
+                    {isAdmin ? (
+                      <>
+                        {c.questoes_coletadas.toLocaleString("pt-BR")} /{" "}
+                        {c.total_questoes.toLocaleString("pt-BR")} questões
+                        {c.blocked_units ? ` · ${c.blocked_units} faixa(s) em cooldown` : ""}
+                      </>
+                    ) : (
+                      <>{c.questoes_coletadas.toLocaleString("pt-BR")} questões</>
+                    )}
                     {c.total_capitulos > 0 && ` · ${c.total_capitulos} capítulos`}
-                    {c.blocked_units ? ` · ${c.blocked_units} faixa(s) em cooldown` : ""}
                   </div>
-                  <div className="h-1.5 rounded-full bg-gray-800 overflow-hidden mt-2 max-w-md">
-                    <div
-                      className="h-full bg-primary transition-all"
-                      style={{ width: `${Math.min(100, c.pct)}%` }}
-                    />
-                  </div>
+                  {isAdmin && (
+                    <div className="h-1.5 rounded-full bg-gray-800 overflow-hidden mt-2 max-w-md">
+                      <div
+                        className="h-full bg-primary transition-all"
+                        style={{ width: `${Math.min(100, c.pct)}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <span

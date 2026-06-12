@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { authClient } from "@/lib/auth-client";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
 
@@ -36,6 +37,17 @@ export default function GuiasPage() {
   const [guias, setGuias] = useState<GuiaCard[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    authClient
+      .getSession()
+      .then((res) => {
+        const role = (res?.data?.user as { role?: string } | undefined)?.role;
+        setIsAdmin(role === "admin");
+      })
+      .catch(() => setIsAdmin(false));
+  }, []);
 
   const carregar = useCallback(async (silent = false) => {
     if (!silent) setCarregando(true);
@@ -120,21 +132,27 @@ export default function GuiasPage() {
                     </span>
                   </div>
 
-                  <div>
-                    <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-                      <span>
-                        {g.questoes_coletadas.toLocaleString("pt-BR")} /{" "}
-                        {g.questoes_esperadas.toLocaleString("pt-BR")} questões
-                      </span>
-                      <span>{g.pct.toFixed(1)}%</span>
+                  {isAdmin ? (
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                        <span>
+                          {g.questoes_coletadas.toLocaleString("pt-BR")} /{" "}
+                          {g.questoes_esperadas.toLocaleString("pt-BR")} questões
+                        </span>
+                        <span>{g.pct.toFixed(1)}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all"
+                          style={{ width: `${Math.min(100, g.pct)}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
-                      <div
-                        className="h-full bg-primary transition-all"
-                        style={{ width: `${Math.min(100, g.pct)}%` }}
-                      />
+                  ) : (
+                    <div className="text-sm text-gray-200 font-medium">
+                      {g.questoes_coletadas.toLocaleString("pt-BR")} questões
                     </div>
-                  </div>
+                  )}
 
                   <div className="text-xs text-gray-500">
                     {g.cadernos_materializados}/{g.cadernos_total} cadernos prontos para estudo
