@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { authClient } from "@/lib/auth-client";
 import GuiasPanel from "./GuiasPanel";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
@@ -118,6 +120,18 @@ export default function ColetarPage() {
   const [jobs, setJobs] = useState<JobAtivo[]>([]);
   const [pausando, setPausando] = useState<number | null>(null);
   const [montando, setMontando] = useState<number | null>(null);
+  // Coleta TC é área de administração. Só admin vê os termos/ações de coleta.
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    authClient
+      .getSession()
+      .then((res) => {
+        const role = (res?.data?.user as { role?: string } | undefined)?.role;
+        setIsAdmin(role === "admin");
+      })
+      .catch(() => setIsAdmin(false));
+  }, []);
   const [nomesEdit, setNomesEdit] = useState<Record<number, string>>({});
   const [montados, setMontados] = useState<Record<number, { id: number; nome: string; total: number }>>({});
   const [recoletando, setRecoletando] = useState<number | null>(null);
@@ -289,6 +303,33 @@ export default function ColetarPage() {
       window.clearTimeout(timeout);
       setCarregando(false);
     }
+  }
+
+  // Guard de admin: não-admin não acessa a área de coleta (nem por URL direta).
+  if (isAdmin === null) {
+    return <div className="p-8 text-fg-muted">Carregando…</div>;
+  }
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-page text-fg flex items-center justify-center px-6">
+        <div className="max-w-md text-center space-y-3">
+          <span className="material-symbols-outlined text-fg-faint text-5xl">lock</span>
+          <h1 className="text-xl font-semibold">Área restrita</h1>
+          <p className="text-sm text-fg-faint">
+            Esta seção é exclusiva para administradores. Para estudar, escolha um
+            guia ou monte um caderno.
+          </p>
+          <div className="flex justify-center gap-2 pt-2">
+            <Link href="/q/guias" className="text-sm bg-primary hover:bg-primary-600 text-on-primary px-4 py-2 rounded font-semibold">
+              Ver guias
+            </Link>
+            <Link href="/q/filtrar" className="text-sm bg-surface-2 hover:bg-fg-strong/6 px-4 py-2 rounded font-semibold">
+              Questões
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

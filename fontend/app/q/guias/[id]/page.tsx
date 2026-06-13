@@ -211,27 +211,27 @@ export default function GuiaDetalhePage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
-        {/* Barra de progresso global + ações */}
-        <section className="rounded-xl border border-border-dark bg-surface-dark p-5">
-          <div className="flex items-center justify-between text-sm mb-2">
-            <span className="text-fg font-medium">Progresso geral</span>
-            <span className="text-fg-muted">{prontos}/{guia.cadernos.length} prontos para estudo</span>
-          </div>
-          <div className="h-3 rounded-full bg-surface-2 overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all"
-              style={{ width: `${guia.cadernos.length ? (prontos / guia.cadernos.length) * 100 : 0}%` }}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2 mt-4">
-            <button
-              onClick={() => void materializar()}
-              disabled={acao !== null}
-              className="text-sm bg-primary hover:bg-primary-600 disabled:bg-surface-2 px-4 py-2 rounded font-semibold text-on-primary"
-            >
-              {acao === "materializar" ? "Salvando…" : "Salvar todos os cadernos"}
-            </button>
-            {isAdmin && (
+        {/* Barra de progresso global + ações — área de administração */}
+        {isAdmin && (
+          <section className="rounded-xl border border-border-dark bg-surface-dark p-5">
+            <div className="flex items-center justify-between text-sm mb-2">
+              <span className="text-fg font-medium">Progresso geral</span>
+              <span className="text-fg-muted">{prontos}/{guia.cadernos.length} prontos para estudo</span>
+            </div>
+            <div className="h-3 rounded-full bg-surface-2 overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${guia.cadernos.length ? (prontos / guia.cadernos.length) * 100 : 0}%` }}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2 mt-4">
+              <button
+                onClick={() => void materializar()}
+                disabled={acao !== null}
+                className="text-sm bg-primary hover:bg-primary-600 disabled:bg-surface-2 px-4 py-2 rounded font-semibold text-on-primary"
+              >
+                {acao === "materializar" ? "Salvando…" : "Salvar todos os cadernos"}
+              </button>
               <button
                 onClick={() => void retomarColeta()}
                 disabled={acao !== null}
@@ -239,16 +239,16 @@ export default function GuiaDetalhePage() {
               >
                 {acao === "coletar" ? "Reenfileirando…" : "Retomar coleta"}
               </button>
-            )}
-            <button
-              onClick={() => void carregar()}
-              className="text-sm bg-surface-2 hover:bg-fg-strong/6 px-4 py-2 rounded"
-            >
-              Atualizar
-            </button>
-          </div>
-          {msg && <div className="mt-3 text-sm text-primary">{msg}</div>}
-        </section>
+              <button
+                onClick={() => void carregar()}
+                className="text-sm bg-surface-2 hover:bg-fg-strong/6 px-4 py-2 rounded"
+              >
+                Atualizar
+              </button>
+            </div>
+            {msg && <div className="mt-3 text-sm text-primary">{msg}</div>}
+          </section>
+        )}
 
         {/* Cadernos por matéria */}
         <section>
@@ -285,13 +285,25 @@ export default function GuiaDetalhePage() {
                   )}
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span
-                    className={`text-[10px] uppercase font-semibold px-2 py-1 rounded border ${statusChip(
-                      c.status
-                    )}`}
-                  >
-                    {STATUS_LABEL[c.status] || c.status}
-                  </span>
+                  {isAdmin ? (
+                    <span
+                      className={`text-[10px] uppercase font-semibold px-2 py-1 rounded border ${statusChip(
+                        c.status
+                      )}`}
+                    >
+                      {STATUS_LABEL[c.status] || c.status}
+                    </span>
+                  ) : (
+                    <span
+                      className={`text-[10px] uppercase font-semibold px-2 py-1 rounded border ${
+                        c.caderno_id
+                          ? "bg-success/15 text-success border-success/40"
+                          : "bg-surface-2 text-fg-muted border-border"
+                      }`}
+                    >
+                      {c.caderno_id ? "Pronto p/ estudo" : "Em breve"}
+                    </span>
+                  )}
                   {c.caderno_id ? (
                     <Link
                       href={`/q/caderno/${c.caderno_id}`}
@@ -299,7 +311,7 @@ export default function GuiaDetalhePage() {
                     >
                       Estudar →
                     </Link>
-                  ) : c.status === "collected" || c.job_status === "done" ? (
+                  ) : isAdmin && (c.status === "collected" || c.job_status === "done") ? (
                     <button
                       onClick={() => void salvarCaderno(c.tc_caderno_id)}
                       disabled={salvando === c.tc_caderno_id}
@@ -310,8 +322,10 @@ export default function GuiaDetalhePage() {
                       </span>
                       Salvar
                     </button>
-                  ) : (
+                  ) : isAdmin ? (
                     <span className="text-xs text-fg-faint w-18 text-center">coletando…</span>
+                  ) : (
+                    <span className="text-xs text-fg-faint w-18 text-center">—</span>
                   )}
                 </div>
               </div>

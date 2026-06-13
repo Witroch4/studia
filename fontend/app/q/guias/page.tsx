@@ -23,7 +23,13 @@ interface GuiaCard {
 
 type Situacao = { label: string; classe: string };
 
-function situacaoGuia(g: GuiaCard): Situacao {
+function situacaoGuia(g: GuiaCard, isAdmin: boolean): Situacao {
+  // Não-admin: só estados de estudo, nunca termos de coleta.
+  if (!isAdmin) {
+    return g.cadernos_materializados > 0
+      ? { label: "Pronto p/ estudar", classe: "bg-success/15 text-success border-success/40" }
+      : { label: "Em breve", classe: "bg-surface-2 text-fg-muted border-border" };
+  }
   if (g.cadernos_total > 0 && g.cadernos_materializados >= g.cadernos_total) {
     return { label: "Pronto p/ estudar", classe: "bg-success/15 text-success border-success/40" };
   }
@@ -110,7 +116,7 @@ export default function GuiasPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {guias.map((g) => {
-              const sit = situacaoGuia(g);
+              const sit = situacaoGuia(g, isAdmin);
               return (
                 <Link
                   key={g.id}
