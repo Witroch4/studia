@@ -14,6 +14,7 @@ interface GuiaCard {
   questoes_esperadas: number;
   questoes_coletadas: number;
   cadernos_materializados: number;
+  coleta_completa: boolean;
   pct: number;
 }
 
@@ -27,18 +28,34 @@ interface BuscaGuia {
   guia_id: number | null;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: "Pendente",
-  saving: "Salvando",
-  collecting: "Coletando",
-  done: "Concluído",
-  error: "Erro",
+// Estado de exibição derivado: a coluna `status` do banco só vira "done" depois
+// que o usuário materializa ("Salvar"). Enquanto isso, se todos os jobs de
+// coleta terminaram (`coleta_completa`), a coleta acabou — o que o TC tinha já
+// veio. Nesse caso mostramos "Coletado" (pronto pra montar), não "Coletando",
+// pra bater com a tela de detalhe do guia, que já marca cada caderno COLETADO.
+type EstadoGuia = "coletando" | "coletado" | "concluido" | "salvando" | "erro";
+
+function estadoGuia(g: GuiaCard): EstadoGuia {
+  if (g.status === "error") return "erro";
+  if (g.status === "done") return "concluido";
+  if (g.status === "saving") return "salvando";
+  if (g.coleta_completa) return "coletado";
+  return "coletando";
+}
+
+const ESTADO_LABEL: Record<EstadoGuia, string> = {
+  coletando: "Coletando",
+  coletado: "Coletado",
+  concluido: "Concluído",
+  salvando: "Salvando",
+  erro: "Erro",
 };
 
-function statusBadge(s: string): string {
-  if (s === "done") return "bg-success/15 text-success border-success/40";
-  if (s === "collecting") return "bg-primary/15 text-primary border-primary/40";
-  if (s === "error") return "bg-error/15 text-error border-error/40";
+function estadoBadge(e: EstadoGuia): string {
+  if (e === "concluido") return "bg-success/15 text-success border-success/40";
+  if (e === "coletado") return "bg-success/15 text-success border-success/40";
+  if (e === "coletando" || e === "salvando") return "bg-primary/15 text-primary border-primary/40";
+  if (e === "erro") return "bg-error/15 text-error border-error/40";
   return "bg-surface-2 text-fg border-border";
 }
 
@@ -60,6 +77,29 @@ export default function GuiasPanel() {
   const [termo, setTermo] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [resultados, setResultados] = useState<BuscaGuia[]>([]);
+
+  const [montandoId, setMontandoId] = useState<number | null>(null);
+
+  async function montarGuia(guiaId: number) {
+    setMontandoId(guiaId);
+    setMsg(null);
+    try {
+      const r = await fetch(`${API}/api/q/guias/${guiaId}/materializar`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await r.json().catch(() => null);
+      if (!r.ok) setMsg(data?.detail || `Falha ao salvar (HTTP ${r.status})`);
+      else {
+        setMsg(`✓ ${data?.total ?? 0} caderno(s) salvos para estudo.`);
+        void carregar();
+      }
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setMontandoId(null);
+    }
+  }
 
   const carregar = useCallback(async () => {
     try {
@@ -219,27 +259,47 @@ export default function GuiasPanel() {
       {guias.length > 0 && (
         <div className="space-y-2 pt-1">
           <div className="text-xs text-fg-faint uppercase tracking-wide">Guias importados</div>
-          {guias.map((g) => (
-            <Link
-              key={g.id}
-              href={`/q/guias/${g.id}`}
-              className="block rounded border border-border bg-black/20 hover:border-primary/40 p-3"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-sm font-medium text-fg-strong truncate">{g.nome}</div>
-                <span className={`text-[10px] uppercase font-semibold px-2 py-0.5 rounded border ${statusBadge(g.status)}`}>
-                  {STATUS_LABEL[g.status] || g.status}
-                </span>
+          {guias.map((g) => {
+            const estado = estadoGuia(g);
+            // Coleta terminou ⇒ barra cheia: o que o TC tinha já veio (o
+            // "esperado" do guia é inflado e nem sempre existe na origem).
+            const larguraBarra = estado === "coletado" || estado === "concluido" ? 100 : Math.min(100, g.pct);
+            const faltaMontar = g.coleta_completa && g.cadernos_materializados < g.cadernos_total;
+            return (
+              <div
+                key={g.id}
+                className="rounded border border-border bg-black/20 hover:border-primary/40 p-3"
+              >
+                <Link href={`/q/guias/${g.id}`} className="block">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-medium text-fg-strong truncate">{g.nome}</div>
+                    <span className={`text-[10px] uppercase font-semibold px-2 py-0.5 rounded border ${estadoBadge(estado)}`}>
+                      {ESTADO_LABEL[estado]}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs text-fg-muted">
+                    {g.questoes_coletadas.toLocaleString("pt-BR")} questões ·{" "}
+                    {g.cadernos_materializados}/{g.cadernos_total} cadernos salvos para estudo
+                  </div>
+                  <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden mt-2">
+                    <div className="h-full bg-cyan-500 transition-all" style={{ width: `${larguraBarra}%` }} />
+                  </div>
+                </Link>
+                {faltaMontar && (
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-success">Coleta concluída — salve para liberar o estudo.</span>
+                    <button
+                      onClick={() => void montarGuia(g.id)}
+                      disabled={montandoId === g.id}
+                      className="text-xs bg-cyan-600 hover:bg-cyan-500 disabled:bg-surface-2 px-3 py-1 rounded font-semibold whitespace-nowrap"
+                    >
+                      {montandoId === g.id ? "Salvando…" : "Salvar todos os cadernos"}
+                    </button>
+                  </div>
+                )}
               </div>
-              <div className="mt-1 text-xs text-fg-muted">
-                {g.questoes_coletadas.toLocaleString("pt-BR")}/{g.questoes_esperadas.toLocaleString("pt-BR")} questões ·{" "}
-                {g.cadernos_materializados}/{g.cadernos_total} cadernos prontos
-              </div>
-              <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden mt-2">
-                <div className="h-full bg-cyan-500 transition-all" style={{ width: `${Math.min(100, g.pct)}%` }} />
-              </div>
-            </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>

@@ -218,6 +218,11 @@ export default function GuiaDetalhePage() {
               <span className="text-fg font-medium">Progresso geral</span>
               <span className="text-fg-muted">{prontos}/{guia.cadernos.length} prontos para estudo</span>
             </div>
+            {guia.coleta_completa && prontos < guia.cadernos.length && (
+              <div className="text-xs text-success mb-2">
+                ✓ Coleta concluída — clique em <strong>Salvar todos os cadernos</strong> para liberar o estudo.
+              </div>
+            )}
             <div className="h-3 rounded-full bg-surface-2 overflow-hidden">
               <div
                 className="h-full bg-primary transition-all"
