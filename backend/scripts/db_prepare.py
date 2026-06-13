@@ -25,8 +25,10 @@ postgresql+asyncpg://user:pass@host:5432/studia).
 
 import asyncio
 import os
+import subprocess
 import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from sqlalchemy import text
@@ -39,6 +41,8 @@ DATABASE_URL = os.getenv(
 RETRIES = int(os.environ.get("DB_CONNECT_RETRIES", "30"))
 RETRY_DELAY_S = float(os.environ.get("DB_CONNECT_SLEEP_MS", "2000")) / 1000
 BOOTSTRAP_LOCK_ID = int(os.environ.get("DB_PREPARE_LOCK_ID", "2026061001"))
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 
 def _database_name(url: str) -> str:
@@ -58,6 +62,28 @@ def _label(url: str) -> str:
 
 def _print(step: str, msg: str, symbol: str = "✓") -> None:
     print(f"  {symbol} [{step}] {msg}", flush=True)
+
+
+async def run_alembic() -> None:
+    """Roda Alembic. Auto-stamp de bancos legados (tabelas existem, sem alembic_version)."""
+    engine = create_async_engine(DATABASE_URL)
+    try:
+        async with engine.connect() as conn:
+            has_version = (
+                await conn.execute(text("SELECT to_regclass('public.alembic_version')"))
+            ).scalar()
+            has_legacy = (
+                await conn.execute(text("SELECT to_regclass('public.questoes')"))
+            ).scalar()
+    finally:
+        await engine.dispose()
+
+    env = {**os.environ, "DATABASE_URL": DATABASE_URL}
+    if not has_version and has_legacy:
+        _print("alembic", "banco legado detectado — stamp head (adoção sem DDL)")
+        subprocess.run(["alembic", "stamp", "head"], cwd=BACKEND_DIR, env=env, check=True)
+    subprocess.run(["alembic", "upgrade", "head"], cwd=BACKEND_DIR, env=env, check=True)
+    _print("alembic", "upgrade head aplicado")
 
 
 async def wait_for_postgres(admin_url: str) -> None:
@@ -244,12 +270,8 @@ async def main() -> None:
     await ensure_database(admin_url, db_name)
 
     async with bootstrap_lock(admin_url):
-        # migrate.py importa `engine` ligado ao DATABASE_URL (studia já existe):
-        # habilita pgvector, cria tabelas novas (create_all) e aplica ALTERs.
-        from migrate import migrate
-
-        await migrate()
-        _print("migrate", "schema pronto (pgvector + tabelas)")
+        # Alembic é a autoridade de schema (pgvector + tabelas vêm das migrações).
+        await run_alembic()
 
         # Trava: aborta se o schema não bater com os models do backend.
         await verify_schema()
