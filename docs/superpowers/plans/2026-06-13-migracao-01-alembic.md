@@ -295,9 +295,17 @@ git commit -m "feat(alembic): baseline do schema atual (pgvector + ~28 tabelas)"
 
 ---
 
-### Task 4: Migração do isolamento multiusuário (índices custom + backfill)
+### Task 4: ~~Migração do isolamento multiusuário~~ — REMOVIDA (redundante)
 
-Porta o passo `_migrar_isolamento` do `migrate.py` (índices únicos por usuário + backfill dos legados → admin) para uma migração Alembic, preservando a idempotência.
+> **REMOVIDA durante a execução (commit de revert).** O isolamento multiusuário
+> já está declarado em `models.py` (`__table_args__`: `Index` com `func.coalesce`
+> em [models.py:381](../../../backend/models.py#L381) e a `UniqueConstraint`
+> `uq_favorita_owner_questao` em [models.py:426](../../../backend/models.py#L426)),
+> além dos índices por `owner_uid`/`usuario_uid`. Portanto a **baseline (Task 3)
+> já cria tudo isso**. Uma migração separada seria no-op em DB novo (`IF NOT
+> EXISTS`) e nunca rodaria em DB legado (`stamp head`), além de ter `downgrade`
+> quebrado (`DROP INDEX` numa `UniqueConstraint`). **Os passos abaixo ficam
+> obsoletos — não execute.**
 
 **Files:**
 - Create: `backend/alembic/versions/<hash>_multiuser_isolation.py`
@@ -661,7 +669,7 @@ async def m():
 asyncio.run(m())
 " &&
     DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/studia_test alembic upgrade head &&
-    pytest '"$@"'
+    python -m pytest '"$@"'
   '
 }
 ```
