@@ -3,6 +3,8 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import text
 
+from models import CadernoQuestoes
+
 
 @pytest.mark.asyncio
 async def test_coletar_enqueues_scraper_job(client, monkeypatch):
@@ -143,6 +145,8 @@ async def test_listar_jobs_coleta_returns_active_job_progress(client, db_session
               done_units INTEGER NOT NULL DEFAULT 0,
               failed_units INTEGER NOT NULL DEFAULT 0,
               blocked_units INTEGER NOT NULL DEFAULT 0,
+              paused_by_user INTEGER NOT NULL DEFAULT 0,
+              params TEXT,
               updated_at TEXT
             )
             """
@@ -163,6 +167,21 @@ async def test_listar_jobs_coleta_returns_active_job_progress(client, db_session
               block_reason TEXT,
               blocked_until TEXT,
               leased_until TEXT
+            )
+            """
+        )
+    )
+    # Tabela de membership do scraper (caderno→questões). A query usa um EXISTS
+    # nela para `pode_montar`. Não é model SQLAlchemy, então create_all não a
+    # cria no SQLite de teste — replicamos o mínimo (mesmas colunas do scraper).
+    await db_session.execute(
+        text(
+            """
+            CREATE TABLE tc_caderno_questoes (
+              caderno_id INTEGER NOT NULL,
+              questao_id INTEGER NOT NULL,
+              posicao INTEGER NOT NULL,
+              PRIMARY KEY (caderno_id, questao_id)
             )
             """
         )
@@ -195,6 +214,14 @@ async def test_listar_jobs_coleta_returns_active_job_progress(client, db_session
             """
         )
     )
+    # Job 11 já tem questões coletadas (membership) → pode_montar = True.
+    await db_session.execute(
+        text("INSERT INTO tc_caderno_questoes (caderno_id, questao_id, posicao) VALUES (95872821, 1, 0)")
+    )
+    # Job 12 ('done') já foi materializado → sai da lista de jobs ativos
+    # (o ramo `status='done' AND NOT EXISTS cadernos_questoes` só inclui done
+    # ainda NÃO materializado, para o admin poder montar).
+    db_session.add(CadernoQuestoes(nome="Caderno 99999999", tc_caderno_id=99999999, total=200))
     await db_session.commit()
 
     response = await client.get("/api/q/coletar/jobs")
@@ -204,6 +231,7 @@ async def test_listar_jobs_coleta_returns_active_job_progress(client, db_session
     assert len(body["jobs"]) == 1
     assert body["jobs"][0]["caderno_id"] == 95872821
     assert body["jobs"][0]["status"] == "blocked"
+    assert body["jobs"][0]["pode_montar"] is True
     assert body["jobs"][0]["done_units"] == 22
     assert body["jobs"][0]["pending_units"] == 1
     assert body["jobs"][0]["queued_units"] == 1
