@@ -83,7 +83,7 @@ function CadernosView({ pasta }: { pasta: string }) {
   const [desempenho, setDesempenho] = useState<Record<number, Desempenho | "loading">>({});
 
   useEffect(() => {
-    fetch(`${API}/api/q/cadernos?pasta=${encodeURIComponent(pasta)}`)
+    fetch(`${API}/api/q/cadernos?pasta=${encodeURIComponent(pasta)}`, { credentials: "include" })
       .then((r) => r.json())
       .then(setCadernos)
       .catch(console.error);
@@ -92,7 +92,7 @@ function CadernosView({ pasta }: { pasta: string }) {
   async function carregarDesempenho(id: number) {
     setDesempenho((d) => ({ ...d, [id]: "loading" }));
     try {
-      const r = await fetch(`${API}/api/q/cadernos/${id}/estatisticas`);
+      const r = await fetch(`${API}/api/q/cadernos/${id}/estatisticas`, { credentials: "include" });
       const data = await r.json();
       setDesempenho((d) => ({ ...d, [id]: { resolvidas: data.resolvidas, acertos: data.acertos, erros: data.erros } }));
     } catch (e) {
@@ -154,7 +154,7 @@ function MinhasPastasInner() {
   const [pastas, setPastas] = useState<PastaRow[]>([]);
 
   useEffect(() => {
-    fetch(`${API}/api/q/pastas`)
+    fetch(`${API}/api/q/pastas`, { credentials: "include" })
       .then((r) => r.json())
       .then(setPastas)
       .catch(console.error);

@@ -117,11 +117,11 @@ export default function FiltrarPage() {
       .then((r) => r.json())
       .then(setArvore)
       .catch(console.error);
-    fetch(`${API}/api/q/favoritas`)
+    fetch(`${API}/api/q/favoritas`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setFavTotal(d.total ?? 0))
       .catch(console.error);
-    fetch(`${API}/api/q/pastas`)
+    fetch(`${API}/api/q/pastas`, { credentials: "include" })
       .then((r) => r.json())
       .then((rows: { pasta: string | null }[]) => setPastas(rows.map((p) => p.pasta).filter(Boolean) as string[]))
       .catch(console.error);
@@ -132,6 +132,7 @@ export default function FiltrarPage() {
     const t = setTimeout(() => {
       fetch(`${API}/api/q/count`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filtros: filtrosEnvio, q: qEnunciado, favoritas }),
       })
@@ -213,6 +214,7 @@ export default function FiltrarPage() {
     try {
       const r = await fetch(`${API}/api/q/cadernos`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nome: nomeCaderno || "Caderno de Estudo",

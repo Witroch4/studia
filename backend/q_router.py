@@ -9,6 +9,7 @@ Proxy fino sobre Meilisearch + Postgres. Replicam o padrão arquitetural do TC:
 from __future__ import annotations
 
 import os
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -19,7 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from auth import CurrentUser, require_admin, require_user
+from auth import CurrentUser, get_current_user_opt, require_admin, require_user
 from database import get_db
 from entitlements import garantir_pode_resolver, resumo_limite
 from models import (
@@ -28,6 +29,7 @@ from models import (
     CalculadoraHistorico,
     CadernoQuestoes,
     Cargo,
+    GuiaCaderno,
     Materia,
     Orgao,
     Questao,
@@ -103,12 +105,74 @@ def _to_meili_filter(filtros: dict[str, list]) -> str | None:
     return " AND ".join(parts) if parts else None
 
 
-async def _filtro_favoritas(db: AsyncSession) -> str | None:
-    """Filtro Meili `id IN [...]` com as questões favoritadas; None se não há nenhuma."""
-    ids = (await db.execute(select(QuestaoFavorita.questao_id))).scalars().all()
+async def _filtro_favoritas(db: AsyncSession, owner_uid: str) -> str | None:
+    """Filtro Meili `id IN [...]` com as favoritas DO usuário; None se não há nenhuma."""
+    ids = (
+        await db.execute(
+            select(QuestaoFavorita.questao_id).where(QuestaoFavorita.owner_uid == owner_uid)
+        )
+    ).scalars().all()
     if not ids:
         return None
     return "id IN [" + ", ".join(str(i) for i in ids) + "]"
+
+
+async def _caderno_acessivel(
+    db: AsyncSession, caderno_id: int, user: CurrentUser
+) -> CadernoQuestoes:
+    """Carrega um caderno se o usuário pode acessá-lo, senão 404.
+
+    Acesso = é dono (owner_uid == user.id) OU o caderno faz parte do catálogo
+    compartilhado (existe um GuiaCaderno apontando para ele — estudo via aba
+    Guias). Caso contrário, 404 (não revela cadernos privados de outros).
+    """
+    cad = (
+        await db.execute(select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id))
+    ).scalar_one_or_none()
+    if not cad:
+        raise HTTPException(404, "caderno não encontrado")
+    if cad.owner_uid == user.id:
+        return cad
+    eh_catalogo = (
+        await db.execute(
+            select(GuiaCaderno.id).where(GuiaCaderno.caderno_id == caderno_id).limit(1)
+        )
+    ).first()
+    if eh_catalogo:
+        return cad
+    raise HTTPException(404, "caderno não encontrado")
+
+
+def _as_date(value: Any) -> date:
+    """Normaliza o retorno de func.date (str no SQLite, date no Postgres) p/ date."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value)[:10])
+
+
+def _compute_streak(active_days: set[date], today: date) -> int:
+    """Dias consecutivos de estudo terminando em hoje (ou ontem, com tolerância).
+
+    `active_days` = conjunto de dias (date) com ≥1 resolução. Se não houve
+    atividade hoje nem ontem, o streak está zerado. Caso contrário, conta para
+    trás a partir do dia mais recente com atividade (hoje ou ontem).
+    """
+    if not active_days:
+        return 0
+    ontem = today - timedelta(days=1)
+    if today in active_days:
+        cursor = today
+    elif ontem in active_days:
+        cursor = ontem
+    else:
+        return 0
+    streak = 0
+    while cursor in active_days:
+        streak += 1
+        cursor -= timedelta(days=1)
+    return streak
 
 
 async def _meili_search(payload: dict[str, Any]) -> dict[str, Any]:
@@ -126,7 +190,11 @@ async def _meili_search(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/count")
-async def count(req: CountReq, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def count(
+    req: CountReq,
+    user: CurrentUser | None = Depends(get_current_user_opt),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
     """Padrão TC: contagem leve + facetas para painel UI."""
     payload = {
         "q": req.q,
@@ -135,7 +203,7 @@ async def count(req: CountReq, db: AsyncSession = Depends(get_db)) -> dict[str, 
     }
     f = _to_meili_filter(req.filtros)
     if req.favoritas:
-        fav = await _filtro_favoritas(db)
+        fav = await _filtro_favoritas(db, user.id) if user else None
         if fav is None:
             return {"total": 0, "facets": {}, "ms": 0}
         f = f"{f} AND {fav}" if f else fav
@@ -150,7 +218,11 @@ async def count(req: CountReq, db: AsyncSession = Depends(get_db)) -> dict[str, 
 
 
 @router.post("/search")
-async def search(req: SearchReq, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def search(
+    req: SearchReq,
+    user: CurrentUser | None = Depends(get_current_user_opt),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
     """Lista paginada de questões + facetas."""
     payload = {
         "q": req.q,
@@ -164,7 +236,7 @@ async def search(req: SearchReq, db: AsyncSession = Depends(get_db)) -> dict[str
     }
     f = _to_meili_filter(req.filtros)
     if req.favoritas:
-        fav = await _filtro_favoritas(db)
+        fav = await _filtro_favoritas(db, user.id) if user else None
         if fav is None:
             return {"hits": [], "total": 0, "facets": {}, "ms": 0}
         f = f"{f} AND {fav}" if f else fav
@@ -479,7 +551,10 @@ async def materializar_caderno_avulso(
         )
     ).scalar_one_or_none()
     if caderno is None:
-        caderno = CadernoQuestoes(nome=nome, pasta=PASTA_IMPORTADOS, tc_caderno_id=caderno_id)
+        # Caderno avulso do TC é pessoal do admin que coletou (entra em Minhas Pastas).
+        caderno = CadernoQuestoes(
+            owner_uid=_admin.id, nome=nome, pasta=PASTA_IMPORTADOS, tc_caderno_id=caderno_id
+        )
         db.add(caderno)
     caderno.nome = nome
     caderno.pasta = PASTA_IMPORTADOS
@@ -678,11 +753,16 @@ class GerarCadernoReq(BaseModel):
 
 
 @router.post("/cadernos")
-async def gerar_caderno(req: GerarCadernoReq, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def gerar_caderno(
+    req: GerarCadernoReq,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
     """Cria um caderno materializando os IDs das questões que matcham os filtros.
 
     Replica o padrão TC: armazena IDs concretos (não apenas a query) — assim o
     histórico do caderno fica estável mesmo se novas questões forem adicionadas.
+    O caderno é pessoal: gravamos `owner_uid = user.id` (entra em "Minhas Pastas").
     """
     # 1. Busca IDs via Meili
     payload = {
@@ -693,7 +773,7 @@ async def gerar_caderno(req: GerarCadernoReq, db: AsyncSession = Depends(get_db)
     }
     f = _to_meili_filter(req.filtros)
     if req.favoritas:
-        fav = await _filtro_favoritas(db)
+        fav = await _filtro_favoritas(db, user.id)
         if fav is None:
             raise HTTPException(400, "Nenhuma questão favoritada ainda.")
         f = f"{f} AND {fav}" if f else fav
@@ -713,8 +793,9 @@ async def gerar_caderno(req: GerarCadernoReq, db: AsyncSession = Depends(get_db)
         import random
         random.shuffle(ids)
 
-    # 2. Persiste o caderno
+    # 2. Persiste o caderno (pessoal do usuário)
     caderno = CadernoQuestoes(
+        owner_uid=user.id,
         nome=req.nome.strip() or "Caderno de Estudo",
         pasta=req.pasta,
         filtros=req.filtros,
@@ -735,10 +816,12 @@ async def gerar_caderno(req: GerarCadernoReq, db: AsyncSession = Depends(get_db)
 
 
 @router.get("/cadernos/{caderno_id}")
-async def detalhe_caderno(caderno_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    cad = (await db.execute(select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id))).scalar_one_or_none()
-    if not cad:
-        raise HTTPException(404, "Caderno não encontrado")
+async def detalhe_caderno(
+    caderno_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    cad = await _caderno_acessivel(db, caderno_id, user)
     return {
         "id": cad.id,
         "nome": cad.nome,
@@ -752,12 +835,19 @@ async def detalhe_caderno(caderno_id: int, db: AsyncSession = Depends(get_db)) -
 
 @router.get("/cadernos")
 async def listar_cadernos(
-    pasta: str | None = None, db: AsyncSession = Depends(get_db)
+    pasta: str | None = None,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
-    """Lista cadernos; `?pasta=Nome` filtra, `?pasta=` (vazio) → sem classificação."""
+    """Minhas Pastas: cadernos do usuário. `?pasta=Nome` filtra, `?pasta=` → sem classificação."""
     from sqlalchemy import desc, or_
 
-    stmt = select(CadernoQuestoes).order_by(desc(CadernoQuestoes.created_at)).limit(200)
+    stmt = (
+        select(CadernoQuestoes)
+        .where(CadernoQuestoes.owner_uid == user.id)
+        .order_by(desc(CadernoQuestoes.created_at))
+        .limit(200)
+    )
     if pasta is not None:
         if pasta == "":
             stmt = stmt.where(or_(CadernoQuestoes.pasta.is_(None), CadernoQuestoes.pasta == ""))
@@ -772,8 +862,11 @@ async def listar_cadernos(
 
 
 @router.get("/pastas")
-async def listar_pastas(db: AsyncSession = Depends(get_db)) -> list[dict[str, Any]]:
-    """Agrupa cadernos por pasta (estilo TC "Minhas pastas"). NULL/"" → sem classificação."""
+async def listar_pastas(
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """Agrupa os cadernos DO usuário por pasta (estilo TC "Minhas pastas")."""
     pasta_norm = func.nullif(func.coalesce(CadernoQuestoes.pasta, ""), "")
     rows = (
         await db.execute(
@@ -782,6 +875,7 @@ async def listar_pastas(db: AsyncSession = Depends(get_db)) -> list[dict[str, An
                 func.count(CadernoQuestoes.id),
                 func.coalesce(func.sum(CadernoQuestoes.total), 0),
             )
+            .where(CadernoQuestoes.owner_uid == user.id)
             .group_by(pasta_norm)
             .order_by(pasta_norm.asc().nulls_last())
         )
@@ -821,7 +915,7 @@ class CalculatorHistoryReq(BaseModel):
 def _annotation_response(row: QuestaoAnotacao | None, caderno_id: int, questao_id: int) -> dict[str, Any]:
     return {
         "id": row.id if row else None,
-        "usuario_id": row.usuario_id if row else None,
+        "usuario_uid": row.usuario_uid if row else None,
         "caderno_id": caderno_id,
         "questao_id": questao_id,
         "canvas_json": row.canvas_json if row else _empty_canvas(),
@@ -830,9 +924,9 @@ def _annotation_response(row: QuestaoAnotacao | None, caderno_id: int, questao_i
     }
 
 
-def _annotation_scope(caderno_id: int, questao_id: int):
+def _annotation_scope(caderno_id: int, questao_id: int, owner_uid: str):
     return select(QuestaoAnotacao).where(
-        QuestaoAnotacao.usuario_id.is_(None),
+        QuestaoAnotacao.usuario_uid == owner_uid,
         QuestaoAnotacao.caderno_id == caderno_id,
         QuestaoAnotacao.questao_id == questao_id,
     )
@@ -892,9 +986,9 @@ async def responder(
     db.add(res)
     await db.commit()
 
-    # Retorna stats atualizadas
-    total = (await db.execute(select(func.count()).where(Resolucao.questao_id == questao_id))).scalar_one()
-    acertos = (await db.execute(select(func.count()).where(Resolucao.questao_id == questao_id, Resolucao.acertou == True))).scalar_one()  # noqa: E712
+    # Retorna stats atualizadas (só do usuário atual)
+    total = (await db.execute(select(func.count()).where(Resolucao.questao_id == questao_id, Resolucao.usuario_uid == user.id))).scalar_one()
+    acertos = (await db.execute(select(func.count()).where(Resolucao.questao_id == questao_id, Resolucao.usuario_uid == user.id, Resolucao.acertou == True))).scalar_one()  # noqa: E712
     erros = total - acertos
     return {
         "acertou": acertou,
@@ -905,19 +999,25 @@ async def responder(
 
 
 @router.get("/{questao_id}/estatisticas")
-async def estatisticas(questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, int]:
-    total = (await db.execute(select(func.count()).where(Resolucao.questao_id == questao_id))).scalar_one()
-    acertos = (await db.execute(select(func.count()).where(Resolucao.questao_id == questao_id, Resolucao.acertou == True))).scalar_one()  # noqa: E712
+async def estatisticas(
+    questao_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, int]:
+    total = (await db.execute(select(func.count()).where(Resolucao.questao_id == questao_id, Resolucao.usuario_uid == user.id))).scalar_one()
+    acertos = (await db.execute(select(func.count()).where(Resolucao.questao_id == questao_id, Resolucao.usuario_uid == user.id, Resolucao.acertou == True))).scalar_one()  # noqa: E712
     return {"resolvidas": total, "acertos": acertos, "erros": total - acertos}
 
 
 @router.get("/cadernos/{caderno_id}/estatisticas")
-async def estatisticas_caderno(caderno_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    cad = (await db.execute(select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id))).scalar_one_or_none()
-    if not cad:
-        raise HTTPException(404, "caderno não encontrado")
-    total = (await db.execute(select(func.count()).where(Resolucao.caderno_id == caderno_id))).scalar_one()
-    acertos = (await db.execute(select(func.count()).where(Resolucao.caderno_id == caderno_id, Resolucao.acertou == True))).scalar_one()  # noqa: E712
+async def estatisticas_caderno(
+    caderno_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    cad = await _caderno_acessivel(db, caderno_id, user)
+    total = (await db.execute(select(func.count()).where(Resolucao.caderno_id == caderno_id, Resolucao.usuario_uid == user.id))).scalar_one()
+    acertos = (await db.execute(select(func.count()).where(Resolucao.caderno_id == caderno_id, Resolucao.usuario_uid == user.id, Resolucao.acertou == True))).scalar_one()  # noqa: E712
     return {
         "caderno_id": caderno_id,
         "questoes_total": cad.total,
@@ -928,19 +1028,23 @@ async def estatisticas_caderno(caderno_id: int, db: AsyncSession = Depends(get_d
 
 
 @router.get("/cadernos/{caderno_id}/stats-detalhe")
-async def stats_detalhe(caderno_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    """Estatísticas analíticas: por matéria/assunto/banca + tempo + histórico."""
+async def stats_detalhe(
+    caderno_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Estatísticas analíticas DO usuário: por matéria/assunto/banca + tempo + histórico."""
     from models import questao_assunto
 
-    cad = (await db.execute(select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id))).scalar_one_or_none()
-    if not cad:
-        raise HTTPException(404, "caderno não encontrado")
+    cad = await _caderno_acessivel(db, caderno_id, user)
+    # Toda Resolucao é filtrada por (caderno, usuário atual): nunca soma de outros.
+    _meu = (Resolucao.caderno_id == caderno_id, Resolucao.usuario_uid == user.id)
 
     # ─── Resumo ───
-    total = (await db.execute(select(func.count()).where(Resolucao.caderno_id == caderno_id))).scalar_one()
-    acertos = (await db.execute(select(func.count()).where(Resolucao.caderno_id == caderno_id, Resolucao.acertou == True))).scalar_one()  # noqa: E712
-    tempo_total = (await db.execute(select(func.coalesce(func.sum(Resolucao.tempo_segundos), 0)).where(Resolucao.caderno_id == caderno_id))).scalar_one()
-    tempo_medio = (await db.execute(select(func.coalesce(func.avg(Resolucao.tempo_segundos), 0)).where(Resolucao.caderno_id == caderno_id))).scalar_one()
+    total = (await db.execute(select(func.count()).where(*_meu))).scalar_one()
+    acertos = (await db.execute(select(func.count()).where(*_meu, Resolucao.acertou == True))).scalar_one()  # noqa: E712
+    tempo_total = (await db.execute(select(func.coalesce(func.sum(Resolucao.tempo_segundos), 0)).where(*_meu))).scalar_one()
+    tempo_medio = (await db.execute(select(func.coalesce(func.avg(Resolucao.tempo_segundos), 0)).where(*_meu))).scalar_one()
 
     # ─── Por matéria ───
     por_materia = (await db.execute(
@@ -952,7 +1056,7 @@ async def stats_detalhe(caderno_id: int, db: AsyncSession = Depends(get_db)) -> 
         .select_from(Resolucao)
         .join(Questao, Questao.id == Resolucao.questao_id)
         .join(Materia, Materia.id == Questao.materia_id)
-        .where(Resolucao.caderno_id == caderno_id)
+        .where(*_meu)
         .group_by(Materia.nome)
         .order_by(func.count(Resolucao.id).desc())
         .limit(20)
@@ -970,7 +1074,7 @@ async def stats_detalhe(caderno_id: int, db: AsyncSession = Depends(get_db)) -> 
         .join(Questao, Questao.id == Resolucao.questao_id)
         .join(questao_assunto, questao_assunto.c.questao_id == Questao.id)
         .join(Assunto, Assunto.id == questao_assunto.c.assunto_id)
-        .where(Resolucao.caderno_id == caderno_id)
+        .where(*_meu)
         .group_by(Assunto.nome)
         .order_by(func.count(Resolucao.id).desc())
         .limit(30)
@@ -986,7 +1090,7 @@ async def stats_detalhe(caderno_id: int, db: AsyncSession = Depends(get_db)) -> 
         .select_from(Resolucao)
         .join(Questao, Questao.id == Resolucao.questao_id)
         .join(Banca, Banca.id == Questao.banca_id)
-        .where(Resolucao.caderno_id == caderno_id)
+        .where(*_meu)
         .group_by(Banca.sigla)
         .order_by(func.count(Resolucao.id).desc())
         .limit(10)
@@ -1006,7 +1110,7 @@ async def stats_detalhe(caderno_id: int, db: AsyncSession = Depends(get_db)) -> 
         )
         .select_from(Resolucao)
         .join(Questao, Questao.id == Resolucao.questao_id)
-        .where(Resolucao.caderno_id == caderno_id)
+        .where(*_meu)
         .order_by(desc(Resolucao.created_at))
         .limit(20)
     )).all()
@@ -1050,11 +1154,13 @@ async def stats_detalhe(caderno_id: int, db: AsyncSession = Depends(get_db)) -> 
 
 
 @router.get("/cadernos/{caderno_id}/gabarito")
-async def gabarito_caderno(caderno_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def gabarito_caderno(
+    caderno_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
     """Tabela: idx → questao_id → idExterno → gabarito (modo Gabarito do TC)."""
-    cad = (await db.execute(select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id))).scalar_one_or_none()
-    if not cad:
-        raise HTTPException(404, "caderno não encontrado")
+    cad = await _caderno_acessivel(db, caderno_id, user)
     ids = cad.question_ids or []
     if not ids:
         return {"caderno_id": caderno_id, "items": []}
@@ -1079,13 +1185,15 @@ async def gabarito_caderno(caderno_id: int, db: AsyncSession = Depends(get_db)) 
 
 
 @router.get("/cadernos/{caderno_id}/indice")
-async def indice_caderno(caderno_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def indice_caderno(
+    caderno_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
     """Índice navegável — lista compacta de todas as questões do caderno."""
     from models import Assunto
 
-    cad = (await db.execute(select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id))).scalar_one_or_none()
-    if not cad:
-        raise HTTPException(404, "caderno não encontrado")
+    cad = await _caderno_acessivel(db, caderno_id, user)
     ids = cad.question_ids or []
     if not ids:
         return {"caderno_id": caderno_id, "items": []}
@@ -1126,17 +1234,17 @@ async def indice_caderno(caderno_id: int, db: AsyncSession = Depends(get_db)) ->
 
 
 @router.get("/cadernos/{caderno_id}/questoes/{questao_id}/annotations")
-async def get_annotations(caderno_id: int, questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    cad = (await db.execute(select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id))).scalar_one_or_none()
-    if not cad:
-        raise HTTPException(404, "caderno não encontrado")
-    q = (await db.execute(select(Questao.id).where(Questao.id == questao_id))).scalar_one_or_none()
-    if not q:
-        raise HTTPException(404, "questao não encontrada")
+async def get_annotations(
+    caderno_id: int,
+    questao_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    cad = await _caderno_acessivel(db, caderno_id, user)
     if questao_id not in (cad.question_ids or []):
         raise HTTPException(404, "questao não pertence ao caderno")
 
-    row = (await db.execute(_annotation_scope(caderno_id, questao_id))).scalar_one_or_none()
+    row = (await db.execute(_annotation_scope(caderno_id, questao_id, user.id))).scalar_one_or_none()
     return _annotation_response(row, caderno_id, questao_id)
 
 
@@ -1145,25 +1253,21 @@ async def put_annotations(
     caderno_id: int,
     questao_id: int,
     req: AnnotationReq,
+    user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    cad = (await db.execute(select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id))).scalar_one_or_none()
-    if not cad:
-        raise HTTPException(404, "caderno não encontrado")
-    q = (await db.execute(select(Questao.id).where(Questao.id == questao_id))).scalar_one_or_none()
-    if not q:
-        raise HTTPException(404, "questao não encontrada")
+    cad = await _caderno_acessivel(db, caderno_id, user)
     if questao_id not in (cad.question_ids or []):
         raise HTTPException(404, "questao não pertence ao caderno")
 
-    row = (await db.execute(_annotation_scope(caderno_id, questao_id))).scalar_one_or_none()
+    row = (await db.execute(_annotation_scope(caderno_id, questao_id, user.id))).scalar_one_or_none()
     if row:
         row.canvas_json = req.canvas_json
         row.strikes_json = req.strikes_json
         await db.commit()
     else:
         row = QuestaoAnotacao(
-            usuario_id=None,
+            usuario_uid=user.id,
             caderno_id=caderno_id,
             questao_id=questao_id,
             canvas_json=req.canvas_json,
@@ -1174,7 +1278,7 @@ async def put_annotations(
             await db.commit()
         except IntegrityError:
             await db.rollback()
-            row = (await db.execute(_annotation_scope(caderno_id, questao_id))).scalar_one_or_none()
+            row = (await db.execute(_annotation_scope(caderno_id, questao_id, user.id))).scalar_one_or_none()
             if not row:
                 raise HTTPException(409, "conflito ao salvar anotacao")
             row.canvas_json = req.canvas_json
@@ -1189,11 +1293,12 @@ async def put_annotations(
 async def list_calculator_history(
     caderno_id: int | None = None,
     questao_id: int | None = None,
+    user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     from sqlalchemy import desc
 
-    stmt = select(CalculadoraHistorico).where(CalculadoraHistorico.usuario_id.is_(None))
+    stmt = select(CalculadoraHistorico).where(CalculadoraHistorico.usuario_uid == user.id)
     if caderno_id is not None:
         stmt = stmt.where(CalculadoraHistorico.caderno_id == caderno_id)
     if questao_id is not None:
@@ -1210,7 +1315,7 @@ async def list_calculator_history(
         "items": [
             {
                 "id": row.id,
-                "usuario_id": row.usuario_id,
+                "usuario_uid": row.usuario_uid,
                 "caderno_id": row.caderno_id,
                 "questao_id": row.questao_id,
                 "expression": row.expression,
@@ -1223,14 +1328,18 @@ async def list_calculator_history(
 
 
 @router.post("/calculator/history")
-async def create_calculator_history(req: CalculatorHistoryReq, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def create_calculator_history(
+    req: CalculatorHistoryReq,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
     expression = req.expression.strip()
     result = req.result.strip()
     if not expression or not result:
         raise HTTPException(422, "expression e result são obrigatórios")
 
     row = CalculadoraHistorico(
-        usuario_id=None,
+        usuario_uid=user.id,
         caderno_id=req.caderno_id,
         questao_id=req.questao_id,
         expression=expression,
@@ -1241,7 +1350,7 @@ async def create_calculator_history(req: CalculatorHistoryReq, db: AsyncSession 
     await db.refresh(row)
     return {
         "id": row.id,
-        "usuario_id": row.usuario_id,
+        "usuario_uid": row.usuario_uid,
         "caderno_id": row.caderno_id,
         "questao_id": row.questao_id,
         "expression": row.expression,
@@ -1251,11 +1360,15 @@ async def create_calculator_history(req: CalculatorHistoryReq, db: AsyncSession 
 
 
 @router.delete("/calculator/history/{item_id}")
-async def delete_calculator_history(item_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
+async def delete_calculator_history(
+    item_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, bool]:
     row = (await db.execute(
         select(CalculadoraHistorico).where(
             CalculadoraHistorico.id == item_id,
-            CalculadoraHistorico.usuario_id.is_(None),
+            CalculadoraHistorico.usuario_uid == user.id,
         )
     )).scalar_one_or_none()
     if not row:
@@ -1266,19 +1379,35 @@ async def delete_calculator_history(item_id: int, db: AsyncSession = Depends(get
 
 
 @router.get("/favoritas")
-async def listar_favoritas(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    """IDs das questões favoritadas (precisa registrar ANTES de GET /{questao_id})."""
+async def listar_favoritas(
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """IDs das questões favoritadas DO usuário (registrar ANTES de GET /{questao_id})."""
     ids = (
-        await db.execute(select(QuestaoFavorita.questao_id).order_by(QuestaoFavorita.questao_id))
+        await db.execute(
+            select(QuestaoFavorita.questao_id)
+            .where(QuestaoFavorita.owner_uid == user.id)
+            .order_by(QuestaoFavorita.questao_id)
+        )
     ).scalars().all()
     return {"ids": list(ids), "total": len(ids)}
 
 
 @router.post("/{questao_id}/favoritar")
-async def favoritar(questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    """Toggle estrela: favorita se não era, desfavorita se já era."""
+async def favoritar(
+    questao_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Toggle estrela do usuário: favorita se não era, desfavorita se já era."""
     existente = (
-        await db.execute(select(QuestaoFavorita).where(QuestaoFavorita.questao_id == questao_id))
+        await db.execute(
+            select(QuestaoFavorita).where(
+                QuestaoFavorita.questao_id == questao_id,
+                QuestaoFavorita.owner_uid == user.id,
+            )
+        )
     ).scalar_one_or_none()
     if existente:
         await db.delete(existente)
@@ -1289,9 +1418,96 @@ async def favoritar(questao_id: int, db: AsyncSession = Depends(get_db)) -> dict
     ).scalar_one_or_none()
     if not existe_questao:
         raise HTTPException(404, f"questao {questao_id} not found")
-    db.add(QuestaoFavorita(questao_id=questao_id))
+    db.add(QuestaoFavorita(questao_id=questao_id, owner_uid=user.id))
     await db.commit()
     return {"questao_id": questao_id, "favorita": True}
+
+
+@router.get("/dashboard")
+async def dashboard(
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Dashboard pessoal — TUDO filtrado por Resolucao.usuario_uid == user.id.
+
+    Estado vazio (usuário novo, zero resoluções) retorna zeros/arrays vazios.
+    """
+    meu = (Resolucao.usuario_uid == user.id,)
+
+    total = (await db.execute(select(func.count()).where(*meu))).scalar_one()
+    acertos = (await db.execute(select(func.count()).where(*meu, Resolucao.acertou == True))).scalar_one()  # noqa: E712
+    erros = total - acertos
+    tempo_total = (
+        await db.execute(select(func.coalesce(func.sum(Resolucao.tempo_segundos), 0)).where(*meu))
+    ).scalar_one()
+
+    # ─── Por disciplina (Resolucao → Questao → Materia) ───
+    por_disc_rows = (await db.execute(
+        select(
+            Materia.nome.label("nome"),
+            func.count(Resolucao.id).label("total"),
+            func.sum(func.cast(Resolucao.acertou, Integer)).label("acertos"),
+            func.coalesce(func.sum(Resolucao.tempo_segundos), 0).label("tempo"),
+        )
+        .select_from(Resolucao)
+        .join(Questao, Questao.id == Resolucao.questao_id)
+        .join(Materia, Materia.id == Questao.materia_id)
+        .where(*meu)
+        .group_by(Materia.nome)
+        .order_by(func.count(Resolucao.id).desc())
+        .limit(20)
+    )).all()
+    por_disciplina = []
+    for r in por_disc_rows:
+        t = int(r.total or 0)
+        ac = int(r.acertos or 0)
+        por_disciplina.append({
+            "nome": r.nome,
+            "tempo_segundos": int(r.tempo or 0),
+            "acertos": ac,
+            "erros": t - ac,
+            "total": t,
+            "pct": round((ac / t) * 100, 1) if t else 0,
+        })
+
+    # ─── Atividade recente (group by dia, últimos 30) ───
+    dia = func.date(Resolucao.created_at)
+    atividade_rows = (await db.execute(
+        select(
+            dia.label("dia"),
+            func.count(Resolucao.id).label("resolvidas"),
+            func.sum(func.cast(Resolucao.acertou, Integer)).label("acertos"),
+        )
+        .where(*meu)
+        .group_by(dia)
+        .order_by(dia.desc())
+        .limit(30)
+    )).all()
+    atividade_recente = [
+        {
+            "data": _as_date(r.dia).isoformat(),
+            "resolvidas": int(r.resolvidas or 0),
+            "acertos": int(r.acertos or 0),
+        }
+        for r in reversed(atividade_rows)
+    ]
+
+    # ─── Streak (dias consecutivos com atividade) ───
+    dias_ativos = (
+        await db.execute(select(func.distinct(func.date(Resolucao.created_at))).where(*meu))
+    ).scalars().all()
+    streak = _compute_streak({_as_date(d) for d in dias_ativos}, date.today())
+
+    return {
+        "total_horas_segundos": int(tempo_total or 0),
+        "resolvidas": total,
+        "acertos": acertos,
+        "erros": erros,
+        "taxa": round((acertos / total) * 100, 1) if total else 0,
+        "por_disciplina": por_disciplina,
+        "atividade_recente": atividade_recente,
+        "streak_dias": streak,
+    }
 
 
 @router.get("/{questao_id}")

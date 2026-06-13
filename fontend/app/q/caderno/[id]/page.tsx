@@ -102,14 +102,14 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
 
   // Contador do cabeçalho = acumulado do CADERNO (não da questão isolada).
   const carregarStatsCaderno = useCallback(() => {
-    fetch(`${API}/api/q/cadernos/${id}/estatisticas`)
+    fetch(`${API}/api/q/cadernos/${id}/estatisticas`, { credentials: "include" })
       .then((r) => r.json())
       .then((s) => setStats({ resolvidas: s.resolvidas, acertos: s.acertos, erros: s.erros }))
       .catch(console.error);
   }, [id]);
 
   useEffect(() => {
-    fetch(`${API}/api/q/cadernos/${id}`)
+    fetch(`${API}/api/q/cadernos/${id}`, { credentials: "include" })
       .then((r) => r.json())
       .then(setCaderno)
       .catch(console.error);
@@ -128,7 +128,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   // Favoritas persistidas — carrega os IDs uma vez, sincroniza a estrela por questão
   const [favIds, setFavIds] = useState<Set<number>>(new Set());
   useEffect(() => {
-    fetch(`${API}/api/q/favoritas`)
+    fetch(`${API}/api/q/favoritas`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setFavIds(new Set<number>(d.ids || [])))
       .catch(console.error);
@@ -145,7 +145,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       return n;
     };
     setFavIds(alternar); // otimista; o POST confirma (ou reverte) abaixo
-    fetch(`${API}/api/q/${currentQid}/favoritar`, { method: "POST" })
+    fetch(`${API}/api/q/${currentQid}/favoritar`, { method: "POST", credentials: "include" })
       .then((r) => r.json())
       .then((d) => {
         setFavIds((s) => {
@@ -707,7 +707,7 @@ function EstatisticasTab({ cadernoId }: { cadernoId: number }) {
   const [data, setData] = useState<StatsDetalhe | null>(null);
 
   useEffect(() => {
-    fetch(`${API}/api/q/cadernos/${cadernoId}/stats-detalhe`)
+    fetch(`${API}/api/q/cadernos/${cadernoId}/stats-detalhe`, { credentials: "include" })
       .then((r) => r.json())
       .then(setData)
       .catch(console.error);
@@ -873,7 +873,7 @@ function IndiceTab({ cadernoId, onAbrir, idxAtual }: {
   const [filtro, setFiltro] = useState("");
 
   useEffect(() => {
-    fetch(`${API}/api/q/cadernos/${cadernoId}/indice`)
+    fetch(`${API}/api/q/cadernos/${cadernoId}/indice`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setItems(d.items || []))
       .catch(console.error);
@@ -950,7 +950,7 @@ function GabaritoTab({ cadernoId }: { cadernoId: number }) {
   const [items, setItems] = useState<GabaritoItem[]>([]);
 
   useEffect(() => {
-    fetch(`${API}/api/q/cadernos/${cadernoId}/gabarito`)
+    fetch(`${API}/api/q/cadernos/${cadernoId}/gabarito`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setItems(d.items || []))
       .catch(console.error);

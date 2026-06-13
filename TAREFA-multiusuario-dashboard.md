@@ -48,19 +48,25 @@ endpoint de dashboard no backend.
 
 ---
 
-## 2. Modelo de dados recomendado (CONFIRMAR com o dono antes)
+## 2. Modelo de dados — DECISÃO FECHADA pelo dono ✅
 
 | Recurso | Escopo | Como |
 |---|---|---|
-| Questões, Guias, GuiaCaderno | **Compartilhado** (catálogo read-only) | sem mudança |
+| Questões, Guias, GuiaCaderno | **Compartilhado** (catálogo read-only, todo aluno vê e pode estudar/salvar) | sem mudança |
 | Cadernos materializados de um guia | **Compartilhado** (estuda via aba Guias) | identificados por estarem ligados a um `GuiaCaderno.caderno_id` |
-| Cadernos criados pelo usuário ("Minhas Pastas" / botão NOVO CADERNO) | **Por usuário** | novo `owner_uid` |
+| Cadernos criados/salvos pelo usuário ("Minhas Pastas" / NOVO CADERNO) | **Por usuário** | novo `owner_uid` |
 | Favoritas, Resoluções, Anotações, tempo/estatísticas, Dashboard | **Por usuário** | filtrar por `usuario_uid == user.id` |
 
-**Decisão a confirmar (afeta migração):** os cadernos globais que já existem
-(ex.: "Importados do TC" 129k, "Sem classificação") são do admin. Recomendado:
-backfill `owner_uid = <id do admin>` nesses registros (admin continua vendo, os
-demais não). Alternativa: tratar `owner_uid IS NULL` como "catálogo compartilhado".
+**Decisão tomada (NÃO precisa perguntar):** Guias e questões são catálogo
+**compartilhado** — todo aluno vê os guias disponíveis pra escolher/salvar. O que
+vaza e precisa virar por-usuário é **só o que é pessoal**: Minhas Pastas/cadernos
+salvos, favoritas, resoluções, estatísticas e dashboard. Aluno novo (sem nada
+salvo) deve ver o **catálogo de Guias normalmente**, mas "Minhas Pastas" e stats
+**vazias**.
+
+Cadernos globais legados (ex.: "Importados do TC" 129k, "Sem classificação"):
+backfill `owner_uid = <id do admin>` (admin continua vendo, os demais não veem
+em Minhas Pastas). **Sem guard interino — implementar o fix definitivo direto.**
 
 ---
 

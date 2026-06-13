@@ -31,10 +31,10 @@ def test_filtro_vazio_retorna_none():
 async def test_pastas_agrupa_e_normaliza_sem_classificacao(client, db_session):
     db_session.add_all(
         [
-            CadernoQuestoes(nome="C1", pasta="OAB 2026", question_ids=[1, 2], total=2),
-            CadernoQuestoes(nome="C2", pasta="OAB 2026", question_ids=[3], total=1),
-            CadernoQuestoes(nome="C3", pasta=None, question_ids=[4], total=1),
-            CadernoQuestoes(nome="C4", pasta="", question_ids=[5], total=1),
+            CadernoQuestoes(nome="C1", owner_uid="admin-1", pasta="OAB 2026", question_ids=[1, 2], total=2),
+            CadernoQuestoes(nome="C2", owner_uid="admin-1", pasta="OAB 2026", question_ids=[3], total=1),
+            CadernoQuestoes(nome="C3", owner_uid="admin-1", pasta=None, question_ids=[4], total=1),
+            CadernoQuestoes(nome="C4", owner_uid="admin-1", pasta="", question_ids=[5], total=1),
         ]
     )
     await db_session.commit()
@@ -51,8 +51,8 @@ async def test_pastas_agrupa_e_normaliza_sem_classificacao(client, db_session):
 async def test_listar_cadernos_filtra_por_pasta(client, db_session):
     db_session.add_all(
         [
-            CadernoQuestoes(nome="C1", pasta="OAB", question_ids=[1], total=1),
-            CadernoQuestoes(nome="C2", pasta=None, question_ids=[2], total=1),
+            CadernoQuestoes(nome="C1", owner_uid="admin-1", pasta="OAB", question_ids=[1], total=1),
+            CadernoQuestoes(nome="C2", owner_uid="admin-1", pasta=None, question_ids=[2], total=1),
         ]
     )
     await db_session.commit()

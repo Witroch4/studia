@@ -7,7 +7,8 @@ pytestmark = pytest.mark.asyncio
 
 
 async def seed_question(db_session):
-    db_session.add(CadernoQuestoes(id=10, nome="Caderno", question_ids=[99], total=1))
+    # owner = admin-1 (usuário default do conftest) p/ passar no controle de acesso.
+    db_session.add(CadernoQuestoes(id=10, nome="Caderno", owner_uid="admin-1", question_ids=[99], total=1))
     db_session.add(
         Questao(
             id=99,
@@ -140,7 +141,7 @@ async def test_put_annotation_keeps_single_row_for_scope(client, db_session):
     total = (
         await db_session.execute(
             select(func.count()).where(
-                QuestaoAnotacao.usuario_id.is_(None),
+                QuestaoAnotacao.usuario_uid == "admin-1",
                 QuestaoAnotacao.caderno_id == 10,
                 QuestaoAnotacao.questao_id == 99,
             )

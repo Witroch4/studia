@@ -362,6 +362,9 @@ class QuestaoAnotacao(Base):
         BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
     )
     usuario_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    # Dono real da anotação (Better Auth "user".id). Escopo por usuário: cada
+    # aluno tem o próprio canvas/strikes na mesma questão de um caderno.
+    usuario_uid: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     caderno_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("cadernos_questoes.id", ondelete="CASCADE"), nullable=True, index=True
     )
@@ -377,8 +380,8 @@ class QuestaoAnotacao(Base):
 
     __table_args__ = (
         Index(
-            "uq_questao_anotacoes_scope",
-            func.coalesce(usuario_id, 0),
+            "uq_questao_anotacoes_scope_uid",
+            func.coalesce(usuario_uid, ""),
             func.coalesce(caderno_id, 0),
             questao_id,
             unique=True,
@@ -395,6 +398,8 @@ class CalculadoraHistorico(Base):
         BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
     )
     usuario_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    # Dono real do histórico (Better Auth "user".id), por usuário.
+    usuario_uid: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     caderno_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     questao_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
     expression: Mapped[str] = mapped_column(Text, nullable=False)
@@ -403,7 +408,7 @@ class CalculadoraHistorico(Base):
 
 
 class QuestaoFavorita(Base):
-    """Questões marcadas com estrela (single-tenant, como Resolucao)."""
+    """Questões marcadas com estrela, por usuário (owner_uid = "user".id)."""
 
     __tablename__ = "questoes_favoritas"
 
@@ -411,15 +416,25 @@ class QuestaoFavorita(Base):
         BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
     )
     questao_id: Mapped[int] = mapped_column(
-        ForeignKey("questoes.id", ondelete="CASCADE"), unique=True, index=True
+        ForeignKey("questoes.id", ondelete="CASCADE"), index=True
     )
+    owner_uid: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    # Uma favorita por (usuário, questão) — dois usuários podem favoritar a mesma.
+    __table_args__ = (
+        UniqueConstraint("owner_uid", "questao_id", name="uq_favorita_owner_questao"),
+    )
 
 
 class CadernoQuestoes(Base):
     __tablename__ = "cadernos_questoes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Dono do caderno (Better Auth "user".id). NULL = caderno de catálogo
+    # (materializado de um guia); acessível a todos via aba Guias, nunca listado
+    # em "Minhas Pastas". Cadernos pessoais ("NOVO CADERNO") têm owner_uid setado.
+    owner_uid: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     nome: Mapped[str] = mapped_column(String(512))
     pasta: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     filtros: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
