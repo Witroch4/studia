@@ -109,7 +109,7 @@ GEMINI_MODELS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Migrações rodam via: python migrate.py (ou ./dev.sh migrate)
+    # Migrações rodam via Alembic: ./dev.sh migrate (ou python -m scripts.db_prepare)
     # Garantir bucket MinIO existe
     try:
         await asyncio.to_thread(ensure_bucket)

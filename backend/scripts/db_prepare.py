@@ -6,8 +6,8 @@ e seguro para reexecução. Faz, em ordem:
     1. Espera o PostgreSQL aceitar conexões (com retries)
     2. Adquire um advisory lock (serializa bootstrap entre réplicas Swarm)
     3. Cria o database 'studia' se ele não existir
-    4. Habilita a extensão pgvector + roda as migrações (migrate.py:
-       create_all de tabelas novas + ALTER incremental de colunas faltantes)
+    4. Roda as migrações Alembic (`alembic upgrade head`); bancos legados sem
+       `alembic_version` recebem `stamp head` antes (adoção sem recriar tabelas)
     5. VERIFICA que toda tabela definida nos models existe no banco — se faltar
        qualquer uma, sai com código 1 (aborta o deploy em build.sh).
 
@@ -224,8 +224,8 @@ async def ensure_scraper_compat_columns() -> None:
         await engine.dispose()
 
     # Texto livre do TC (nome/escolaridade/area) sem limite confiável: alarga
-    # colunas legadas VARCHAR(...) para TEXT. migrate.py não altera tipo de
-    # coluna existente, então um cargo com area longa derrubava a faixa inteira
+    # colunas legadas VARCHAR(...) para TEXT. As migrações não alteram tipo de
+    # coluna já existente em banco legado, então um cargo com area longa derrubava a faixa inteira
     # (StringDataRightTruncationError). ALTER ... TYPE TEXT é idempotente.
     engine = create_async_engine(DATABASE_URL, isolation_level="AUTOCOMMIT")
     try:
