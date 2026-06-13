@@ -19,6 +19,7 @@ from models import (
 )
 from parser import parse_markdown
 from minio_client import upload_pdf, get_presigned_url, ensure_bucket
+from auth import require_admin
 import concurso_engine as ce
 
 
@@ -599,8 +600,11 @@ async def download_aula_pdf(aula_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/api/jobs")
-async def list_jobs(db: AsyncSession = Depends(get_db)):
-    """Lista todas as aulas com processamento (ativo, concluído, erro)."""
+async def list_jobs(
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """Lista todas as aulas com processamento (ativo, concluído, erro). (admin)"""
     result = await db.execute(
         select(Aula, Disciplina.nome.label("disciplina_nome"))
         .join(Disciplina)
@@ -627,8 +631,8 @@ async def list_jobs(db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/api/batch-jobs")
-async def list_gemini_batch_jobs():
-    """Lista batch jobs recentes na API do Gemini."""
+async def list_gemini_batch_jobs(_admin=Depends(require_admin)):
+    """Lista batch jobs recentes na API do Gemini. (admin)"""
     from gemini_service import list_batch_jobs
     try:
         jobs = await asyncio.to_thread(list_batch_jobs)
@@ -638,8 +642,8 @@ async def list_gemini_batch_jobs():
 
 
 @app.post("/api/batch-jobs/{job_name:path}/cancel")
-async def cancel_gemini_batch_job(job_name: str):
-    """Cancela um batch job em andamento no Gemini."""
+async def cancel_gemini_batch_job(job_name: str, _admin=Depends(require_admin)):
+    """Cancela um batch job em andamento no Gemini. (admin)"""
     from gemini_service import cancel_batch_job
     result = await asyncio.to_thread(cancel_batch_job, job_name)
     if result["status"] == "error":
@@ -648,8 +652,8 @@ async def cancel_gemini_batch_job(job_name: str):
 
 
 @app.delete("/api/batch-jobs/{job_name:path}")
-async def delete_gemini_batch_job(job_name: str):
-    """Deleta um batch job do Gemini."""
+async def delete_gemini_batch_job(job_name: str, _admin=Depends(require_admin)):
+    """Deleta um batch job do Gemini. (admin)"""
     from gemini_service import delete_batch_job
     result = await asyncio.to_thread(delete_batch_job, job_name)
     if result["status"] == "error":

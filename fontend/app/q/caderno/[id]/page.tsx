@@ -378,7 +378,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
           />
           <header className="px-4 py-3 flex items-center gap-4 border-b border-border/60">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-600 to-violet-600 flex items-center justify-center text-xl shrink-0">
-              {questao.banca?.sigla?.slice(0, 2).toUpperCase() || "TC"}
+              {questao.banca?.sigla?.slice(0, 2).toUpperCase() || "?"}
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-semibold flex items-center gap-2 flex-wrap">

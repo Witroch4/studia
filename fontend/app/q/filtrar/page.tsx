@@ -62,10 +62,10 @@ const GRUPOS_FACET: Partial<Record<Categoria, { campo: CampoFacet; titulo?: stri
   "Região": [{ campo: "regiao" }],
 };
 
-// Categorias cujos dados ainda não vêm na API de questões do TC
+// Categorias cujos dados ainda não estão disponíveis na base de questões
 const NOTA_SEM_DADOS: Partial<Record<Categoria, string>> = {
-  "Escolaridade": "A API de questões do TC não envia escolaridade por questão. O filtro ativa automaticamente quando a base tiver esse dado.",
-  "Região": "A API de questões do TC não envia região/UF por questão. O filtro ativa automaticamente quando a base tiver esse dado.",
+  "Escolaridade": "A base ainda não tem escolaridade por questão. O filtro ativa automaticamente quando esse dado estiver disponível.",
+  "Região": "A base ainda não tem região/UF por questão. O filtro ativa automaticamente quando esse dado estiver disponível.",
 };
 
 const CHIP_PREFIX: Record<string, string> = {

@@ -28,7 +28,7 @@ type BillingStatus = {
 
 const BENEFICIOS = [
   "Questões ilimitadas por dia",
-  "Estatísticas e comentários do TC em cada questão",
+  "Estatísticas e comentários em cada questão",
   "Cadernos e filtros sem limite",
   "Acesso a todo o histórico de resoluções",
 ];

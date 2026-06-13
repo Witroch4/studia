@@ -49,7 +49,7 @@ function PastasView({ pastas }: { pastas: PastaRow[] }) {
       {pastas.length === 0 && (
         <p className="text-sm text-fg-faint italic">
           Nenhum caderno criado ainda. Use <Link href="/q/filtrar" className="text-primary hover:underline">Filtrar Questões</Link>{" "}
-          ou importe um <Link href="/q/guias" className="text-primary hover:underline">Guia TC</Link>.
+          ou monte por um <Link href="/q/guias" className="text-primary hover:underline">Guia de Estudos</Link>.
         </p>
       )}
       {pastas.map((p) => {

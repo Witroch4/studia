@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { authClient } from "@/lib/auth-client";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -57,6 +58,17 @@ export default function JobsPage() {
   const [loading, setLoading] = useState(true);
   const [showBatch, setShowBatch] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  // Painel de Jobs IA é área de administração (processamento Gemini Batch).
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  useEffect(() => {
+    authClient
+      .getSession()
+      .then((res) => {
+        const role = (res?.data?.user as { role?: string } | undefined)?.role;
+        setIsAdmin(role === "admin");
+      })
+      .catch(() => setIsAdmin(false));
+  }, []);
 
   const activeJobs = useMemo(
     () => jobs.filter((j) => j.status === "PROCESSANDO" || j.status === "PENDENTE"),
@@ -66,35 +78,36 @@ export default function JobsPage() {
   const errorJobs = useMemo(() => jobs.filter((j) => j.status === "ERRO"), [jobs]);
 
   const fetchJobs = useCallback(() => {
-    fetch(`${API_URL}/api/jobs`)
+    fetch(`${API_URL}/api/jobs`, { credentials: "include" })
       .then((r) => r.json())
-      .then((data) => setJobs(data))
+      .then((data) => setJobs(Array.isArray(data) ? data : []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
   const fetchBatchJobs = useCallback(() => {
-    fetch(`${API_URL}/api/batch-jobs`)
+    fetch(`${API_URL}/api/batch-jobs`, { credentials: "include" })
       .then((r) => r.json())
-      .then((data) => setBatchJobs(data))
+      .then((data) => setBatchJobs(Array.isArray(data) ? data : []))
       .catch(console.error);
   }, []);
 
   useEffect(() => {
+    if (!isAdmin) return; // só admin consulta jobs (backend também exige admin)
     fetchJobs();
     // Polling adaptativo: 10s se há jobs ativos, 30s se não
     const interval = setInterval(fetchJobs, activeJobs.length > 0 ? 10000 : 30000);
     return () => clearInterval(interval);
-  }, [activeJobs.length, fetchJobs]);
+  }, [isAdmin, activeJobs.length, fetchJobs]);
 
   useEffect(() => {
-    if (showBatch) fetchBatchJobs();
-  }, [showBatch, fetchBatchJobs]);
+    if (showBatch && isAdmin) fetchBatchJobs();
+  }, [showBatch, isAdmin, fetchBatchJobs]);
 
   const handleCancel = async (jobName: string) => {
     setCancelling(jobName);
     try {
-      const res = await fetch(`${API_URL}/api/batch-jobs/${jobName}/cancel`, { method: "POST" });
+      const res = await fetch(`${API_URL}/api/batch-jobs/${jobName}/cancel`, { method: "POST", credentials: "include" });
       if (res.ok) {
         fetchBatchJobs();
         fetchJobs();
@@ -109,6 +122,29 @@ export default function JobsPage() {
   const hasActiveBatch = batchJobs.some(
     (b) => b.state === "JOB_STATE_RUNNING" || b.state === "JOB_STATE_PENDING"
   );
+
+  // Guard de admin: não-admin não acessa o painel de jobs (nem por URL direta).
+  if (isAdmin === null) {
+    return <div className="p-8 text-fg-muted">Carregando…</div>;
+  }
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-page text-fg flex items-center justify-center px-6">
+        <div className="max-w-md text-center space-y-3">
+          <span className="material-symbols-outlined text-fg-faint text-5xl">lock</span>
+          <h1 className="text-xl font-semibold">Área restrita</h1>
+          <p className="text-sm text-fg-faint">
+            O painel de Jobs de IA é exclusivo para administradores.
+          </p>
+          <div className="flex justify-center gap-2 pt-2">
+            <Link href="/painel" className="text-sm bg-primary hover:bg-primary-600 text-on-primary px-4 py-2 rounded font-semibold">
+              Voltar ao início
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

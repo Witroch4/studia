@@ -96,7 +96,7 @@ export default function GuiasPage() {
         </h1>
         <p className="text-sm text-fg-faint mt-1">
           Escolha um guia e monte os cadernos por matéria para estudar — cada matéria
-          vira um caderno de questões na ordem oficial do TecConcursos.
+          vira um caderno de questões na ordem ideal de estudo.
         </p>
       </header>
 

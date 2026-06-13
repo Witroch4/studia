@@ -27,7 +27,8 @@ const navItems: NavItem[] = [
   // Coleta TC: área de administração — só admin vê e usa (backend também exige admin).
   { href: "/q/coletar", label: "Coletar TC", icon: "cloud_download", adminOnly: true },
   { href: "/concorrencia", label: "Concorrência", icon: "leaderboard" },
-  { href: "/jobs", label: "Jobs IA", icon: "monitoring" },
+  // Jobs IA: processamento de PDFs (Gemini Batch) — área de administração.
+  { href: "/jobs", label: "Jobs IA", icon: "monitoring", adminOnly: true },
   { href: "/em-breve?f=Planejamento", label: "Planejamento", icon: "calendar_month" },
   { href: "/em-breve?f=Revisões", label: "Revisões", icon: "autorenew" },
   { href: "/em-breve?f=Histórico", label: "Histórico", icon: "history" },
