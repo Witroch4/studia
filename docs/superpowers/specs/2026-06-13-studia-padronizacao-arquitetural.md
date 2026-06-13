@@ -66,6 +66,13 @@ namespace:
 **Regra:** nenhum app sobe seu próprio Postgres/Redis/NATS/MinIO isolado. Tudo
 roda na infra de `minha_rede`.
 
+**Estado atual (já no ar em dev):** a infra compartilhada já roda como containers
+host — `postgres` (pgvector/pgvector:pg17, `:5432`), `redis` (redis:8.6.1,
+`:6379`) e `platform-nats` (nats:2, `:4222`). O studIA dev **já** se conecta ao
+`postgres` e ao `redis` compartilhados (o compose dele não sobe banco/redis
+próprios). Resta só migrar o broker para o `platform-nats` (Plano 05) e
+formalizar os prefixos por app.
+
 ---
 
 ## 5. Banco
@@ -75,6 +82,11 @@ roda na infra de `minha_rede`.
 - **Alembic** é a autoridade única de schema. O `migrate.py` caseiro
   (auto-ALTER) está **aposentado**.
 - `pgvector` habilitado via migration.
+- **Dev** usa um database real persistente (`studia`) no Postgres compartilhado —
+  paridade com produção (sem SQLite).
+- **Testes** usam um database persistente dedicado (`studia_test`) no mesmo
+  Postgres; schema via Alembic; isolamento por teste via **transação com rollback**
+  (SAVEPOINT), nunca recriando o banco.
 
 ---
 
@@ -178,6 +190,7 @@ Uma implementação só está conforme quando:
 - usa **Postgres compartilhado, 1 database por app**;
 - usa **NATS** como broker e **Redis** como result backend/cache;
 - usa **IA só via LLM proxy WitDev**;
+- usa **PostgreSQL nos testes** (paridade com prod), isolados por rollback;
 - **não** é multi-tenant.
 
 ---
@@ -190,7 +203,9 @@ Uma implementação só está conforme quando:
 - bater no banco para validar sessão **por request**;
 - multi-tenant / Tenant-Product gating;
 - BFF estrutural no Next;
-- subir banco/Redis/NATS/MinIO isolado fora da infra compartilhada.
+- subir banco/Redis/NATS/MinIO isolado fora da infra compartilhada;
+- **SQLite / `create_all` como ambiente de teste** (perde pgvector e os índices
+  Postgres-específicos — testa um engine que não é o de produção).
 
 ---
 
@@ -205,6 +220,7 @@ Uma implementação só está conforme quando:
 | Auth backend | `SELECT session` por request ([auth.py](../../../backend/auth.py)) | handoff → JWT cookie | implementar handoff + emissão/decode de JWT; parar de ler tabela `session` por request |
 | Front | `fetch()` puro | React Query v5 | provider + hooks por domínio |
 | Backend | flat (`main.py` + routers soltos) | `domains/` | mover `q_router`/`guias_router`/`billing_router` p/ domínios |
+| Testes | SQLite + `create_all` | Postgres `studia_test` + rollback | trocar `conftest.py`; schema via Alembic |
 
 ---
 
@@ -215,3 +231,22 @@ Uma implementação só está conforme quando:
 - **App de mercado (Engine + Screener, IBKR só leitura):** segue este padrão;
   ganha spec de design próprio assim que o dono decidir repo (pasta neste repo
   vs repo separado).
+
+---
+
+## 17. Testes — paridade com produção (OBRIGATÓRIO)
+
+- Testes rodam no **mesmo engine de produção**: PostgreSQL + pgvector. **Proibido**
+  SQLite/`create_all` como banco de teste.
+- Existe **um database de teste persistente** por app (`studia_test`) na instância
+  compartilhada; o schema é aplicado por **Alembic** (não `create_all`).
+- **Isolamento por teste = transação + rollback** (SAVEPOINT): cada teste abre uma
+  transação que é desfeita ao final. **Não se recria o banco por teste** — o DB de
+  teste é persistente.
+- Um **teste-guarda de drift** (`alembic check`) garante que models e migrações não
+  divergem.
+
+### Regra
+
+A suíte verde só vale se rodou no engine real. Verde em SQLite não é evidência de
+comportamento em produção.
