@@ -13,6 +13,9 @@ node_modules/
 .env.*
 !.env.example
 
+# Segredos de OAuth baixados do Google Console (nunca versionar)
+client_secret_*.json
+
 # IDE
 .vscode/
 .idea/
