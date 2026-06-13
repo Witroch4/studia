@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 // pode rodar no prerender/SSR enquanto o better-auth está externalizado.
 const ContaClient = dynamic(() => import("./ContaClient"), {
   ssr: false,
-  loading: () => <div className="px-6 py-8 text-sm text-gray-500">Carregando…</div>,
+  loading: () => <div className="px-6 py-8 text-sm text-fg-faint">Carregando…</div>,
 });
 
 export default function ContaPage() {

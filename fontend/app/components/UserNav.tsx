@@ -64,7 +64,7 @@ export default function UserNav({ variant = "desktop" }: { variant?: "desktop" |
   const Avatar = (
     <div className={`${variant === "mobile" ? "h-10 w-10" : "h-8 w-8"} rounded-full bg-gradient-to-tr from-primary to-secondary p-[1px] flex-shrink-0`}>
       <div className="rounded-full h-full w-full bg-surface-dark flex items-center justify-center">
-        <span className="text-xs font-bold text-white">{initials}</span>
+        <span className="text-xs font-bold text-fg-strong">{initials}</span>
       </div>
     </div>
   );
@@ -85,14 +85,14 @@ export default function UserNav({ variant = "desktop" }: { variant?: "desktop" |
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-800 transition-colors text-left focus:outline-none focus:ring-2 focus:ring-primary/50"
+        className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-fg-strong/6 transition-colors text-left focus:outline-none focus:ring-2 focus:ring-primary/50"
       >
         {Avatar}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-white truncate">{name}</p>
-          <p className="text-xs text-gray-500 truncate">{email || "—"}</p>
+          <p className="text-sm font-medium text-fg-strong truncate">{name}</p>
+          <p className="text-xs text-fg-faint truncate">{email || "—"}</p>
         </div>
-        <span className="material-symbols-outlined text-gray-500 text-[18px]">unfold_more</span>
+        <span className="material-symbols-outlined text-fg-faint text-[18px]">unfold_more</span>
       </button>
       {open && <Menu name={name} email={email} role={role} plano={plano} onLogout={handleLogout} loggingOut={loggingOut} />}
     </div>
@@ -119,8 +119,8 @@ function Menu({
   return (
     <div className="absolute bottom-full right-0 mb-2 w-60 rounded-xl border border-border-dark bg-surface-dark shadow-xl overflow-hidden z-50 animate-in">
       <div className="px-4 py-3 border-b border-border-dark/60">
-        <p className="text-sm font-semibold text-white truncate">{name}</p>
-        <p className="text-xs text-gray-500 truncate">{email}</p>
+        <p className="text-sm font-semibold text-fg-strong truncate">{name}</p>
+        <p className="text-xs text-fg-faint truncate">{email}</p>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide"
             style={{
@@ -149,7 +149,7 @@ function Menu({
             Assinar Pro
           </Link>
         )}
-        <Link href="/conta" className="flex items-center gap-3 px-3 py-2 text-sm text-gray-300 rounded-lg hover:bg-gray-800 hover:text-white transition-colors">
+        <Link href="/conta" className="flex items-center gap-3 px-3 py-2 text-sm text-fg rounded-lg hover:bg-surface-2 hover:text-fg-strong transition-colors">
           <span className="material-symbols-outlined text-[18px] text-primary/70">manage_accounts</span>
           Minha conta
         </Link>

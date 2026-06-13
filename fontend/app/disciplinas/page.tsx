@@ -70,7 +70,7 @@ export default function DisciplinasPage() {
   return (
     <>
       <header className="hidden md:flex sticky top-0 z-30 bg-bg-dark/80 backdrop-blur-md border-b border-border-dark px-8 py-4 justify-between items-center">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-fg-strong flex items-center gap-2">
           <span className="material-symbols-outlined text-primary">library_books</span>
           Disciplinas
         </h1>
@@ -79,8 +79,8 @@ export default function DisciplinasPage() {
       <main className="w-full px-4 md:px-8 py-8 overflow-y-auto h-full">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div className="flex flex-col gap-1">
-            <h2 className="text-3xl font-bold text-white">Minhas Disciplinas</h2>
-            <p className="text-sm text-gray-400">Organize suas aulas por matéria. Suba PDFs e deixe a IA trabalhar.</p>
+            <h2 className="text-3xl font-bold text-fg-strong">Minhas Disciplinas</h2>
+            <p className="text-sm text-fg-muted">Organize suas aulas por matéria. Suba PDFs e deixe a IA trabalhar.</p>
           </div>
           <button
             onClick={() => setShowForm(!showForm)}
@@ -94,28 +94,28 @@ export default function DisciplinasPage() {
         {/* Form de criação */}
         {showForm && (
           <div className="bg-surface-dark border border-border-dark rounded-xl p-6 mb-8 max-w-lg">
-            <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-fg-strong mb-4 flex items-center gap-2">
               <span className="material-symbols-outlined text-primary text-[18px]">add_circle</span>
               Criar Disciplina
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Nome</label>
+                <label className="block text-xs font-semibold text-fg-muted uppercase tracking-wider mb-1">Nome</label>
                 <input
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
                   placeholder="Ex: Geotecnia, Cálculo III..."
-                  className="w-full px-4 py-2.5 bg-bg-dark border border-border-dark rounded-lg text-sm text-white placeholder-gray-600 focus:ring-1 focus:ring-primary focus:border-primary"
+                  className="w-full px-4 py-2.5 bg-bg-dark border border-border-dark rounded-lg text-sm text-fg-strong placeholder:text-fg-faint focus:ring-1 focus:ring-primary focus:border-primary"
                   onKeyDown={(e) => e.key === "Enter" && handleCreate()}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Descrição (opcional)</label>
+                <label className="block text-xs font-semibold text-fg-muted uppercase tracking-wider mb-1">Descrição (opcional)</label>
                 <input
                   value={descricao}
                   onChange={(e) => setDescricao(e.target.value)}
                   placeholder="Ex: Prof. Silva, 2025.1"
-                  className="w-full px-4 py-2.5 bg-bg-dark border border-border-dark rounded-lg text-sm text-white placeholder-gray-600 focus:ring-1 focus:ring-primary focus:border-primary"
+                  className="w-full px-4 py-2.5 bg-bg-dark border border-border-dark rounded-lg text-sm text-fg-strong placeholder:text-fg-faint focus:ring-1 focus:ring-primary focus:border-primary"
                 />
               </div>
               <div className="flex gap-3">
@@ -128,7 +128,7 @@ export default function DisciplinasPage() {
                 </button>
                 <button
                   onClick={() => setShowForm(false)}
-                  className="px-5 py-2.5 bg-surface-dark border border-gray-600 text-gray-300 rounded-lg font-medium hover:bg-gray-700 transition-colors"
+                  className="px-5 py-2.5 bg-surface-dark border border-border-strong text-fg rounded-lg font-medium hover:bg-surface-2 transition-colors"
                 >
                   Cancelar
                 </button>
@@ -142,9 +142,9 @@ export default function DisciplinasPage() {
           {loading
             ? Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="bg-surface-dark rounded-xl border border-border-dark p-6 animate-pulse min-h-[200px]">
-                  <div className="h-10 w-10 rounded-lg bg-gray-700 mb-4" />
-                  <div className="h-5 w-32 bg-gray-700 rounded mb-2" />
-                  <div className="h-3 w-24 bg-gray-800 rounded" />
+                  <div className="h-10 w-10 rounded-lg bg-surface-2 mb-4" />
+                  <div className="h-5 w-32 bg-surface-2 rounded mb-2" />
+                  <div className="h-3 w-24 bg-inset rounded" />
                 </div>
               ))
             : disciplinas.map((disc, idx) => (
@@ -154,13 +154,13 @@ export default function DisciplinasPage() {
           {!loading && disciplinas.length === 0 && !showForm && (
             <button
               onClick={() => setShowForm(true)}
-              className="bg-surface-dark rounded-xl border border-dashed border-gray-700 hover:border-primary transition-all group flex flex-col h-full items-center justify-center cursor-pointer min-h-[200px]"
+              className="bg-surface-dark rounded-xl border border-dashed border-border hover:border-primary transition-all group flex flex-col h-full items-center justify-center cursor-pointer min-h-[200px]"
             >
-              <div className="h-16 w-16 rounded-full bg-gray-800 flex items-center justify-center mb-4 group-hover:bg-primary/10 transition-colors">
-                <span className="material-symbols-outlined text-3xl text-gray-400 group-hover:text-primary">add</span>
+              <div className="h-16 w-16 rounded-full bg-surface-2 flex items-center justify-center mb-4 group-hover:bg-primary/10 transition-colors">
+                <span className="material-symbols-outlined text-3xl text-fg-muted group-hover:text-primary">add</span>
               </div>
-              <h3 className="text-lg font-bold text-white mb-2">Primeira Disciplina</h3>
-              <p className="text-sm text-gray-400 text-center px-6">
+              <h3 className="text-lg font-bold text-fg-strong mb-2">Primeira Disciplina</h3>
+              <p className="text-sm text-fg-muted text-center px-6">
                 Crie sua primeira disciplina para começar a organizar suas aulas.
               </p>
             </button>
@@ -184,13 +184,13 @@ function DisciplinaCard({ disc, colorIdx }: { disc: DisciplinaData; colorIdx: nu
           <div className={`h-12 w-12 rounded-lg ${colors.iconBg} flex items-center justify-center ${colors.iconColor}`}>
             <span className="material-symbols-outlined text-[28px]">{disc.icon}</span>
           </div>
-          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded-full">
+          <span className="text-xs text-fg-faint bg-surface-2 px-2 py-1 rounded-full">
             {disc.total_aulas} {disc.total_aulas === 1 ? "aula" : "aulas"}
           </span>
         </div>
-        <h3 className="text-lg font-bold text-white mb-1 group-hover:text-primary transition-colors">{disc.nome}</h3>
+        <h3 className="text-lg font-bold text-fg-strong mb-1 group-hover:text-primary transition-colors">{disc.nome}</h3>
         {disc.descricao && (
-          <p className="text-sm text-gray-400 line-clamp-2">{disc.descricao}</p>
+          <p className="text-sm text-fg-muted line-clamp-2">{disc.descricao}</p>
         )}
       </div>
 

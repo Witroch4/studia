@@ -36,7 +36,7 @@ const BATCH_STATE_CONFIG: Record<string, { bg: string; text: string; label: stri
   JOB_STATE_RUNNING: { bg: "bg-primary/15", text: "text-primary", label: "Rodando" },
   JOB_STATE_SUCCEEDED: { bg: "bg-accent-success/15", text: "text-accent-success", label: "Concluído" },
   JOB_STATE_FAILED: { bg: "bg-accent-error/15", text: "text-accent-error", label: "Falhou" },
-  JOB_STATE_CANCELLED: { bg: "bg-gray-500/15", text: "text-gray-400", label: "Cancelado" },
+  JOB_STATE_CANCELLED: { bg: "bg-gray-500/15", text: "text-fg-muted", label: "Cancelado" },
   JOB_STATE_EXPIRED: { bg: "bg-orange-500/15", text: "text-orange-400", label: "Expirado (48h)" },
 };
 
@@ -112,8 +112,8 @@ export default function JobsPage() {
 
   return (
     <>
-      <header className="hidden md:flex sticky top-0 z-30 bg-bg-dark/80 backdrop-blur-md border-b border-border-dark px-8 py-4 justify-between items-center">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+      <header className="hidden md:flex sticky top-0 z-30 bg-page/80 backdrop-blur-md border-b border-border px-8 py-4 justify-between items-center">
+        <h1 className="text-2xl font-bold text-fg-strong flex items-center gap-2">
           <span className="material-symbols-outlined text-primary">monitoring</span>
           Painel de Jobs
         </h1>
@@ -123,13 +123,13 @@ export default function JobsPage() {
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               showBatch
                 ? "bg-primary/15 text-primary border border-primary/30"
-                : "bg-surface-dark border border-border-dark text-gray-400 hover:text-white"
+                : "bg-surface border border-border text-fg-muted hover:text-fg-strong"
             }`}
           >
             <span className="material-symbols-outlined text-[16px]">cloud</span>
             Batch Jobs Gemini
           </button>
-          <div className="flex items-center gap-2 text-xs text-gray-500">
+          <div className="flex items-center gap-2 text-xs text-fg-faint">
             <div className="h-2 w-2 rounded-full bg-accent-success animate-pulse" />
             Auto-refresh {activeJobs.length > 0 ? "10s" : "30s"}
           </div>
@@ -139,7 +139,7 @@ export default function JobsPage() {
       <main className="w-full px-4 md:px-8 py-8 overflow-y-auto h-full">
         {/* Stats bar */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <StatBadge label="Total" count={jobs.length} icon="list" color="text-gray-400" />
+          <StatBadge label="Total" count={jobs.length} icon="list" color="text-fg-muted" />
           <StatBadge label="Ativos" count={activeJobs.length} icon="sync" color="text-primary" pulse={activeJobs.length > 0} />
           <StatBadge label="Concluídos" count={completedJobs.length} icon="check_circle" color="text-accent-success" />
           <StatBadge label="Erros" count={errorJobs.length} icon="error" color="text-accent-error" />
@@ -147,40 +147,40 @@ export default function JobsPage() {
 
         {/* Batch Jobs Gemini (expandível) */}
         {showBatch && (
-          <div className="mb-8 bg-surface-dark border border-border-dark rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-border-dark">
-              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <div className="mb-8 bg-surface border border-border rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+              <h2 className="text-sm font-semibold text-fg-strong flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary text-[18px]">cloud</span>
                 Batch Jobs na API Gemini
               </h2>
               <button
                 onClick={fetchBatchJobs}
-                className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors"
+                className="text-xs text-fg-muted hover:text-fg-strong flex items-center gap-1 transition-colors"
               >
                 <span className="material-symbols-outlined text-[14px]">refresh</span>
                 Atualizar
               </button>
             </div>
             {batchJobs.length === 0 ? (
-              <p className="px-5 py-4 text-sm text-gray-500">Nenhum batch job encontrado.</p>
+              <p className="px-5 py-4 text-sm text-fg-faint">Nenhum batch job encontrado.</p>
             ) : (
-              <div className="divide-y divide-border-dark">
+              <div className="divide-y divide-border">
                 {batchJobs.map((bj) => {
                   const st = BATCH_STATE_CONFIG[bj.state] || BATCH_STATE_CONFIG.JOB_STATE_PENDING;
                   const isActive = bj.state === "JOB_STATE_RUNNING" || bj.state === "JOB_STATE_PENDING";
                   return (
                     <div key={bj.name} className="px-5 py-3 flex items-center gap-4">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-mono text-gray-400 truncate">{bj.name}</p>
+                        <p className="text-xs font-mono text-fg-muted truncate">{bj.name}</p>
                         {bj.display_name && (
-                          <p className="text-xs text-gray-500">{bj.display_name}</p>
+                          <p className="text-xs text-fg-faint">{bj.display_name}</p>
                         )}
                       </div>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${st.bg} ${st.text}`}>
                         {st.label}
                       </span>
                       {bj.create_time && (
-                        <span className="text-[10px] text-gray-600 shrink-0">
+                        <span className="text-[10px] text-fg-faint shrink-0">
                           {timeAgo(bj.create_time)}
                         </span>
                       )}
@@ -207,14 +207,14 @@ export default function JobsPage() {
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-surface-dark rounded-xl border border-border-dark p-5 h-20 animate-pulse" />
+              <div key={i} className="bg-surface rounded-xl border border-border p-5 h-20 animate-pulse" />
             ))}
           </div>
         ) : jobs.length === 0 ? (
-          <div className="bg-surface-dark border border-dashed border-gray-700 rounded-xl p-12 text-center">
-            <span className="material-symbols-outlined text-5xl text-gray-600 mb-4 block">inbox</span>
-            <h3 className="text-lg font-bold text-white mb-2">Nenhum job ainda</h3>
-            <p className="text-sm text-gray-400 mb-6">
+          <div className="bg-surface border border-dashed border-border rounded-xl p-12 text-center">
+            <span className="material-symbols-outlined text-5xl text-fg-faint mb-4 block">inbox</span>
+            <h3 className="text-lg font-bold text-fg-strong mb-2">Nenhum job ainda</h3>
+            <p className="text-sm text-fg-muted mb-6">
               Faça upload de um PDF em uma disciplina para iniciar o processamento.
             </p>
             <Link
@@ -230,7 +230,7 @@ export default function JobsPage() {
             {/* Jobs ativos primeiro */}
             {activeJobs.length > 0 && (
               <div className="mb-6">
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <h2 className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-3 flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                   Em Processamento ({activeJobs.length})
                 </h2>
@@ -259,7 +259,7 @@ export default function JobsPage() {
             {/* Concluídos */}
             {completedJobs.length > 0 && (
               <div>
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                <h2 className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-3">
                   Concluídos ({completedJobs.length})
                 </h2>
                 <div className="space-y-2">
@@ -280,13 +280,13 @@ function StatBadge({ label, count, icon, color, pulse }: {
   label: string; count: number; icon: string; color: string; pulse?: boolean;
 }) {
   return (
-    <div className="bg-surface-dark border border-border-dark rounded-xl p-4 flex items-center gap-3">
+    <div className="bg-surface border border-border rounded-xl p-4 flex items-center gap-3">
       <span className={`material-symbols-outlined text-[24px] ${color} ${pulse ? "animate-spin" : ""}`}>
         {icon}
       </span>
       <div>
-        <p className="text-2xl font-bold text-white">{count}</p>
-        <p className="text-xs text-gray-500">{label}</p>
+        <p className="text-2xl font-bold text-fg-strong">{count}</p>
+        <p className="text-xs text-fg-faint">{label}</p>
       </div>
     </div>
   );
@@ -297,7 +297,7 @@ function JobRow({ job }: { job: Job }) {
   const isProcessing = job.status === "PROCESSANDO";
 
   return (
-    <div className={`bg-surface-dark border border-border-dark rounded-xl p-4 flex items-center gap-4 transition-all ${
+    <div className={`bg-surface border border-border rounded-xl p-4 flex items-center gap-4 transition-all ${
       isProcessing ? "border-primary/30 shadow-sm shadow-cyan-500/10" : ""
     }`}>
       {/* Status icon */}
@@ -310,20 +310,20 @@ function JobRow({ job }: { job: Job }) {
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-sm font-semibold text-white truncate">
+          <span className="text-sm font-semibold text-fg-strong truncate">
             Aula {String(job.numero).padStart(2, "0")} — {job.titulo}
           </span>
         </div>
         <div className="flex items-center gap-3 text-xs">
-          <span className="text-gray-500">{job.disciplina}</span>
+          <span className="text-fg-faint">{job.disciplina}</span>
           {job.modelo_usado && (
-            <span className="text-gray-600 flex items-center gap-1">
+            <span className="text-fg-faint flex items-center gap-1">
               <span className="material-symbols-outlined text-[11px]">smart_toy</span>
               {job.modelo_usado}
             </span>
           )}
           {job.updated_at && (
-            <span className="text-gray-600">{timeAgo(job.updated_at)}</span>
+            <span className="text-fg-faint">{timeAgo(job.updated_at)}</span>
           )}
         </div>
         {job.erro_msg && (

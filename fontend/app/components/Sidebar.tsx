@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import { authClient } from "@/lib/auth-client";
 import Logo from "./Logo";
+import { AnimatedThemeToggle } from "./AnimatedThemeToggle";
 
 // Carregado só no cliente: usa useSession (better-auth/react), que não pode
 // rodar no prerender/SSR enquanto o better-auth está externalizado.
@@ -68,7 +69,7 @@ export default function Sidebar() {
                 className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors group ${
                   isActive
                     ? "bg-primary/10 text-primary"
-                    : "text-gray-400 hover:text-white hover:bg-gray-800"
+                    : "text-fg-muted hover:text-fg-strong hover:bg-fg-strong/6"
                 }`}
               >
                 <span
@@ -84,7 +85,11 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-border-dark/50">
+        <div className="p-4 border-t border-border-dark/50 space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-medium text-fg-faint">Tema</span>
+            <AnimatedThemeToggle />
+          </div>
           <UserNav variant="desktop" />
         </div>
       </aside>
@@ -93,7 +98,7 @@ export default function Sidebar() {
       <nav className="sticky top-0 z-40 bg-surface-dark border-b border-border-dark px-4 py-3 shadow-sm md:hidden">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button className="p-2 rounded-md hover:bg-gray-800 text-gray-300">
+            <button className="p-2 rounded-md hover:bg-fg-strong/6 text-fg-muted">
               <span className="material-symbols-outlined">menu</span>
             </button>
             <Link href="/painel" className="flex items-center">
@@ -101,7 +106,8 @@ export default function Sidebar() {
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            <button className="p-2 rounded-full hover:bg-gray-800 text-gray-300 relative">
+            <AnimatedThemeToggle />
+            <button className="p-2 rounded-full hover:bg-fg-strong/6 text-fg-muted relative">
               <span className="material-symbols-outlined">notifications</span>
               <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-secondary animate-pulse" />
             </button>

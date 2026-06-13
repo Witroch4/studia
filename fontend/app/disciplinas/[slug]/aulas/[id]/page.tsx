@@ -67,8 +67,8 @@ export default function AulaStudyPage({
     return (
       <main className="w-full px-4 md:px-8 py-8">
         <div className="animate-pulse space-y-6">
-          <div className="h-8 w-64 bg-gray-700 rounded" />
-          <div className="h-4 w-48 bg-gray-800 rounded" />
+          <div className="h-8 w-64 bg-surface-2 rounded" />
+          <div className="h-4 w-48 bg-surface-2 rounded" />
           <div className="h-96 bg-surface-dark rounded-xl border border-border-dark" />
         </div>
       </main>
@@ -78,7 +78,7 @@ export default function AulaStudyPage({
   if (!data) {
     return (
       <main className="w-full px-4 md:px-8 py-8">
-        <p className="text-gray-400">Aula não encontrada.</p>
+        <p className="text-fg-muted">Aula não encontrada.</p>
       </main>
     );
   }
@@ -98,12 +98,12 @@ export default function AulaStudyPage({
       {/* Header */}
       <header className="hidden md:flex sticky top-0 z-30 bg-bg-dark/80 backdrop-blur-md border-b border-border-dark px-8 py-4 justify-between items-center">
         <div className="flex items-center gap-3">
-          <Link href={`/disciplinas/${slug}`} className="text-gray-400 hover:text-white transition-colors">
+          <Link href={`/disciplinas/${slug}`} className="text-fg-muted hover:text-fg-strong transition-colors">
             <span className="material-symbols-outlined">arrow_back</span>
           </Link>
           <div>
-            <p className="text-xs text-gray-500">{data.disciplina.nome}</p>
-            <h1 className="text-lg font-bold text-white">
+            <p className="text-xs text-fg-faint">{data.disciplina.nome}</p>
+            <h1 className="text-lg font-bold text-fg-strong">
               Aula {String(data.numero).padStart(2, "0")} — {data.titulo}
             </h1>
           </div>
@@ -113,7 +113,7 @@ export default function AulaStudyPage({
             href={`${API_URL}/api/aulas/${aulaId}/pdf`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 bg-surface-dark border border-border-dark rounded-lg text-sm text-gray-300 hover:text-white hover:border-primary/50 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 bg-surface-dark border border-border-dark rounded-lg text-sm text-fg hover:text-fg-strong hover:border-primary/50 transition-colors"
           >
             <span className="material-symbols-outlined text-[18px]">download</span>
             PDF Original
@@ -123,7 +123,7 @@ export default function AulaStudyPage({
             className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               chatOpen
                 ? "bg-primary/15 text-primary border border-primary/30"
-                : "bg-surface-dark border border-border-dark text-gray-300 hover:text-white"
+                : "bg-surface-dark border border-border-dark text-fg hover:text-fg-strong"
             }`}
           >
             <span className="material-symbols-outlined text-[18px]">forum</span>
@@ -145,13 +145,13 @@ export default function AulaStudyPage({
                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   tab === t.key
                     ? "bg-primary/15 text-primary"
-                    : "text-gray-400 hover:text-white hover:bg-gray-800"
+                    : "text-fg-muted hover:text-fg-strong hover:bg-surface-2"
                 }`}
               >
                 <span className="material-symbols-outlined text-[18px]">{t.icon}</span>
                 {t.label}
                 {t.count !== undefined && t.count > 0 && (
-                  <span className="px-1.5 py-0.5 bg-gray-800 text-gray-400 text-[10px] font-bold rounded-full">
+                  <span className="px-1.5 py-0.5 bg-surface-2 text-fg-muted text-[10px] font-bold rounded-full">
                     {t.count}
                   </span>
                 )}
@@ -177,8 +177,8 @@ export default function AulaStudyPage({
                 </div>
               ) : (
                 <div className="bg-surface-dark border border-border-dark rounded-xl p-12 text-center">
-                  <span className="material-symbols-outlined text-5xl text-gray-600 mb-3 block">article</span>
-                  <p className="text-gray-500">Nenhum resumo disponível ainda.</p>
+                  <span className="material-symbols-outlined text-5xl text-fg-faint mb-3 block">article</span>
+                  <p className="text-fg-faint">Nenhum resumo disponível ainda.</p>
                 </div>
               )}
             </div>
@@ -198,8 +198,8 @@ export default function AulaStudyPage({
                       <div className="bg-bg-dark rounded-lg p-4 mb-3 text-center">
                         <MarkdownRenderer content={f.latex} />
                       </div>
-                      <p className="text-xs text-gray-400">
-                        <span className="text-gray-500 font-medium">Variáveis: </span>
+                      <p className="text-xs text-fg-muted">
+                        <span className="text-fg-faint font-medium">Variáveis: </span>
                         {f.variaveis}
                       </p>
                     </div>
@@ -207,8 +207,8 @@ export default function AulaStudyPage({
                 </div>
               ) : (
                 <div className="bg-surface-dark border border-border-dark rounded-xl p-12 text-center">
-                  <span className="material-symbols-outlined text-5xl text-gray-600 mb-3 block">function</span>
-                  <p className="text-gray-500">Nenhuma fórmula extraída ainda.</p>
+                  <span className="material-symbols-outlined text-5xl text-fg-faint mb-3 block">function</span>
+                  <p className="text-fg-faint">Nenhuma fórmula extraída ainda.</p>
                 </div>
               )}
             </div>
@@ -220,7 +220,7 @@ export default function AulaStudyPage({
               {data.flashcards.length > 0 ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between mb-4">
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-fg-muted">
                       {data.flashcards.length} cards gerados pela IA
                     </p>
                     <Link
@@ -244,11 +244,11 @@ export default function AulaStudyPage({
                         <div className="flex items-center gap-3 min-w-0">
                           <span className="material-symbols-outlined text-primary text-[20px] flex-shrink-0">quiz</span>
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-white truncate">{card.frente}</p>
-                            <span className="text-xs text-gray-500">{card.assunto}</span>
+                            <p className="text-sm font-medium text-fg-strong truncate">{card.frente}</p>
+                            <span className="text-xs text-fg-faint">{card.assunto}</span>
                           </div>
                         </div>
-                        <span className={`material-symbols-outlined text-gray-500 transition-transform flex-shrink-0 ${
+                        <span className={`material-symbols-outlined text-fg-faint transition-transform flex-shrink-0 ${
                           expandedCard === card.id ? "rotate-180" : ""
                         }`}>
                           expand_more
@@ -264,8 +264,8 @@ export default function AulaStudyPage({
                 </div>
               ) : (
                 <div className="bg-surface-dark border border-border-dark rounded-xl p-12 text-center">
-                  <span className="material-symbols-outlined text-5xl text-gray-600 mb-3 block">style</span>
-                  <p className="text-gray-500">Nenhum flashcard gerado ainda.</p>
+                  <span className="material-symbols-outlined text-5xl text-fg-faint mb-3 block">style</span>
+                  <p className="text-fg-faint">Nenhum flashcard gerado ainda.</p>
                 </div>
               )}
             </div>

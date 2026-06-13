@@ -67,10 +67,10 @@ function keyClass(key: CalculatorKey) {
   }
 
   if (key.tone === "function") {
-    return `${base} border-gray-700 bg-gray-900/80 text-violet-200 hover:border-violet-700 hover:bg-violet-950/35`;
+    return `${base} border-border bg-surface/80 text-violet-200 hover:border-violet-700 hover:bg-violet-950/35`;
   }
 
-  return `${base} border-gray-700 bg-gray-950/75 text-gray-100 hover:bg-gray-800`;
+  return `${base} border-border bg-page/75 text-fg hover:bg-surface-2`;
 }
 
 function formatHistoryTime(value: string | null) {
@@ -229,21 +229,21 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
       ref={panelRef}
       tabIndex={-1}
       onKeyDown={handlePanelKeyDown}
-      className="fixed bottom-4 left-4 right-4 z-50 flex max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-lg border border-gray-700/80 bg-[#171717] text-gray-100 shadow-2xl shadow-black/50 sm:left-auto sm:w-[360px]"
+      className="fixed bottom-4 left-4 right-4 z-50 flex max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-lg border border-border/80 bg-surface text-fg shadow-2xl shadow-black/50 sm:left-auto sm:w-[360px]"
       aria-label="Calculadora científica"
     >
-      <header className="flex items-center gap-2 border-b border-gray-700/70 bg-[#111111] px-3 py-2">
+      <header className="flex items-center gap-2 border-b border-border/70 bg-page px-3 py-2">
         <Icon name="calculate" size={18} className="text-cyan-300" />
         <h2 className="text-sm font-semibold">Calculadora</h2>
         {saving && (
-          <span className="ml-1 text-[11px] text-gray-500" aria-live="polite" aria-atomic="true">
+          <span className="ml-1 text-[11px] text-fg-faint" aria-live="polite" aria-atomic="true">
             Salvando…
           </span>
         )}
         <button
           type="button"
           onClick={onClose}
-          className="ml-auto grid h-7 w-7 place-items-center rounded text-gray-400 transition hover:bg-gray-800 hover:text-gray-100"
+          className="ml-auto grid h-7 w-7 place-items-center rounded text-fg-muted transition hover:bg-surface-2 hover:text-fg"
           title="Fechar"
           aria-label="Fechar calculadora"
         >
@@ -252,7 +252,7 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto p-3">
-        <label className="block text-xs font-medium text-gray-400" htmlFor="scientific-calculator-expression">
+        <label className="block text-xs font-medium text-fg-muted" htmlFor="scientific-calculator-expression">
           Expressão
         </label>
         <input
@@ -262,13 +262,13 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
             setExpression(event.target.value);
             setError(null);
           }}
-          className="h-10 w-full rounded border border-gray-700 bg-gray-950 px-3 font-mono text-sm text-gray-100 outline-none transition placeholder:text-gray-600 focus:border-cyan-500"
+          className="h-10 w-full rounded border border-border bg-page px-3 font-mono text-sm text-fg outline-none transition placeholder:text-fg-faint focus:border-cyan-500"
           placeholder="sin(30)+sqrt(16)"
           inputMode="decimal"
         />
 
-        <div className="rounded border border-gray-700/70 bg-gray-950/70 p-3" aria-live="polite" aria-atomic="true">
-          <div className="text-[11px] uppercase tracking-wide text-gray-500">Resultado</div>
+        <div className="rounded border border-border/70 bg-page/70 p-3" aria-live="polite" aria-atomic="true">
+          <div className="text-[11px] uppercase tracking-wide text-fg-faint">Resultado</div>
           <div className="mt-1 min-h-9 break-words font-mono text-3xl font-semibold text-cyan-300">
             {result || "0"}
           </div>
@@ -294,18 +294,18 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
           ))}
         </div>
 
-        <section className="border-t border-gray-700/70 pt-3">
+        <section className="border-t border-border/70 pt-3">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Histórico</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Histórico</h3>
             {historyLoading && (
-              <span className="text-[11px] text-gray-500" aria-live="polite" aria-atomic="true">
+              <span className="text-[11px] text-fg-faint" aria-live="polite" aria-atomic="true">
                 Carregando…
               </span>
             )}
           </div>
 
           {!historyLoading && history.length === 0 && (
-            <p className="py-3 text-xs text-gray-500">Nenhum cálculo nesta questão.</p>
+            <p className="py-3 text-xs text-fg-faint">Nenhum cálculo nesta questão.</p>
           )}
 
           <div className="space-y-1.5">
@@ -322,11 +322,11 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
                     setError(null);
                     setHistoryError(null);
                   }}
-                  className="w-full rounded border border-gray-800 bg-gray-950/40 px-2.5 py-2 text-left transition hover:border-cyan-900 hover:bg-cyan-950/20"
+                  className="w-full rounded border border-border bg-page/40 px-2.5 py-2 text-left transition hover:border-cyan-900 hover:bg-cyan-950/20"
                 >
                   <span className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-gray-300">{item.expression}</span>
-                    {time && <span className="shrink-0 text-[11px] text-gray-600">{time}</span>}
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg">{item.expression}</span>
+                    {time && <span className="shrink-0 text-[11px] text-fg-faint">{time}</span>}
                   </span>
                   <span className="mt-1 block truncate font-mono text-sm font-semibold text-cyan-300">
                     = {item.result}

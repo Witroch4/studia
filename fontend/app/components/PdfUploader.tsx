@@ -39,7 +39,7 @@ export default function PdfUploader({ onUpload, uploading = false }: PdfUploader
 
   return (
     <div className="bg-surface-dark border border-border-dark rounded-xl p-6 space-y-5">
-      <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+      <h3 className="text-sm font-semibold text-fg-strong flex items-center gap-2">
         <span className="material-symbols-outlined text-primary">upload_file</span>
         Upload de Aula (PDF)
       </h3>
@@ -55,7 +55,7 @@ export default function PdfUploader({ onUpload, uploading = false }: PdfUploader
             ? "border-primary bg-primary/5"
             : file
             ? "border-accent-success/50 bg-accent-success/5"
-            : "border-gray-700 hover:border-primary/50"
+            : "border-border hover:border-primary/50"
         }`}
       >
         <input
@@ -68,8 +68,8 @@ export default function PdfUploader({ onUpload, uploading = false }: PdfUploader
         {file ? (
           <div className="flex flex-col items-center gap-2">
             <span className="material-symbols-outlined text-4xl text-accent-success">picture_as_pdf</span>
-            <p className="text-sm font-medium text-white">{file.name}</p>
-            <p className="text-xs text-gray-500">{fileSizeMB} MB</p>
+            <p className="text-sm font-medium text-fg-strong">{file.name}</p>
+            <p className="text-xs text-fg-faint">{fileSizeMB} MB</p>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setFile(null); }}
@@ -80,9 +80,9 @@ export default function PdfUploader({ onUpload, uploading = false }: PdfUploader
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
-            <span className="material-symbols-outlined text-4xl text-gray-600">cloud_upload</span>
-            <p className="text-sm text-gray-400">Arraste um PDF aqui ou clique para selecionar</p>
-            <p className="text-xs text-gray-600">Máximo 50MB</p>
+            <span className="material-symbols-outlined text-4xl text-fg-faint">cloud_upload</span>
+            <p className="text-sm text-fg-muted">Arraste um PDF aqui ou clique para selecionar</p>
+            <p className="text-xs text-fg-faint">Máximo 50MB</p>
           </div>
         )}
       </div>

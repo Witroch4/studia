@@ -32,7 +32,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center px-4 bg-bg-dark relative overflow-hidden">
+    <div className="min-h-screen w-full flex items-center justify-center px-4 bg-page relative overflow-hidden">
       {/* glows de fundo */}
       <div className="pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-secondary/10 blur-3xl" />
@@ -43,17 +43,17 @@ function LoginForm() {
           <Logo size={40} wordClassName="text-3xl" />
         </Link>
 
-        <div className="rounded-2xl border border-border-dark bg-surface-dark p-7 shadow-xl">
-          <h1 className="text-xl font-bold text-white">Entrar</h1>
-          <p className="mt-1 text-sm text-gray-500">Acesse sua plataforma de estudos</p>
+        <div className="rounded-2xl border border-border bg-surface p-7 shadow-xl">
+          <h1 className="text-xl font-bold text-fg-strong">Entrar</h1>
+          <p className="mt-1 text-sm text-fg-faint">Acesse sua plataforma de estudos</p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
-              <label className="block text-[0.7rem] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+              <label className="block text-[0.7rem] font-semibold uppercase tracking-wide text-fg-faint mb-1.5">
                 E-mail
               </label>
               <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 text-[20px] pointer-events-none">mail</span>
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-fg-faint text-[20px] pointer-events-none">mail</span>
                 <input
                   type="email"
                   required
@@ -61,29 +61,29 @@ function LoginForm() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="voce@email.com"
-                  className="w-full rounded-lg border border-border-dark bg-bg-dark py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-gray-600 outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                  className="w-full rounded-lg border border-border bg-page py-2.5 pl-10 pr-3 text-sm text-fg-strong placeholder:text-fg-faint outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[0.7rem] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+              <label className="block text-[0.7rem] font-semibold uppercase tracking-wide text-fg-faint mb-1.5">
                 Senha
               </label>
               <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 text-[20px] pointer-events-none">lock</span>
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-fg-faint text-[20px] pointer-events-none">lock</span>
                 <input
                   type={showPw ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••"
-                  className="w-full rounded-lg border border-border-dark bg-bg-dark py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-gray-600 outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+                  className="w-full rounded-lg border border-border bg-page py-2.5 pl-10 pr-10 text-sm text-fg-strong placeholder:text-fg-faint outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-600 hover:text-gray-400"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-fg-faint hover:text-fg-muted"
                   tabIndex={-1}
                 >
                   <span className="material-symbols-outlined text-[20px]">{showPw ? "visibility_off" : "visibility"}</span>
@@ -109,7 +109,7 @@ function LoginForm() {
           </form>
         </div>
 
-        <p className="mt-6 text-center text-xs text-gray-500">
+        <p className="mt-6 text-center text-xs text-fg-faint">
           Não tem conta?{" "}
           <Link href="/cadastro" className="text-primary hover:underline font-medium">
             Criar conta grátis

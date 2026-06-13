@@ -89,8 +89,8 @@ export default function DisciplinaPage({ params }: { params: Promise<{ slug: str
     return (
       <main className="w-full px-4 md:px-8 py-8">
         <div className="animate-pulse space-y-6">
-          <div className="h-8 w-64 bg-gray-700 rounded" />
-          <div className="h-4 w-48 bg-gray-800 rounded" />
+          <div className="h-8 w-64 bg-surface-2 rounded" />
+          <div className="h-4 w-48 bg-surface rounded" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="bg-surface-dark rounded-xl border border-border-dark p-6 h-32" />
@@ -104,7 +104,7 @@ export default function DisciplinaPage({ params }: { params: Promise<{ slug: str
   if (!data) {
     return (
       <main className="w-full px-4 md:px-8 py-8">
-        <p className="text-gray-400">Disciplina não encontrada.</p>
+        <p className="text-fg-muted">Disciplina não encontrada.</p>
       </main>
     );
   }
@@ -113,10 +113,10 @@ export default function DisciplinaPage({ params }: { params: Promise<{ slug: str
     <>
       <header className="hidden md:flex sticky top-0 z-30 bg-bg-dark/80 backdrop-blur-md border-b border-border-dark px-8 py-4 justify-between items-center">
         <div className="flex items-center gap-3">
-          <Link href="/disciplinas" className="text-gray-400 hover:text-white transition-colors">
+          <Link href="/disciplinas" className="text-fg-muted hover:text-fg-strong transition-colors">
             <span className="material-symbols-outlined">arrow_back</span>
           </Link>
-          <h1 className="text-2xl font-bold text-white">{data.nome}</h1>
+          <h1 className="text-2xl font-bold text-fg-strong">{data.nome}</h1>
         </div>
       </header>
 
@@ -124,9 +124,9 @@ export default function DisciplinaPage({ params }: { params: Promise<{ slug: str
         {/* Info */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-white mb-1">{data.nome}</h2>
-            {data.descricao && <p className="text-sm text-gray-400">{data.descricao}</p>}
-            <p className="text-xs text-gray-500 mt-2">
+            <h2 className="text-3xl font-bold text-fg-strong mb-1">{data.nome}</h2>
+            {data.descricao && <p className="text-sm text-fg-muted">{data.descricao}</p>}
+            <p className="text-xs text-fg-faint mt-2">
               {data.aulas.length} {data.aulas.length === 1 ? "aula" : "aulas"} cadastradas
             </p>
           </div>
@@ -149,10 +149,10 @@ export default function DisciplinaPage({ params }: { params: Promise<{ slug: str
         {/* Lista de aulas */}
         <div className="space-y-4 pb-8">
           {data.aulas.length === 0 && !showUpload && (
-            <div className="bg-surface-dark border border-dashed border-gray-700 rounded-xl p-12 text-center">
-              <span className="material-symbols-outlined text-5xl text-gray-600 mb-4 block">description</span>
-              <h3 className="text-lg font-bold text-white mb-2">Nenhuma aula ainda</h3>
-              <p className="text-sm text-gray-400 mb-6">Faça upload de um PDF para criar sua primeira aula.</p>
+            <div className="bg-surface-dark border border-dashed border-border rounded-xl p-12 text-center">
+              <span className="material-symbols-outlined text-5xl text-fg-faint mb-4 block">description</span>
+              <h3 className="text-lg font-bold text-fg-strong mb-2">Nenhuma aula ainda</h3>
+              <p className="text-sm text-fg-muted mb-6">Faça upload de um PDF para criar sua primeira aula.</p>
               <button
                 onClick={() => setShowUpload(true)}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-cyan-600 text-white rounded-lg font-medium transition-all"
@@ -182,7 +182,7 @@ export default function DisciplinaPage({ params }: { params: Promise<{ slug: str
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-base font-semibold text-white truncate">{aula.titulo}</h4>
+                    <h4 className="text-base font-semibold text-fg-strong truncate">{aula.titulo}</h4>
                     <div className="flex items-center gap-3 mt-1">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${st.bg} ${st.text}`}>
                         <span className={`material-symbols-outlined text-[14px] ${isProcessing ? "animate-spin" : ""}`}>
@@ -191,7 +191,7 @@ export default function DisciplinaPage({ params }: { params: Promise<{ slug: str
                         {st.label}
                       </span>
                       {aula.modelo_usado && (
-                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                        <span className="text-xs text-fg-faint flex items-center gap-1">
                           <span className="material-symbols-outlined text-[12px]">smart_toy</span>
                           {aula.modelo_usado}
                         </span>
@@ -213,12 +213,12 @@ export default function DisciplinaPage({ params }: { params: Promise<{ slug: str
                         Estudar
                       </Link>
                     ) : isProcessing ? (
-                      <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-primary rounded-lg text-sm font-medium">
+                      <div className="flex items-center gap-2 px-4 py-2 bg-surface-2 text-primary rounded-lg text-sm font-medium">
                         <div className="h-3 w-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                         Processando...
                       </div>
                     ) : (
-                      <span className="text-xs text-gray-500">Aguardando</span>
+                      <span className="text-xs text-fg-faint">Aguardando</span>
                     )}
                   </div>
                 </div>

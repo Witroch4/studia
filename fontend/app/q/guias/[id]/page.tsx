@@ -57,7 +57,7 @@ function statusChip(status: string): string {
     case "blocked":
       return "bg-red-900/40 text-red-300 border-red-700";
     default:
-      return "bg-gray-800 text-gray-400 border-gray-700";
+      return "bg-surface-2 text-fg-muted border-border";
   }
 }
 
@@ -168,7 +168,7 @@ export default function GuiaDetalhePage() {
   }
 
   if (carregando && !guia) {
-    return <div className="p-8 text-gray-400">Carregando guia…</div>;
+    return <div className="p-8 text-fg-muted">Carregando guia…</div>;
   }
   if (erro && !guia) {
     return <div className="p-8 text-red-400">Erro: {erro}</div>;
@@ -180,12 +180,12 @@ export default function GuiaDetalhePage() {
   return (
     <div className="min-h-screen bg-bg-dark text-text-dark">
       <header className="border-b border-border-dark px-6 py-5">
-        <Link href="/q/guias" className="text-xs text-gray-500 hover:text-primary">
+        <Link href="/q/guias" className="text-xs text-fg-faint hover:text-primary">
           ← Guias de Estudos
         </Link>
         <h1 className="text-2xl font-semibold mt-2">{guia.nome}</h1>
-        <div className="text-sm text-gray-500 mt-1 flex flex-wrap gap-x-4 gap-y-1">
-          {guia.banca && <span>Banca: <strong className="text-gray-300">{guia.banca}</strong></span>}
+        <div className="text-sm text-fg-faint mt-1 flex flex-wrap gap-x-4 gap-y-1">
+          {guia.banca && <span>Banca: <strong className="text-fg">{guia.banca}</strong></span>}
           <span>{guia.cadernos.length} cadernos</span>
           <span>
             {isAdmin ? (
@@ -214,10 +214,10 @@ export default function GuiaDetalhePage() {
         {/* Barra de progresso global + ações */}
         <section className="rounded-xl border border-border-dark bg-surface-dark p-5">
           <div className="flex items-center justify-between text-sm mb-2">
-            <span className="text-gray-300 font-medium">Progresso geral</span>
-            <span className="text-gray-400">{prontos}/{guia.cadernos.length} prontos para estudo</span>
+            <span className="text-fg font-medium">Progresso geral</span>
+            <span className="text-fg-muted">{prontos}/{guia.cadernos.length} prontos para estudo</span>
           </div>
-          <div className="h-3 rounded-full bg-gray-800 overflow-hidden">
+          <div className="h-3 rounded-full bg-surface-2 overflow-hidden">
             <div
               className="h-full bg-primary transition-all"
               style={{ width: `${guia.cadernos.length ? (prontos / guia.cadernos.length) * 100 : 0}%` }}
@@ -227,7 +227,7 @@ export default function GuiaDetalhePage() {
             <button
               onClick={() => void materializar()}
               disabled={acao !== null}
-              className="text-sm bg-primary hover:bg-primary-600 disabled:bg-gray-700 px-4 py-2 rounded font-semibold text-on-primary"
+              className="text-sm bg-primary hover:bg-primary-600 disabled:bg-surface-2 px-4 py-2 rounded font-semibold text-on-primary"
             >
               {acao === "materializar" ? "Salvando…" : "Salvar todos os cadernos"}
             </button>
@@ -235,14 +235,14 @@ export default function GuiaDetalhePage() {
               <button
                 onClick={() => void retomarColeta()}
                 disabled={acao !== null}
-                className="text-sm bg-gray-800 hover:bg-gray-700 disabled:opacity-60 px-4 py-2 rounded font-semibold"
+                className="text-sm bg-surface-2 hover:bg-fg-strong/6 disabled:opacity-60 px-4 py-2 rounded font-semibold"
               >
                 {acao === "coletar" ? "Reenfileirando…" : "Retomar coleta"}
               </button>
             )}
             <button
               onClick={() => void carregar()}
-              className="text-sm bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded"
+              className="text-sm bg-surface-2 hover:bg-fg-strong/6 px-4 py-2 rounded"
             >
               Atualizar
             </button>
@@ -252,7 +252,7 @@ export default function GuiaDetalhePage() {
 
         {/* Cadernos por matéria */}
         <section>
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          <h2 className="text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3">
             Cadernos por matéria
           </h2>
           <div className="space-y-2">
@@ -262,8 +262,8 @@ export default function GuiaDetalhePage() {
                 className="rounded-lg border border-border-dark bg-surface-dark p-4 flex flex-col md:flex-row md:items-center gap-3"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-100 truncate">{c.nome}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">
+                  <div className="font-medium text-fg-strong truncate">{c.nome}</div>
+                  <div className="text-xs text-fg-faint mt-0.5">
                     {isAdmin ? (
                       <>
                         {c.questoes_coletadas.toLocaleString("pt-BR")} /{" "}
@@ -276,7 +276,7 @@ export default function GuiaDetalhePage() {
                     {c.total_capitulos > 0 && ` · ${c.total_capitulos} capítulos`}
                   </div>
                   {isAdmin && (
-                    <div className="h-1.5 rounded-full bg-gray-800 overflow-hidden mt-2 max-w-md">
+                    <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden mt-2 max-w-md">
                       <div
                         className="h-full bg-primary transition-all"
                         style={{ width: `${Math.min(100, c.pct)}%` }}
@@ -311,7 +311,7 @@ export default function GuiaDetalhePage() {
                       Salvar
                     </button>
                   ) : (
-                    <span className="text-xs text-gray-600 w-18 text-center">coletando…</span>
+                    <span className="text-xs text-fg-faint w-18 text-center">coletando…</span>
                   )}
                 </div>
               </div>

@@ -240,8 +240,8 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     Escape: () => setCanvasActive(false),
   }, { enabled: !calculatorOpen });
 
-  if (!caderno) return <div className="p-8 text-gray-400">Carregando caderno…</div>;
-  if (!questao) return <div className="p-8 text-gray-400">Carregando questão {idx + 1} de {caderno.total}…</div>;
+  if (!caderno) return <div className="p-8 text-fg-muted">Carregando caderno…</div>;
+  if (!questao) return <div className="p-8 text-fg-muted">Carregando questão {idx + 1} de {caderno.total}…</div>;
 
   const taxa = stats.resolvidas > 0 ? Math.round((stats.acertos / stats.resolvidas) * 100) : 0;
 
@@ -266,32 +266,32 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
 
   return (
     <div
-      className={`min-h-screen ${modoLeitura ? "bg-amber-50 text-gray-900" : "bg-[#121212] text-gray-200"}`}
+      className={`min-h-screen ${modoLeitura ? "bg-amber-50 text-gray-900" : "bg-page text-fg"}`}
       style={{ fontSize }}
     >
       {/* ─── Top breadcrumb + timer ─── */}
-      <div className="border-b border-gray-700/60 px-6 py-2 flex items-center gap-3 text-xs sticky top-0 bg-[#0f0f0f] z-20">
-        <span className="text-gray-500">Estudo</span>
-        <span className="text-gray-600">›</span>
+      <div className="border-b border-border/60 px-6 py-2 flex items-center gap-3 text-xs sticky top-0 bg-page z-20">
+        <span className="text-fg-faint">Estudo</span>
+        <span className="text-fg-faint">›</span>
         <button
           onClick={() => router.push("/q/cadernos")}
-          className="text-gray-500 hover:text-cyan-400 hover:underline"
+          className="text-fg-faint hover:text-cyan-400 hover:underline"
         >
           Minhas pastas
         </button>
-        <span className="text-gray-600">›</span>
+        <span className="text-fg-faint">›</span>
         <button
           onClick={() => router.push(`/q/cadernos?pasta=${encodeURIComponent(caderno.pasta ?? "")}`)}
-          className="text-gray-500 hover:text-cyan-400 hover:underline truncate max-w-[24rem]"
+          className="text-fg-faint hover:text-cyan-400 hover:underline truncate max-w-[24rem]"
           title={caderno.pasta ?? "Sem classificação"}
         >
           {caderno.pasta ?? "Sem classificação"}
         </button>
-        <span className="text-gray-600">›</span>
-        <span className="text-gray-400 truncate max-w-[24rem]">{caderno.nome}</span>
+        <span className="text-fg-faint">›</span>
+        <span className="text-fg-muted truncate max-w-[24rem]">{caderno.nome}</span>
         <button
           onClick={() => router.push("/q/filtrar")}
-          className="ml-auto text-gray-400 hover:text-gray-200"
+          className="ml-auto text-fg-muted hover:text-fg"
           title="Voltar"
         >
           ✕
@@ -312,7 +312,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       </div>
 
       {/* ─── Tabs ─── */}
-      <nav className="border-b border-gray-700/60 px-6 flex items-center gap-1 text-sm sticky top-[36px] bg-[#0f0f0f] z-10">
+      <nav className="border-b border-border/60 px-6 flex items-center gap-1 text-sm sticky top-[36px] bg-page z-10">
         {([
           ["Questoes", "🔍 Questões"],
           ["Indice", "≡ Índice"],
@@ -327,7 +327,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
             className={`px-4 py-2.5 border-b-2 transition ${
               tab === key
                 ? "border-cyan-500 text-cyan-400"
-                : "border-transparent text-gray-400 hover:text-gray-200"
+                : "border-transparent text-fg-muted hover:text-fg"
             }`}
           >
             {label}
@@ -365,7 +365,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
         />
       )}
       {tab === "Imprimir" && (
-        <div className="max-w-4xl mx-auto px-6 py-8 text-sm text-gray-500 italic">
+        <div className="max-w-4xl mx-auto px-6 py-8 text-sm text-fg-faint italic">
           Aba &quot;Imprimir&quot; — gera PDF do caderno (em breve via /api/q/cadernos/{caderno.id}/pdf).
         </div>
       )}
@@ -373,7 +373,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       {tab === "Questoes" && (
       <main className="max-w-5xl mx-auto px-6 py-4">
         {/* ─── Card stats da questão ─── */}
-        <div ref={questionCardRef} className="relative mb-4 rounded-lg border border-gray-700/60 bg-[#1a1a1a]">
+        <div ref={questionCardRef} className="relative mb-4 rounded-lg border border-border/60 bg-surface">
           <QuestionCanvasOverlay
             active={canvasActive}
             canvas={annotations.canvas}
@@ -382,7 +382,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
             width={canvasWidth}
             onChange={annotations.updateCanvas}
           />
-          <header className="px-4 py-3 flex items-center gap-4 border-b border-gray-700/60">
+          <header className="px-4 py-3 flex items-center gap-4 border-b border-border/60">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-600 to-violet-600 flex items-center justify-center text-xl shrink-0">
               {questao.banca?.sigla?.slice(0, 2).toUpperCase() || "TC"}
             </div>
@@ -396,13 +396,13 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                 </span>
                 {fav && <span className="text-yellow-400">⭐</span>}
               </div>
-              <div className="text-xs text-gray-400 mt-0.5">
-                <span className="text-gray-500">Matéria:</span>{" "}
+              <div className="text-xs text-fg-muted mt-0.5">
+                <span className="text-fg-faint">Matéria:</span>{" "}
                 <a href={`/q/filtrar?materia=${encodeURIComponent(questao.materia?.nome || "")}`} className="text-cyan-400 hover:underline">
                   {questao.materia?.nome}
                 </a>
                 <br />
-                <span className="text-gray-500">Assunto:</span>{" "}
+                <span className="text-fg-faint">Assunto:</span>{" "}
                 {questao.assuntos.map((a, i) => (
                   <span key={a.id}>
                     {i > 0 && ", "}
@@ -411,12 +411,12 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                     </a>
                   </span>
                 ))}
-                {questao.assuntos.length === 0 && <span className="text-gray-600">Sem classificação</span>}
+                {questao.assuntos.length === 0 && <span className="text-fg-faint">Sem classificação</span>}
               </div>
             </div>
             {/* flex-1 (basis 0) impede a toolbar de reivindicar a largura
                 max-content e esmagar o título; ela quebra no próprio espaço. */}
-            <div className="flex flex-1 min-w-0 flex-wrap items-center justify-end gap-2 text-lg text-gray-500">
+            <div className="flex flex-1 min-w-0 flex-wrap items-center justify-end gap-2 text-lg text-fg-faint">
               <CanvasToolbar
                 active={canvasActive}
                 tool={canvasTool}
@@ -445,20 +445,20 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
           </header>
 
           {/* ─── Linha enxuta com código + banca ─── */}
-          <div className="px-4 py-2 bg-[#151515] border-b border-gray-700/60 text-xs flex items-center gap-2">
-            <span className="text-gray-500">🔗</span>
+          <div className="px-4 py-2 bg-surface-2 border-b border-border/60 text-xs flex items-center gap-2">
+            <span className="text-fg-faint">🔗</span>
             <span className="text-cyan-400 font-mono">#{questao.id_externo}</span>
-            <span className="font-semibold text-gray-300">{questao.banca?.sigla}</span>
-            <span className="text-gray-500">-</span>
-            <span className="text-gray-400">
+            <span className="font-semibold text-fg">{questao.banca?.sigla}</span>
+            <span className="text-fg-faint">-</span>
+            <span className="text-fg-muted">
               {questao.cargo?.ano} - {questao.cargo?.nome} / {questao.orgao?.sigla} / {questao.cargo?.ano}
             </span>
             {questao.status === "ANULADA" && (
               <span className="ml-2 px-2 py-0.5 bg-yellow-950 text-yellow-300 rounded text-[10px] font-semibold">ANULADA</span>
             )}
-            <button className="ml-auto text-gray-500 hover:text-gray-300" title="Reportar erro">↗</button>
-            <button className="text-gray-500 hover:text-gray-300" title="Anterior (←)" onClick={() => avancar(-1)}>←</button>
-            <button className="text-gray-500 hover:text-gray-300" title="Próxima (→)" onClick={() => avancar(1)}>→</button>
+            <button className="ml-auto text-fg-faint hover:text-fg" title="Reportar erro">↗</button>
+            <button className="text-fg-faint hover:text-fg" title="Anterior (←)" onClick={() => avancar(-1)}>←</button>
+            <button className="text-fg-faint hover:text-fg" title="Próxima (→)" onClick={() => avancar(1)}>→</button>
           </div>
 
           {/* ─── Enunciado + alternativas ─── */}
@@ -491,7 +491,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                         isCorreta ? "border-green-500 bg-green-950/40" :
                         isErrada ? "border-red-500 bg-red-950/40" :
                         selecionada === alt.letra ? "border-cyan-500 bg-cyan-950/40" :
-                        "border-gray-700 hover:bg-gray-800/40"
+                        "border-border hover:bg-surface-2/40"
                       }`}
                     >
                       <QuestionHtml as="span" className="flex-1" html={alt.texto_html || alt.texto_md || ""} />
@@ -505,7 +505,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               <button
                 onClick={resolverQuestao}
                 disabled={!selecionada}
-                className="bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:cursor-not-allowed px-6 py-2 rounded font-semibold uppercase tracking-wide text-sm"
+                className="bg-green-600 hover:bg-green-500 disabled:bg-surface-2 disabled:cursor-not-allowed px-6 py-2 rounded font-semibold uppercase tracking-wide text-sm"
               >
                 Resolver Questão
               </button>
@@ -521,7 +521,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
             )}
 
             {/* ─── Bottom nav (estilo TC) ─── */}
-            <nav className="mt-6 pt-4 border-t border-gray-700/60 flex items-center gap-1 flex-wrap">
+            <nav className="mt-6 pt-4 border-t border-border/60 flex items-center gap-1 flex-wrap">
               <NavBtn icon="←" title="Anterior (←)" onClick={() => avancar(-1)} disabled={idx === 0} />
               <NavBtn icon="→" title="Próxima (→)" onClick={() => avancar(1)} disabled={idx === caderno.total - 1} />
               <NavBtn icon="🔀" title="Aleatória (L)" onClick={aleatoria} />
@@ -532,10 +532,10 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               <NavBtn icon="★" title="Próxima favorita (V)" onClick={() => avancar(1)} />
               <NavBtn icon="✎" title="Próxima anotada (U)" onClick={() => avancar(1)} />
 
-              <span className="ml-auto text-xs text-gray-500">{idx + 1} / {caderno.total}</span>
+              <span className="ml-auto text-xs text-fg-faint">{idx + 1} / {caderno.total}</span>
             </nav>
 
-            <div className="mt-3 text-xs text-gray-500 flex items-center gap-1">
+            <div className="mt-3 text-xs text-fg-faint flex items-center gap-1">
               <span className="text-red-500">⊘</span>
               <span>Encontrou algum erro nesta questão?</span>
               <button className="text-cyan-400 hover:underline">Fale conosco</button>
@@ -558,7 +558,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       {/* ─── Modal atalhos ─── */}
       {showAtalhos && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowAtalhos(false)}>
-          <div className="bg-[#1e1e1e] border border-gray-700 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-surface border border-border rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-semibold mb-4">Atalhos de teclado</h2>
             {(["nav", "acao", "ui"] as const).map((grupo) => (
               <div key={grupo} className="mb-4">
@@ -572,14 +572,14 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                       .map(([k, v]) => (
                         <tr key={k}>
                           <td className="py-1 pr-4 font-mono text-cyan-300">{k}</td>
-                          <td className="py-1 text-gray-300">{v.label}</td>
+                          <td className="py-1 text-fg">{v.label}</td>
                         </tr>
                       ))}
                   </tbody>
                 </table>
               </div>
             ))}
-            <button onClick={() => setShowAtalhos(false)} className="mt-4 text-xs text-gray-400 hover:text-gray-200">
+            <button onClick={() => setShowAtalhos(false)} className="mt-4 text-xs text-fg-muted hover:text-fg">
               Fechar (Esc)
             </button>
           </div>
@@ -601,10 +601,10 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               setGotoValue("");
             }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-surface-dark border border-gray-700 rounded-lg p-6 w-full max-w-sm shadow-xl"
+            className="bg-surface-dark border border-border rounded-lg p-6 w-full max-w-sm shadow-xl"
           >
             <h2 className="text-lg font-semibold mb-1">Ir para questão</h2>
-            <p className="text-sm text-gray-400 mb-4">Digite um número entre 1 e {caderno.total}.</p>
+            <p className="text-sm text-fg-muted mb-4">Digite um número entre 1 e {caderno.total}.</p>
             <input
               autoFocus
               type="number"
@@ -614,13 +614,13 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               onChange={(e) => setGotoValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Escape") { setGotoOpen(false); setGotoValue(""); } }}
               placeholder={`1 – ${caderno.total}`}
-              className="w-full bg-bg-dark border border-gray-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 mb-5"
+              className="w-full bg-bg-dark border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 mb-5"
             />
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => { setGotoOpen(false); setGotoValue(""); }}
-                className="px-4 py-2 text-sm rounded-md border border-gray-700 text-gray-300 hover:bg-gray-800 transition"
+                className="px-4 py-2 text-sm rounded-md border border-border text-fg hover:bg-surface-2 transition"
               >
                 Cancelar
               </button>
@@ -637,7 +637,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
         <button
           onClick={() => router.push("/assinar")}
           title="Limite diário do plano grátis — clique para assinar"
-          className="fixed bottom-4 right-4 z-40 flex items-center gap-1.5 rounded-full border border-border-dark bg-surface-dark/95 px-3 py-1.5 text-xs font-medium text-gray-300 shadow-lg backdrop-blur hover:border-secondary/50 hover:text-white transition"
+          className="fixed bottom-4 right-4 z-40 flex items-center gap-1.5 rounded-full border border-border-dark bg-surface-dark/95 px-3 py-1.5 text-xs font-medium text-fg shadow-lg backdrop-blur hover:border-secondary/50 hover:text-white transition"
         >
           <span className="material-symbols-outlined text-[16px] text-secondary">bolt</span>
           {limite.usado}/{limite.limite} hoje
@@ -649,15 +649,15 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setPaywall(null)}>
           <div className="w-full max-w-sm rounded-2xl border border-secondary/30 bg-surface-dark p-7 text-center shadow-xl" onClick={(e) => e.stopPropagation()}>
             <span className="material-symbols-outlined text-secondary text-5xl">workspace_premium</span>
-            <h2 className="mt-3 text-lg font-bold text-white">Limite diário atingido</h2>
-            <p className="mt-2 text-sm text-gray-400">{paywall}</p>
+            <h2 className="mt-3 text-lg font-bold text-fg-strong">Limite diário atingido</h2>
+            <p className="mt-2 text-sm text-fg-muted">{paywall}</p>
             <button
               onClick={() => router.push("/assinar")}
               className="mt-6 w-full rounded-lg bg-secondary py-2.5 text-sm font-semibold text-white hover:opacity-90 transition"
             >
               Assinar studIA Pro
             </button>
-            <button onClick={() => setPaywall(null)} className="mt-2 w-full rounded-lg py-2 text-xs text-gray-500 hover:text-gray-300">
+            <button onClick={() => setPaywall(null)} className="mt-2 w-full rounded-lg py-2 text-xs text-fg-faint hover:text-fg">
               Continuar amanhã
             </button>
           </div>
@@ -683,7 +683,7 @@ function NavBtn({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="w-10 h-10 border border-gray-700 hover:bg-gray-800 disabled:opacity-30 rounded flex items-center justify-center text-base"
+      className="w-10 h-10 border border-border hover:bg-surface-2 disabled:opacity-30 rounded flex items-center justify-center text-base"
     >
       {icon}
     </button>
@@ -719,7 +719,7 @@ function EstatisticasTab({ cadernoId }: { cadernoId: number }) {
       .catch(console.error);
   }, [cadernoId]);
 
-  if (!data) return <div className="p-8 text-gray-400">Carregando estatísticas…</div>;
+  if (!data) return <div className="p-8 text-fg-muted">Carregando estatísticas…</div>;
 
   const progresso = data.questoes_total > 0 ? Math.round((data.resolvidas / data.questoes_total) * 100) : 0;
 
@@ -735,12 +735,12 @@ function EstatisticasTab({ cadernoId }: { cadernoId: number }) {
       </section>
 
       {/* ─── Barra de progresso do caderno ─── */}
-      <section className="border border-gray-700/60 rounded-lg bg-[#1a1a1a] p-4">
+      <section className="border border-border/60 rounded-lg bg-surface p-4">
         <div className="flex items-center justify-between mb-2 text-sm">
-          <span className="text-gray-400">Progresso no caderno</span>
+          <span className="text-fg-muted">Progresso no caderno</span>
           <span className="text-cyan-400 font-semibold">{progresso}%</span>
         </div>
-        <div className="h-3 bg-gray-800 rounded overflow-hidden">
+        <div className="h-3 bg-surface-2 rounded overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-cyan-500 to-violet-500 transition-all"
             style={{ width: `${progresso}%` }}
@@ -765,10 +765,10 @@ function EstatisticasTab({ cadernoId }: { cadernoId: number }) {
 
       {/* ─── Últimas resoluções ─── */}
       {data.ultimas_resolucoes.length > 0 && (
-        <section className="border border-gray-700/60 rounded-lg bg-[#1a1a1a] p-4">
-          <h3 className="text-sm font-semibold mb-3 text-gray-300">Últimas 20 resoluções</h3>
+        <section className="border border-border/60 rounded-lg bg-surface p-4">
+          <h3 className="text-sm font-semibold mb-3 text-fg">Últimas 20 resoluções</h3>
           <table className="w-full text-xs">
-            <thead className="text-gray-500 border-b border-gray-700/60">
+            <thead className="text-fg-faint border-b border-border/60">
               <tr>
                 <th className="text-left py-1.5 px-2">Questão</th>
                 <th className="text-left py-1.5 px-2">Resposta</th>
@@ -779,16 +779,16 @@ function EstatisticasTab({ cadernoId }: { cadernoId: number }) {
             </thead>
             <tbody>
               {data.ultimas_resolucoes.map((r, i) => (
-                <tr key={i} className="border-b border-gray-800/60">
+                <tr key={i} className="border-b border-border/60">
                   <td className="py-1.5 px-2 font-mono text-cyan-400">Q{r.id_externo}</td>
                   <td className="py-1.5 px-2 font-mono">{r.resposta}</td>
                   <td className={`py-1.5 px-2 ${r.acertou ? "text-green-400" : "text-red-400"}`}>
                     {r.acertou ? "✓ Acerto" : "✗ Erro"}
                   </td>
-                  <td className="py-1.5 px-2 text-right text-gray-400">
+                  <td className="py-1.5 px-2 text-right text-fg-muted">
                     {r.tempo_segundos ? `${r.tempo_segundos}s` : "—"}
                   </td>
-                  <td className="py-1.5 px-2 text-right text-gray-500">
+                  <td className="py-1.5 px-2 text-right text-fg-faint">
                     {new Date(r.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
                   </td>
                 </tr>
@@ -799,7 +799,7 @@ function EstatisticasTab({ cadernoId }: { cadernoId: number }) {
       )}
 
       {data.resolvidas === 0 && (
-        <div className="text-center py-12 text-gray-500 text-sm">
+        <div className="text-center py-12 text-fg-faint text-sm">
           Resolva algumas questões para ver suas estatísticas aqui.
         </div>
       )}
@@ -820,10 +820,10 @@ function Card({ label, value, sub, color, mono }: {
     amber: "text-amber-400",
   };
   return (
-    <div className="border border-gray-700/60 rounded-lg bg-[#1a1a1a] p-4">
+    <div className="border border-border/60 rounded-lg bg-surface p-4">
       <div className={`text-2xl font-bold ${colors[color]} ${mono ? "font-mono" : ""}`}>{value}</div>
-      <div className="text-xs text-gray-400 mt-1">{label}</div>
-      {sub && <div className="text-xs text-gray-500">{sub}</div>}
+      <div className="text-xs text-fg-muted mt-1">{label}</div>
+      {sub && <div className="text-xs text-fg-faint">{sub}</div>}
     </div>
   );
 }
@@ -834,21 +834,21 @@ function BarBlock({ titulo, items }: {
 }) {
   const max = Math.max(...items.map((i) => i.resolvidas), 1);
   return (
-    <section className="border border-gray-700/60 rounded-lg bg-[#1a1a1a] p-4">
-      <h3 className="text-sm font-semibold mb-3 text-gray-300">{titulo}</h3>
+    <section className="border border-border/60 rounded-lg bg-surface p-4">
+      <h3 className="text-sm font-semibold mb-3 text-fg">{titulo}</h3>
       <div className="space-y-2">
         {items.map((it) => (
           <div key={it.nome} className="text-xs">
             <div className="flex items-center justify-between mb-0.5">
-              <span className="text-gray-300 truncate flex-1 mr-2">{it.nome}</span>
-              <span className="text-gray-500 whitespace-nowrap">
+              <span className="text-fg truncate flex-1 mr-2">{it.nome}</span>
+              <span className="text-fg-faint whitespace-nowrap">
                 {it.acertos}/{it.resolvidas}
                 <span className={`ml-2 font-semibold ${it.taxa >= 70 ? "text-green-400" : it.taxa >= 50 ? "text-amber-400" : "text-red-400"}`}>
                   {it.taxa}%
                 </span>
               </span>
             </div>
-            <div className="h-1.5 bg-gray-800 rounded overflow-hidden flex">
+            <div className="h-1.5 bg-surface-2 rounded overflow-hidden flex">
               <div className="h-full bg-green-500" style={{ width: `${(it.acertos / max) * 100}%` }} />
               <div className="h-full bg-red-500" style={{ width: `${((it.resolvidas - it.acertos) / max) * 100}%` }} />
             </div>
@@ -902,35 +902,35 @@ function IndiceTab({ cadernoId, onAbrir, idxAtual }: {
           value={filtro}
           onChange={(e) => setFiltro(e.target.value)}
           placeholder="Filtrar por matéria, banca, ID ou texto…"
-          className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm focus:outline-none focus:border-cyan-500"
+          className="flex-1 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-cyan-500"
         />
-        <span className="text-xs text-gray-500">{filtrados.length} / {items.length}</span>
+        <span className="text-xs text-fg-faint">{filtrados.length} / {items.length}</span>
       </div>
 
-      <div className="border border-gray-700/60 rounded-lg overflow-hidden">
+      <div className="border border-border/60 rounded-lg overflow-hidden">
         <div className="max-h-[70vh] overflow-y-auto">
           {filtrados.map((it) => (
             <button
               key={it.questao_id}
               onClick={() => onAbrir(it.n)}
-              className={`w-full text-left px-4 py-2.5 border-b border-gray-800/60 hover:bg-gray-800/40 flex items-start gap-3 ${
+              className={`w-full text-left px-4 py-2.5 border-b border-border/60 hover:bg-surface-2/40 flex items-start gap-3 ${
                 it.n === idxAtual + 1 ? "bg-cyan-950/30 border-l-2 border-l-cyan-500" : ""
               }`}
             >
-              <span className="font-mono text-xs text-gray-500 w-12 shrink-0 pt-0.5">#{it.n}</span>
+              <span className="font-mono text-xs text-fg-faint w-12 shrink-0 pt-0.5">#{it.n}</span>
               <div className="flex-1 min-w-0">
-                <div className="text-xs text-gray-400 flex gap-2 mb-0.5">
+                <div className="text-xs text-fg-muted flex gap-2 mb-0.5">
                   <span className="text-cyan-400 font-mono">Q{it.id_externo}</span>
-                  <span className="text-gray-600">·</span>
+                  <span className="text-fg-faint">·</span>
                   <span>{it.banca}</span>
-                  <span className="text-gray-600">·</span>
+                  <span className="text-fg-faint">·</span>
                   <span className="truncate">{it.materia}</span>
                 </div>
-                <div className="text-xs text-gray-500 truncate">{it.preview}…</div>
+                <div className="text-xs text-fg-faint truncate">{it.preview}…</div>
               </div>
-              <span className="font-mono text-xs text-gray-500 shrink-0 pt-0.5">
+              <span className="font-mono text-xs text-fg-faint shrink-0 pt-0.5">
                 {it.gabarito && (
-                  <span className="bg-gray-800 px-1.5 py-0.5 rounded">
+                  <span className="bg-surface-2 px-1.5 py-0.5 rounded">
                     {it.gabarito.length > 4 ? "—" : it.gabarito}
                   </span>
                 )}
@@ -963,7 +963,7 @@ function GabaritoTab({ cadernoId }: { cadernoId: number }) {
   }, [cadernoId]);
 
   function corDe(g: string | null) {
-    if (!g) return "text-gray-500";
+    if (!g) return "text-fg-faint";
     if (g.includes("ANULADA")) return "text-yellow-400 bg-yellow-950";
     if (g === "CERTO") return "text-green-400 bg-green-950";
     if (g === "ERRADO") return "text-red-400 bg-red-950";
@@ -980,17 +980,17 @@ function GabaritoTab({ cadernoId }: { cadernoId: number }) {
 
   return (
     <main className="max-w-5xl mx-auto px-6 py-6">
-      <h3 className="text-sm font-semibold mb-3 text-gray-300">
+      <h3 className="text-sm font-semibold mb-3 text-fg">
         Gabarito do caderno ({items.length} questões)
       </h3>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-1.5">
         {items.map((it) => (
           <div
             key={it.n}
-            className={`border border-gray-700/60 rounded p-1.5 text-center text-xs ${corDe(it.gabarito)}`}
+            className={`border border-border/60 rounded p-1.5 text-center text-xs ${corDe(it.gabarito)}`}
             title={`Q${it.id_externo} — ${it.gabarito || "?"}`}
           >
-            <div className="text-[10px] text-gray-500 font-mono mb-0.5">{it.n})</div>
+            <div className="text-[10px] text-fg-faint font-mono mb-0.5">{it.n})</div>
             <div className="font-bold font-mono">{abrev(it.gabarito)}</div>
           </div>
         ))}
@@ -1011,42 +1011,42 @@ function ConfigTab({
 }) {
   return (
     <main className="max-w-3xl mx-auto px-6 py-6 space-y-5">
-      <div className="border border-gray-700/60 rounded-lg bg-[#1a1a1a] p-4">
-        <h3 className="text-sm font-semibold text-gray-300 mb-3">Cronômetro</h3>
+      <div className="border border-border/60 rounded-lg bg-surface p-4">
+        <h3 className="text-sm font-semibold text-fg mb-3">Cronômetro</h3>
         <div className="flex items-center gap-3">
           <div className="text-2xl font-mono text-cyan-400">{formatTempo(tempo)}</div>
           <button
             onClick={() => setPausado(!pausado)}
-            className="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded text-sm"
+            className="bg-surface-2 hover:bg-surface-2/80 px-4 py-2 rounded text-sm"
           >
-            {pausado ? "▶ Retomar" : "⏸ Pausar"} <span className="text-xs text-gray-500">(.)</span>
+            {pausado ? "▶ Retomar" : "⏸ Pausar"} <span className="text-xs text-fg-faint">(.)</span>
           </button>
         </div>
       </div>
 
-      <div className="border border-gray-700/60 rounded-lg bg-[#1a1a1a] p-4">
-        <h3 className="text-sm font-semibold text-gray-300 mb-3">Tamanho da fonte</h3>
+      <div className="border border-border/60 rounded-lg bg-surface p-4">
+        <h3 className="text-sm font-semibold text-fg mb-3">Tamanho da fonte</h3>
         <div className="flex items-center gap-3">
-          <button onClick={() => setFontSize(Math.max(12, fontSize - 2))} className="w-10 h-10 border border-gray-700 rounded hover:bg-gray-800">−</button>
+          <button onClick={() => setFontSize(Math.max(12, fontSize - 2))} className="w-10 h-10 border border-border rounded hover:bg-surface-2">−</button>
           <div className="font-mono text-cyan-400 w-14 text-center">{fontSize}px</div>
-          <button onClick={() => setFontSize(Math.min(28, fontSize + 2))} className="w-10 h-10 border border-gray-700 rounded hover:bg-gray-800">+</button>
-          <button onClick={() => setFontSize(16)} className="ml-3 text-xs text-gray-400 hover:text-gray-200 underline">Padrão (0)</button>
+          <button onClick={() => setFontSize(Math.min(28, fontSize + 2))} className="w-10 h-10 border border-border rounded hover:bg-surface-2">+</button>
+          <button onClick={() => setFontSize(16)} className="ml-3 text-xs text-fg-muted hover:text-fg underline">Padrão (0)</button>
         </div>
       </div>
 
-      <div className="border border-gray-700/60 rounded-lg bg-[#1a1a1a] p-4">
-        <h3 className="text-sm font-semibold text-gray-300 mb-3">Modo leitura</h3>
+      <div className="border border-border/60 rounded-lg bg-surface p-4">
+        <h3 className="text-sm font-semibold text-fg mb-3">Modo leitura</h3>
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={modoLeitura} onChange={(e) => setModoLeitura(e.target.checked)} />
           <span className="text-sm">Fundo claro (amber-50) para leitura prolongada</span>
-          <span className="text-xs text-gray-500 ml-auto">Atalho (K)</span>
+          <span className="text-xs text-fg-faint ml-auto">Atalho (K)</span>
         </label>
       </div>
 
-      <div className="border border-gray-700/60 rounded-lg bg-[#1a1a1a] p-4 text-xs text-gray-400 space-y-1">
-        <div><strong className="text-gray-300">Modo de resolução:</strong> Sequencial (próximo idx)</div>
-        <div><strong className="text-gray-300">Ordem das questões:</strong> Aleatória fixa (definida na criação)</div>
-        <div><strong className="text-gray-300">Mostrar gabarito após responder:</strong> Sim</div>
+      <div className="border border-border/60 rounded-lg bg-surface p-4 text-xs text-fg-muted space-y-1">
+        <div><strong className="text-fg">Modo de resolução:</strong> Sequencial (próximo idx)</div>
+        <div><strong className="text-fg">Ordem das questões:</strong> Aleatória fixa (definida na criação)</div>
+        <div><strong className="text-fg">Mostrar gabarito após responder:</strong> Sim</div>
       </div>
     </main>
   );

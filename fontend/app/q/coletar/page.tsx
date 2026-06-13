@@ -292,12 +292,12 @@ export default function ColetarPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#121212] text-gray-200">
-      <header className="border-b border-gray-700 px-6 py-4">
+    <div className="min-h-screen bg-page text-fg">
+      <header className="border-b border-border px-6 py-4">
         <h1 className="text-xl font-semibold flex items-center gap-2">
           <span>📥</span> Coletar do TecConcursos
         </h1>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-fg-faint mt-1">
           Importe um guia inteiro ou um caderno avulso. Tudo é coletado pela mesma
           fila persistente (faixas de 200 questões) e fica visível aqui.
         </p>
@@ -306,12 +306,12 @@ export default function ColetarPage() {
       <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
         <GuiasPanel />
 
-        <div className="border-t border-gray-800 pt-6">
-          <h2 className="text-sm font-semibold text-gray-100 mb-1 flex items-center gap-2">
+        <div className="border-t border-border pt-6">
+          <h2 className="text-sm font-semibold text-fg-strong mb-1 flex items-center gap-2">
             <span className="material-symbols-outlined text-cyan-400 text-[18px]">cloud_download</span>
             Coletar caderno avulso
           </h2>
-          <p className="text-xs text-gray-500 mb-3">
+          <p className="text-xs text-fg-faint mb-3">
             Cole o link de um caderno específico do TC (fora de um guia).
           </p>
         </div>
@@ -325,33 +325,33 @@ export default function ColetarPage() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://www.tecconcursos.com.br/questoes/cadernos/95846378"
-            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-cyan-500 font-mono"
+            className="w-full px-4 py-3 bg-surface-2 border border-border rounded-lg text-sm focus:outline-none focus:border-cyan-500 font-mono"
             disabled={carregando}
           />
           {id && (
             <div className="mt-2 text-xs text-cyan-400">
               ✓ Caderno detectado: <span className="font-mono font-semibold">#{id}</span>
               {knownTotal ? (
-                <span className="text-gray-400"> · total conhecido: {knownTotal.toLocaleString("pt-BR")}</span>
+                <span className="text-fg-muted"> · total conhecido: {knownTotal.toLocaleString("pt-BR")}</span>
               ) : null}
             </div>
           )}
         </div>
 
-        <section className="border border-gray-800 rounded-lg bg-gray-950/70 p-4 space-y-4">
+        <section className="border border-border rounded-lg bg-page/70 p-4 space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-gray-100">
+              <h2 className="text-sm font-semibold text-fg-strong">
                 Jobs ativos na fila TaskIQ
               </h2>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-fg-faint mt-1">
                 Atualizacao automatica a cada 15s. Aqui voce ve o que ja esta rodando ou bloqueado.
               </p>
             </div>
             <button
               onClick={() => void carregarJobs()}
               disabled={carregandoJobs}
-              className="text-xs bg-gray-800 hover:bg-gray-700 disabled:opacity-60 px-3 py-2 rounded"
+              className="text-xs bg-surface-2 hover:bg-fg-strong/6 disabled:opacity-60 px-3 py-2 rounded"
             >
               {carregandoJobs ? "Atualizando..." : "Atualizar"}
             </button>
@@ -364,7 +364,7 @@ export default function ColetarPage() {
           )}
 
           {!erroJobs && jobs.length === 0 && !carregandoJobs && (
-            <div className="text-sm text-gray-400">
+            <div className="text-sm text-fg-muted">
               Nenhum job ativo no momento.
             </div>
           )}
@@ -383,12 +383,12 @@ export default function ColetarPage() {
                   <div
                     key={job.job_id}
                     className={`rounded-lg border p-4 ${
-                      destaqueAtual ? "border-cyan-600 bg-cyan-950/20" : "border-gray-800 bg-black/20"
+                      destaqueAtual ? "border-cyan-600 bg-cyan-950/20" : "border-border bg-black/20"
                     }`}
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
-                        <div className="text-sm font-semibold text-gray-100">
+                        <div className="text-sm font-semibold text-fg-strong">
                           {job.caderno_nome ? (
                             <span className="text-cyan-300">{job.caderno_nome}</span>
                           ) : (
@@ -397,9 +397,9 @@ export default function ColetarPage() {
                           <span className="ml-2 text-cyan-400">Job #{job.job_id}</span>
                         </div>
                         {job.caderno_nome && (
-                          <div className="text-[11px] text-gray-500">Caderno #{job.caderno_id}</div>
+                          <div className="text-[11px] text-fg-faint">Caderno #{job.caderno_id}</div>
                         )}
-                        <div className="mt-1 text-xs text-gray-400">
+                        <div className="mt-1 text-xs text-fg-muted">
                           Status: {statusTexto(job.status)}
                           {job.paused && (
                             <span className="ml-1.5 inline-flex items-center gap-1 rounded-full border border-amber-700 bg-amber-900/40 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">
@@ -420,7 +420,7 @@ export default function ColetarPage() {
                               </span>
                               Re-coletar (registrar ordem)
                             </button>
-                            <span className="text-[11px] text-gray-500">
+                            <span className="text-[11px] text-fg-faint">
                               Coletado antes do registro de ordem — reprocessar habilita “Montar na pasta”.
                             </span>
                           </div>
@@ -442,7 +442,7 @@ export default function ColetarPage() {
                                   setNomesEdit((prev) => ({ ...prev, [job.caderno_id]: e.target.value }))
                                 }
                                 placeholder={`Caderno ${job.caderno_id}`}
-                                className="w-full sm:w-64 rounded border border-gray-700 bg-gray-800 px-2.5 py-1 text-xs focus:border-cyan-500 focus:outline-none"
+                                className="w-full sm:w-64 rounded border border-border bg-surface-2 px-2.5 py-1 text-xs focus:border-cyan-500 focus:outline-none"
                               />
                               <button
                                 onClick={() => montarNaPasta(job)}
@@ -464,7 +464,7 @@ export default function ColetarPage() {
                               className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
                                 job.paused
                                   ? "border border-green-700 bg-green-900/40 text-green-300 hover:bg-green-900/60"
-                                  : "border border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700"
+                                  : "border border-border bg-surface-2 text-fg hover:bg-fg-strong/6"
                               }`}
                             >
                               <span className={`material-symbols-outlined text-[14px] ${pausando === job.job_id ? "animate-spin" : ""}`}>
@@ -486,27 +486,27 @@ export default function ColetarPage() {
                         )}
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center text-xs md:min-w-[240px]">
-                        <div className="rounded bg-gray-900 px-3 py-2">
+                        <div className="rounded bg-page px-3 py-2">
                           <div className="text-lg font-semibold text-green-400">{job.done_units}</div>
-                          <div className="text-gray-500">Done</div>
+                          <div className="text-fg-faint">Done</div>
                         </div>
-                        <div className="rounded bg-gray-900 px-3 py-2">
+                        <div className="rounded bg-page px-3 py-2">
                           <div className="text-lg font-semibold text-yellow-400">{job.running_units + job.queued_units}</div>
-                          <div className="text-gray-500">Fila/Run</div>
+                          <div className="text-fg-faint">Fila/Run</div>
                         </div>
-                        <div className="rounded bg-gray-900 px-3 py-2">
+                        <div className="rounded bg-page px-3 py-2">
                           <div className="text-lg font-semibold text-red-400">{job.blocked_units}</div>
-                          <div className="text-gray-500">Blocked</div>
+                          <div className="text-fg-faint">Blocked</div>
                         </div>
                       </div>
                     </div>
 
                     <div className="mt-4">
-                      <div className="mb-1 flex items-center justify-between text-xs text-gray-400">
+                      <div className="mb-1 flex items-center justify-between text-xs text-fg-muted">
                         <span>Progresso por questoes</span>
                         <span>{job.pct_questions_done.toFixed(2)}%</span>
                       </div>
-                      <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
+                      <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
                         <div
                           className="h-full bg-cyan-500 transition-all"
                           style={{ width: `${progresso}%` }}
@@ -514,7 +514,7 @@ export default function ColetarPage() {
                       </div>
                     </div>
 
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-400">
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-fg-muted">
                       <span>Pending: {job.pending_units}</span>
                       <span>Queued: {job.queued_units}</span>
                       <span>Running: {job.running_units}</span>
@@ -537,10 +537,10 @@ export default function ColetarPage() {
             value={expectedTotalText}
             onChange={(e) => setExpectedTotalText(e.target.value)}
             placeholder={knownTotal ? `${knownTotal}` : "Ex.: 29774"}
-            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-cyan-500 font-mono"
+            className="w-full px-4 py-3 bg-surface-2 border border-border rounded-lg text-sm focus:outline-none focus:border-cyan-500 font-mono"
             disabled={carregando}
           />
-          <div className="mt-2 text-xs text-gray-500">
+          <div className="mt-2 text-xs text-fg-faint">
             Para os quatro cadernos Petrobras conhecidos, o total é preenchido automaticamente.
           </div>
         </div>
@@ -553,7 +553,7 @@ export default function ColetarPage() {
             disabled={carregando}
           />
           Refazer login Playwright no worker
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-fg-faint">
             (não bloqueia a tela)
           </span>
         </label>
@@ -561,7 +561,7 @@ export default function ColetarPage() {
         <button
           onClick={coletar}
           disabled={!id || carregando || Boolean(jobAtual)}
-          className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-semibold text-base"
+          className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-surface-2 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-semibold text-base"
         >
           {carregando ? "Criando job…" : jobAtual ? "Caderno ja esta em andamento" : "Iniciar coleta"}
         </button>
@@ -584,7 +584,7 @@ export default function ColetarPage() {
             <h2 className="text-lg font-semibold text-green-300">
               Job aceito — caderno #{resultado.caderno_id}
             </h2>
-            <p className="text-sm text-gray-300">
+            <p className="text-sm text-fg">
               {resultado.message}
             </p>
 
@@ -593,29 +593,29 @@ export default function ColetarPage() {
                 <div className="text-2xl font-bold text-cyan-400">
                   #{resultado.job_id}
                 </div>
-                <div className="text-xs text-gray-400">Job</div>
+                <div className="text-xs text-fg-muted">Job</div>
               </div>
               <div className="bg-black/30 rounded p-3">
                 <div className="text-2xl font-bold text-green-400">
                   {resultado.total_units}
                 </div>
-                <div className="text-xs text-gray-400">Faixas</div>
+                <div className="text-xs text-fg-muted">Faixas</div>
               </div>
               <div className="bg-black/30 rounded p-3">
                 <div className="text-2xl font-bold text-yellow-400">
                   {resultado.enqueued_units}
                 </div>
-                <div className="text-xs text-gray-400">Enfileirada agora</div>
+                <div className="text-xs text-fg-muted">Enfileirada agora</div>
               </div>
               <div className="bg-black/30 rounded p-3">
                 <div className="text-2xl font-bold text-violet-400">
                   {statusTexto(resultado.status)}
                 </div>
-                <div className="text-xs text-gray-400">Status</div>
+                <div className="text-xs text-fg-muted">Status</div>
               </div>
             </div>
 
-            <div className="text-xs text-gray-400 border-t border-green-800 pt-3 space-y-1">
+            <div className="text-xs text-fg-muted border-t border-green-800 pt-3 space-y-1">
               <div>
                 <strong>Total esperado:</strong> {resultado.expected_total.toLocaleString("pt-BR")} questões.
               </div>
@@ -639,7 +639,7 @@ export default function ColetarPage() {
                   setResultado(null);
                   setUrl("");
                 }}
-                className="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded"
+                className="text-xs bg-surface-2 hover:bg-fg-strong/6 px-3 py-2 rounded"
               >
                 Coletar outro caderno
               </button>
@@ -647,8 +647,8 @@ export default function ColetarPage() {
           </div>
         )}
 
-        <div className="text-xs text-gray-500 border-t border-gray-800 pt-4">
-          <strong className="text-gray-400">Como a dedup funciona:</strong>
+        <div className="text-xs text-fg-faint border-t border-border pt-4">
+          <strong className="text-fg-muted">Como a dedup funciona:</strong>
           <ul className="list-disc list-inside mt-1 space-y-0.5">
             <li>Cada questão tem <code>id_externo</code> UNIQUE no Postgres</li>
             <li>Coleta usa UPSERT — re-rodar o mesmo caderno apenas atualiza</li>

@@ -15,23 +15,23 @@ export default function ContaClient() {
 
   return (
     <div className="px-6 py-8 md:px-10 max-w-3xl w-full mx-auto">
-      <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
-        <Link href="/" className="hover:text-gray-300">Home</Link>
+      <div className="flex items-center gap-2 text-sm text-fg-muted mb-6">
+        <Link href="/" className="hover:text-fg">Home</Link>
         <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-        <span className="text-gray-300">Minha conta</span>
+        <span className="text-fg">Minha conta</span>
       </div>
 
       <div className="flex items-center gap-4 mb-8">
         <div className="h-14 w-14 rounded-full bg-gradient-to-tr from-primary to-secondary p-[2px]">
           <div className="rounded-full h-full w-full bg-surface-dark flex items-center justify-center">
-            <span className="text-lg font-bold text-white">
+            <span className="text-lg font-bold text-fg-strong">
               {(user?.name || user?.email || "?").slice(0, 2).toUpperCase()}
             </span>
           </div>
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-white">{isPending ? "…" : user?.name || "Conta"}</h1>
-          <p className="text-sm text-gray-500">{user?.email}</p>
+          <h1 className="text-2xl font-bold text-fg-strong">{isPending ? "…" : user?.name || "Conta"}</h1>
+          <p className="text-sm text-fg-faint">{user?.email}</p>
         </div>
         {isAdmin && (
           <span className="ml-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide text-secondary bg-secondary/10">
@@ -52,7 +52,7 @@ export default function ContaClient() {
 function SectionCard({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
   return (
     <section className="rounded-xl border border-border-dark bg-surface-dark p-6">
-      <h2 className="flex items-center gap-2 text-base font-semibold text-white mb-4">
+      <h2 className="flex items-center gap-2 text-base font-semibold text-fg-strong mb-4">
         <span className="material-symbols-outlined text-primary text-[20px]">{icon}</span>
         {title}
       </h2>
@@ -64,10 +64,10 @@ function SectionCard({ title, icon, children }: { title: string; icon: string; c
 function Field({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="block">
-      <span className="block text-[0.7rem] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{label}</span>
+      <span className="block text-[0.7rem] font-semibold uppercase tracking-wide text-fg-faint mb-1.5">{label}</span>
       <input
         {...props}
-        className="w-full rounded-lg border border-border-dark bg-bg-dark py-2.5 px-3 text-sm text-white placeholder:text-gray-600 outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 transition-colors"
+        className="w-full rounded-lg border border-border-dark bg-bg-dark py-2.5 px-3 text-sm text-fg-strong placeholder:text-fg-faint outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 transition-colors"
       />
     </label>
   );
@@ -192,11 +192,11 @@ function CreateUserCard() {
         <Field label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="usuario@email.com" required />
         <Field label="Senha" type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="senha inicial" required />
         <label className="block">
-          <span className="block text-[0.7rem] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Papel</span>
+          <span className="block text-[0.7rem] font-semibold uppercase tracking-wide text-fg-faint mb-1.5">Papel</span>
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="w-full rounded-lg border border-border-dark bg-bg-dark py-2.5 px-3 text-sm text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            className="w-full rounded-lg border border-border-dark bg-bg-dark py-2.5 px-3 text-sm text-fg-strong outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           >
             <option value="user">user</option>
             <option value="admin">admin</option>

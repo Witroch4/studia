@@ -68,7 +68,7 @@ export default function Logo({
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
       <LogoMark size={size} />
       {withWord && (
-        <span className={`font-bold tracking-tight leading-none text-white ${wordClassName}`}>
+        <span className={`font-bold tracking-tight leading-none text-fg-strong ${wordClassName}`}>
           stud
           <span className="bg-gradient-to-br from-primary to-secondary bg-clip-text text-transparent">IA</span>
         </span>

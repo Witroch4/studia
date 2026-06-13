@@ -46,30 +46,30 @@ export default function ModelSelector({ value, onChange, compact = false }: Mode
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="flex items-center gap-1.5 px-2 py-1 bg-surface-dark border border-border-dark rounded-lg text-xs text-gray-300 hover:border-primary/50 transition-colors"
+          className="flex items-center gap-1.5 px-2 py-1 bg-surface border border-border rounded-lg text-xs text-fg hover:border-primary/50 transition-colors"
         >
           <span className="material-symbols-outlined text-primary text-[14px]">smart_toy</span>
           <span className="truncate max-w-[120px]">{selected.label}</span>
           <span className="material-symbols-outlined text-[14px]">expand_more</span>
         </button>
         {open && (
-          <div className="absolute bottom-full mb-1 left-0 w-80 bg-surface-dark border border-border-dark rounded-xl shadow-2xl z-50 max-h-80 overflow-y-auto">
+          <div className="absolute bottom-full mb-1 left-0 w-80 bg-surface border border-border rounded-xl shadow-2xl z-50 max-h-80 overflow-y-auto">
             {GEMINI_MODELS.map((m) => (
               <button
                 key={m.value}
                 type="button"
                 onClick={() => { onChange(m.value); setOpen(false); }}
-                className={`w-full text-left px-3 py-2.5 hover:bg-gray-800 transition-colors first:rounded-t-xl last:rounded-b-xl ${
+                className={`w-full text-left px-3 py-2.5 hover:bg-surface-2 transition-colors first:rounded-t-xl last:rounded-b-xl ${
                   m.value === value ? "bg-primary/10" : ""
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-white">{m.label}</span>
+                  <span className="text-sm font-medium text-fg-strong">{m.label}</span>
                   {m.recommended && (
                     <span className="px-1.5 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded">REC</span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">{m.pricing}</p>
+                <p className="text-xs text-fg-faint mt-0.5">{m.pricing}</p>
               </button>
             ))}
           </div>
@@ -80,13 +80,13 @@ export default function ModelSelector({ value, onChange, compact = false }: Mode
 
   return (
     <div ref={ref} className="relative">
-      <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+      <label className="block text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2">
         Modelo de IA
       </label>
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-surface-dark border border-border-dark rounded-lg text-sm text-white hover:border-primary/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 bg-surface border border-border rounded-lg text-sm text-fg-strong hover:border-primary/50 transition-colors"
       >
         <div className="flex items-center gap-3">
           <span className="material-symbols-outlined text-primary">smart_toy</span>
@@ -97,30 +97,30 @@ export default function ModelSelector({ value, onChange, compact = false }: Mode
                 <span className="px-1.5 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded">Recomendado</span>
               )}
             </div>
-            <p className="text-xs text-gray-500">{selected.pricing}</p>
+            <p className="text-xs text-fg-faint">{selected.pricing}</p>
           </div>
         </div>
-        <span className="material-symbols-outlined text-gray-400">expand_more</span>
+        <span className="material-symbols-outlined text-fg-muted">expand_more</span>
       </button>
       {open && (
-        <div className="absolute top-full mt-1 left-0 right-0 bg-surface-dark border border-border-dark rounded-xl shadow-2xl z-50 max-h-80 overflow-y-auto">
+        <div className="absolute top-full mt-1 left-0 right-0 bg-surface border border-border rounded-xl shadow-2xl z-50 max-h-80 overflow-y-auto">
           {GEMINI_MODELS.map((m) => (
             <button
               key={m.value}
               type="button"
               onClick={() => { onChange(m.value); setOpen(false); }}
-              className={`w-full text-left px-4 py-3 hover:bg-gray-800 transition-colors first:rounded-t-xl last:rounded-b-xl ${
+              className={`w-full text-left px-4 py-3 hover:bg-surface-2 transition-colors first:rounded-t-xl last:rounded-b-xl ${
                 m.value === value ? "bg-primary/10 border-l-2 border-primary" : ""
               }`}
             >
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-white">{m.label}</span>
+                <span className="text-sm font-medium text-fg-strong">{m.label}</span>
                 {m.recommended && (
                   <span className="px-1.5 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded">Recomendado</span>
                 )}
               </div>
-              <p className="text-xs text-gray-400 mt-0.5">{m.description}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{m.pricing}</p>
+              <p className="text-xs text-fg-muted mt-0.5">{m.description}</p>
+              <p className="text-xs text-fg-faint mt-0.5">{m.pricing}</p>
             </button>
           ))}
         </div>

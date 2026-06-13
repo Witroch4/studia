@@ -88,16 +88,16 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
     "?": () => setShowAtalhos(true),
   });
 
-  if (!q) return <div className="p-8 text-gray-400">Carregando…</div>;
+  if (!q) return <div className="p-8 text-fg-muted">Carregando…</div>;
 
   return (
     <div
-      className={`min-h-screen ${modoLeitura ? "bg-yellow-50 text-gray-900" : "bg-[#121212] text-gray-200"}`}
+      className={`min-h-screen ${modoLeitura ? "bg-yellow-50 text-gray-900" : "bg-page text-fg"}`}
       style={{ fontSize }}
     >
-      <header className="border-b border-gray-700 px-6 py-3 flex items-center gap-4">
+      <header className="border-b border-border px-6 py-3 flex items-center gap-4">
         <div className="flex-1">
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-fg-faint">
             Estudo › Caderno IDENCAN CIVIL
           </div>
           <div className="font-semibold">
@@ -111,10 +111,10 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-6">
-        <div className="text-xs text-gray-400 mb-2 flex gap-3 flex-wrap">
+        <div className="text-xs text-fg-muted mb-2 flex gap-3 flex-wrap">
           <span className="bg-cyan-950 px-2 py-0.5 rounded">{q.banca?.sigla}</span>
           <span>{q.orgao?.sigla} / {q.cargo?.nome} / {q.cargo?.ano}</span>
-          <span className="text-gray-500">{q.materia?.nome} › {q.assuntos[0]?.nome}</span>
+          <span className="text-fg-faint">{q.materia?.nome} › {q.assuntos[0]?.nome}</span>
         </div>
 
         <QuestionHtml
@@ -136,10 +136,10 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
                     isCorreta ? "border-green-500 bg-green-950" :
                     isErrada ? "border-red-500 bg-red-950" :
                     selecionada === alt.letra ? "border-cyan-500 bg-cyan-950" :
-                    "border-gray-700 hover:bg-gray-800"
+                    "border-border hover:bg-surface-2"
                   }`}
                 >
-                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-700 font-semibold text-sm shrink-0">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-surface-2 font-semibold text-sm shrink-0">
                     {alt.letra}
                   </span>
                   <QuestionHtml as="span" html={alt.texto_html || alt.texto_md || ""} />
@@ -153,14 +153,14 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
           <button
             onClick={() => setResolvida(true)}
             disabled={!selecionada}
-            className="bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:cursor-not-allowed px-6 py-2 rounded font-semibold"
+            className="bg-green-600 hover:bg-green-500 disabled:bg-surface-2 disabled:cursor-not-allowed px-6 py-2 rounded font-semibold"
           >
             RESOLVER QUESTÃO
           </button>
         )}
 
         {resolvida && (
-          <div className="bg-gray-800 border border-gray-700 rounded p-4">
+          <div className="bg-surface-2 border border-border rounded p-4">
             <div className="text-sm">Gabarito oficial: <strong className="text-cyan-400">{q.gabarito}</strong></div>
             {q.status === "ANULADA" && <div className="text-sm text-yellow-400 mt-1">⚠ Questão ANULADA</div>}
           </div>
@@ -178,10 +178,10 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
           ] as const).map(([icon, key, label]) => (
             <button
               key={key}
-              className="px-3 py-1.5 border border-gray-700 hover:bg-gray-800 rounded text-sm flex items-center gap-1"
+              className="px-3 py-1.5 border border-border hover:bg-surface-2 rounded text-sm flex items-center gap-1"
               title={`${label} (Tecla ${key})`}
             >
-              {icon} <span className="text-xs text-gray-500">{key}</span>
+              {icon} <span className="text-xs text-fg-faint">{key}</span>
             </button>
           ))}
         </nav>
@@ -193,7 +193,7 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
           onClick={() => setShowAtalhos(false)}
         >
           <div
-            className="bg-[#1e1e1e] border border-gray-700 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+            className="bg-surface border border-border rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold mb-4">Lista das teclas de atalho</h2>
@@ -209,14 +209,14 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
                       .map(([k, v]) => (
                         <tr key={k}>
                           <td className="py-1 pr-4 font-mono text-cyan-300">{k}</td>
-                          <td className="py-1 text-gray-300">{v.label}</td>
+                          <td className="py-1 text-fg">{v.label}</td>
                         </tr>
                       ))}
                   </tbody>
                 </table>
               </div>
             ))}
-            <button onClick={() => setShowAtalhos(false)} className="mt-4 text-xs text-gray-400 hover:text-gray-200">
+            <button onClick={() => setShowAtalhos(false)} className="mt-4 text-xs text-fg-muted hover:text-fg-strong">
               Fechar (Esc)
             </button>
           </div>

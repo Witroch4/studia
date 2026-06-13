@@ -23,8 +23,8 @@ function ComingSoonContent() {
         <span className="material-symbols-outlined text-[48px] text-primary">{icon}</span>
       </div>
 
-      <h1 className="text-3xl font-bold text-white mb-2">{feature}</h1>
-      <p className="text-gray-400 text-base max-w-sm mb-8">
+      <h1 className="text-3xl font-bold text-fg-strong mb-2">{feature}</h1>
+      <p className="text-fg-muted text-base max-w-sm mb-8">
         Estamos construindo isso. Em breve estará disponível para você.
       </p>
 

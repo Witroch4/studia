@@ -160,8 +160,8 @@ export default function ConcorrenciaPage() {
           <div className="max-w-3xl mx-auto cc-reveal">
             <div className="mb-8">
               <p className="text-[11px] uppercase tracking-[0.25em] text-primary/80 font-semibold mb-2">Estudo de concorrência</p>
-              <h2 className="text-4xl font-bold text-white leading-tight">Transforme o resultado<br />num <span className="text-primary">banco comparativo</span>.</h2>
-              <p className="text-sm text-gray-400 mt-3 max-w-xl">
+              <h2 className="text-4xl font-bold text-fg-strong leading-tight">Transforme o resultado<br />num <span className="text-primary">banco comparativo</span>.</h2>
+              <p className="text-sm text-fg-muted mt-3 max-w-xl">
                 Suba o CSV do concurso e simule notas de corte por estado e nacional — ampla, pretos/pardos, indígenas, quilombolas e PcD, com a regra de deslocamento da nova Lei de Cotas (Lei 15.142/2025).
               </p>
             </div>
@@ -171,14 +171,14 @@ export default function ConcorrenciaPage() {
             </div>
 
             <div className="flex items-center gap-3 mb-4">
-              <span className="material-symbols-outlined text-gray-500 text-[20px]">history</span>
-              <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Concursos importados</h3>
+              <span className="material-symbols-outlined text-fg-faint text-[20px]">history</span>
+              <h3 className="text-sm font-semibold text-fg uppercase tracking-wider">Concursos importados</h3>
             </div>
             <div className="space-y-2">
               {loadingList ? (
                 Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-16 bg-surface-dark border border-border-dark rounded-xl animate-pulse" />)
               ) : concursos.length === 0 ? (
-                <p className="text-sm text-gray-600 py-6 text-center border border-dashed border-border-dark rounded-xl">Nenhum concurso ainda. Suba um CSV acima.</p>
+                <p className="text-sm text-fg-faint py-6 text-center border border-dashed border-border-dark rounded-xl">Nenhum concurso ainda. Suba um CSV acima.</p>
               ) : concursos.map((c) => (
                 <div key={c.id} className="group flex items-center justify-between bg-surface-dark border border-border-dark rounded-xl px-5 py-4 hover:border-primary/50 transition-all">
                   <button onClick={() => openConcurso(c.id)} className="flex items-center gap-4 text-left flex-1 min-w-0">
@@ -186,13 +186,13 @@ export default function ConcorrenciaPage() {
                       <span className="material-symbols-outlined">leaderboard</span>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white truncate group-hover:text-primary transition-colors">{c.nome}</p>
-                      <p className="text-xs text-gray-500 cc-num">{c.total_candidatos.toLocaleString("pt-BR")} candidatos</p>
+                      <p className="text-sm font-semibold text-fg-strong truncate group-hover:text-primary transition-colors">{c.nome}</p>
+                      <p className="text-xs text-fg-faint cc-num">{c.total_candidatos.toLocaleString("pt-BR")} candidatos</p>
                     </div>
                   </button>
                   <button
                     onClick={async () => { if (confirm(`Excluir "${c.nome}"?`)) { await fetch(`${API_URL}/api/concursos/${c.id}`, { method: "DELETE" }); fetchList(); } }}
-                    className="text-gray-600 hover:text-accent-error transition-colors p-2"
+                    className="text-fg-faint hover:text-accent-error transition-colors p-2"
                   >
                     <span className="material-symbols-outlined text-[20px]">delete</span>
                   </button>
@@ -220,12 +220,12 @@ export default function ConcorrenciaPage() {
     <>
       <PageHeader>
         <div className="flex items-center gap-3 min-w-0">
-          <button onClick={() => { setMeta(null); setResult(null); }} className="text-gray-500 hover:text-white transition-colors shrink-0 cursor-pointer">
+          <button onClick={() => { setMeta(null); setResult(null); }} className="text-fg-faint hover:text-fg-strong transition-colors shrink-0 cursor-pointer">
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-white truncate">{meta.nome}</p>
-            <p className="text-[11px] text-gray-500 cc-num">{meta.total_candidatos.toLocaleString("pt-BR")} candidatos · {meta.cargos.length} cargo(s)</p>
+            <p className="text-sm font-bold text-fg-strong truncate">{meta.nome}</p>
+            <p className="text-[11px] text-fg-faint cc-num">{meta.total_candidatos.toLocaleString("pt-BR")} candidatos · {meta.cargos.length} cargo(s)</p>
           </div>
         </div>
       </PageHeader>
@@ -247,8 +247,8 @@ export default function ConcorrenciaPage() {
                   {presetAtivo === "CAIXA" && (
                     <span className="material-symbols-outlined absolute top-2 right-2 text-amber-400 text-[16px]">check_circle</span>
                   )}
-                  <p className={`text-xs font-bold flex items-center gap-1.5 ${presetAtivo === "CAIXA" ? "text-amber-300" : "text-gray-300"}`}><span className="material-symbols-outlined text-[15px]">account_balance</span>Caixa 2025</p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">Fator 4 (imediatas + 3× CR) · cotas 25/3/2/5 · específica máx. 40</p>
+                  <p className={`text-xs font-bold flex items-center gap-1.5 ${presetAtivo === "CAIXA" ? "text-amber-300" : "text-fg"}`}><span className="material-symbols-outlined text-[15px]">account_balance</span>Caixa 2025</p>
+                  <p className="text-[10px] text-fg-faint mt-0.5">Fator 4 (imediatas + 3× CR) · cotas 25/3/2/5 · específica máx. 40</p>
                 </button>
                 <button
                   onClick={() => { setPct({ pn: 25, pi: 3, pq: 2, pcd: 5 }); setArredRacial("MEIO"); setFatorCR(3); setCriterio("PONTOS"); }}
@@ -261,12 +261,12 @@ export default function ConcorrenciaPage() {
                   {presetAtivo === "CNU" && (
                     <span className="material-symbols-outlined absolute top-2 right-2 text-primary text-[16px]">check_circle</span>
                   )}
-                  <p className={`text-xs font-bold flex items-center gap-1.5 ${presetAtivo === "CNU" ? "text-white" : "text-gray-300"}`}><span className="material-symbols-outlined text-[15px]">balance</span>Padrão CNU (Lei 15.142/25)</p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">Fator 3 · cotas 25/3/2/5 · pontos totais</p>
+                  <p className={`text-xs font-bold flex items-center gap-1.5 ${presetAtivo === "CNU" ? "text-white" : "text-fg"}`}><span className="material-symbols-outlined text-[15px]">balance</span>Padrão CNU (Lei 15.142/25)</p>
+                  <p className="text-[10px] text-fg-faint mt-0.5">Fator 3 · cotas 25/3/2/5 · pontos totais</p>
                 </button>
               </div>
-              <p className="text-[10px] text-gray-600 leading-relaxed">
-                Caixa: informe as <strong className="text-gray-400">vagas imediatas</strong>; o fator 4 inclui as 3× do cadastro de reserva. O critério (pontos × específica) escolha abaixo conforme o cargo.
+              <p className="text-[10px] text-fg-faint leading-relaxed">
+                Caixa: informe as <strong className="text-fg-muted">vagas imediatas</strong>; o fator 4 inclui as 3× do cadastro de reserva. O critério (pontos × específica) escolha abaixo conforme o cargo.
               </p>
             </Section>
 
@@ -280,7 +280,7 @@ export default function ConcorrenciaPage() {
                 <div className="grid grid-cols-3 gap-1 p-1 bg-bg-dark rounded-lg border border-border-dark">
                   {(["GERAL", "MACROPOLO", "POLO"] as const).map((a) => (
                     <button key={a} onClick={() => setAbrangencia(a)}
-                      className={`text-[11px] font-semibold py-1.5 rounded-md transition-all ${abrangencia === a ? "bg-primary text-white shadow" : "text-gray-400 hover:text-white"}`}>
+                      className={`text-[11px] font-semibold py-1.5 rounded-md transition-all ${abrangencia === a ? "bg-primary text-white shadow" : "text-fg-muted hover:text-fg-strong"}`}>
                       {a === "GERAL" ? "Nacional" : a === "MACROPOLO" ? "Região" : "Estado"}
                     </button>
                   ))}
@@ -309,14 +309,14 @@ export default function ConcorrenciaPage() {
             <Section icon="rule" title="Critério de classificação">
               <div className="grid grid-cols-1 gap-1.5">
                 <button onClick={() => setCriterio("PONTOS")}
-                  className={`text-left px-3 py-2.5 rounded-lg border transition-all ${criterio === "PONTOS" ? "bg-primary/15 border-primary text-white" : "bg-bg-dark border-border-dark text-gray-400 hover:border-primary/40"}`}>
+                  className={`text-left px-3 py-2.5 rounded-lg border transition-all ${criterio === "PONTOS" ? "bg-primary/15 border-primary text-fg-strong" : "bg-bg-dark border-border-dark text-fg-muted hover:border-primary/40"}`}>
                   <p className="text-xs font-bold flex items-center gap-1.5"><span className="material-symbols-outlined text-[15px]">functions</span>Pontos totais (padrão CNU)</p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">Soma geral · desempate: discursiva, idade</p>
+                  <p className="text-[10px] text-fg-faint mt-0.5">Soma geral · desempate: discursiva, idade</p>
                 </button>
                 <button onClick={() => setCriterio("ESPECIFICO")}
-                  className={`text-left px-3 py-2.5 rounded-lg border transition-all ${criterio === "ESPECIFICO" ? "bg-emerald-500/15 border-emerald-500 text-white" : "bg-bg-dark border-border-dark text-gray-400 hover:border-emerald-500/40"}`}>
+                  className={`text-left px-3 py-2.5 rounded-lg border transition-all ${criterio === "ESPECIFICO" ? "bg-emerald-500/15 border-emerald-500 text-fg-strong" : "bg-bg-dark border-border-dark text-fg-muted hover:border-emerald-500/40"}`}>
                   <p className="text-xs font-bold flex items-center gap-1.5"><span className="material-symbols-outlined text-[15px]">workspace_premium</span>Padrão Petrobras</p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">Só conhecimento específico · desempate: Português → Inglês</p>
+                  <p className="text-[10px] text-fg-faint mt-0.5">Só conhecimento específico · desempate: Português → Inglês</p>
                 </button>
               </div>
               {criterio === "ESPECIFICO" && (
@@ -324,24 +324,24 @@ export default function ConcorrenciaPage() {
                   <div className="flex items-center gap-2">
                     <Stepper value={maxEsp} onChange={setMaxEsp} min={1} max={1000} />
                   </div>
-                  <p className="text-[10px] text-gray-500 mt-1">ex: Caixa Econômica = 40 pts → 40 = 100%</p>
+                  <p className="text-[10px] text-fg-faint mt-1">ex: Caixa Econômica = 40 pts → 40 = 100%</p>
                 </Field>
               )}
             </Section>
 
             <Section icon="balance" title="Cotas legais">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] uppercase tracking-wider text-gray-500">Percentual por grupo (%)</span>
+                <span className="text-[10px] uppercase tracking-wider text-fg-faint">Percentual por grupo (%)</span>
                 <button onClick={() => setPct({ pn: 25, pi: 3, pq: 2, pcd: 5 })} className="text-[10px] text-primary hover:underline">Lei 15.142/25</button>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {([["pn", "Negros"], ["pi", "Indíg."], ["pq", "Quilom."], ["pcd", "PcD"]] as const).map(([k, lbl]) => (
                   <div key={k} className="flex items-center gap-2 bg-bg-dark border border-border-dark rounded-lg px-2 py-1.5">
-                    <span className="text-[11px] text-gray-400 flex-1">{lbl}</span>
+                    <span className="text-[11px] text-fg-muted flex-1">{lbl}</span>
                     <input type="number" value={pct[k]} min={0} max={50} step={0.5}
                       onChange={(e) => setPct((p) => ({ ...p, [k]: parseFloat(e.target.value) || 0 }))}
-                      className="cc-num w-12 bg-transparent text-right text-sm font-bold text-white outline-none" />
-                    <span className="text-[10px] text-gray-600">%</span>
+                      className="cc-num w-12 bg-transparent text-right text-sm font-bold text-fg-strong outline-none" />
+                    <span className="text-[10px] text-fg-faint">%</span>
                   </div>
                 ))}
               </div>
@@ -355,7 +355,7 @@ export default function ConcorrenciaPage() {
             <Section icon="person_search" title="Sua simulação (e se?)">
               <Field label={criterio === "ESPECIFICO" ? `Sua nota específica (de ${maxEsp})` : "Sua pontuação"}>
                 <input type="number" value={minhaPont} onChange={(e) => setMinhaPont(e.target.value)} placeholder={criterio === "ESPECIFICO" ? "ex: 37" : "ex: 58"}
-                  className="cc-num w-full px-3 py-2 bg-bg-dark border border-border-dark rounded-lg text-sm text-white placeholder-gray-600 focus:ring-1 focus:ring-primary focus:border-primary" />
+                  className="cc-num w-full px-3 py-2 bg-bg-dark border border-border-dark rounded-lg text-sm text-fg-strong placeholder:text-fg-faint focus:ring-1 focus:ring-primary focus:border-primary" />
               </Field>
               <Field label="Suas cotas (pode marcar várias)">
                 <div className="flex flex-wrap gap-1.5">
@@ -366,15 +366,15 @@ export default function ConcorrenciaPage() {
                     const on = minhasCats.includes(c);
                     return (
                       <button key={c} onClick={() => toggleCat(c)}
-                        className={`text-[11px] font-medium px-2.5 py-1 rounded-full border transition-all ${on ? `${MOD[c].bg} ${MOD[c].text} border-current` : "border-border-dark text-gray-400 hover:border-primary/50"}`}>
+                        className={`text-[11px] font-medium px-2.5 py-1 rounded-full border transition-all ${on ? `${MOD[c].bg} ${MOD[c].text} border-current` : "border-border-dark text-fg-muted hover:border-primary/50"}`}>
                         {on && <span className="material-symbols-outlined text-[13px] mr-0.5 align-middle">check</span>}
                         {MOD[c].curto}
                       </button>
                     );
                   })}
                 </div>
-                <p className="text-[10px] text-gray-600 mt-1.5">
-                  Acumula: ex. <strong className="text-gray-400">PcD + Negro</strong> concorre nas duas listas + ampla. Entre cotas raciais, na prática vale a de maior % — aqui mostramos todas p/ comparar.
+                <p className="text-[10px] text-fg-faint mt-1.5">
+                  Acumula: ex. <strong className="text-fg-muted">PcD + Negro</strong> concorre nas duas listas + ampla. Entre cotas raciais, na prática vale a de maior % — aqui mostramos todas p/ comparar.
                 </p>
               </Field>
             </Section>
@@ -383,13 +383,13 @@ export default function ConcorrenciaPage() {
           {/* Resultados */}
           <div className="flex-1 min-w-0 p-4 md:p-6 space-y-6">
             {!result ? (
-              <div className="flex items-center justify-center h-64 text-gray-600 gap-2">
+              <div className="flex items-center justify-center h-64 text-fg-faint gap-2">
                 <div className="h-5 w-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" /> Calculando…
               </div>
             ) : (
               <>
                 {/* Resumo do recorte */}
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-gray-400 cc-reveal">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-fg-muted cc-reveal">
                   <Badge icon="filter_alt" text={result.recorte.abrangencia === "GERAL" ? "Nacional" : `${result.recorte.abrangencia === "POLO" ? "Estado" : "Região"}: ${result.recorte.valor}`} />
                   <Badge icon="group" text={`${result.recorte.total_no_recorte.toLocaleString("pt-BR")} candidatos no recorte`} />
                   <Badge icon="event_seat" text={`${d!.total} vagas · ${d!.reservadas} reservadas (${d!.pct_reservado}%)`} />
@@ -421,19 +421,19 @@ export default function ConcorrenciaPage() {
                 {/* Legislação */}
                 <div className="bg-surface-dark border border-border-dark rounded-xl overflow-hidden">
                   <button onClick={() => setShowLei(!showLei)} className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/5 transition-colors">
-                    <span className="flex items-center gap-2 text-sm font-semibold text-white">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-fg-strong">
                       <span className="material-symbols-outlined text-primary text-[20px]">gavel</span>
                       Base legal das cotas (2025)
                     </span>
-                    <span className={`material-symbols-outlined text-gray-500 transition-transform ${showLei ? "rotate-180" : ""}`}>expand_more</span>
+                    <span className={`material-symbols-outlined text-fg-faint transition-transform ${showLei ? "rotate-180" : ""}`}>expand_more</span>
                   </button>
                   {showLei && (
-                    <div className="px-5 pb-5 text-sm text-gray-400 space-y-2 border-t border-border-dark pt-4">
-                      <p><strong className="text-gray-200">Lei 15.142/2025</strong> + Decreto 12.536/2025 (substituiu a Lei 12.990/2014): reserva total de <strong className="text-amber-300">30%</strong> étnico-racial → <strong>25%</strong> pretos/pardos, <strong>3%</strong> indígenas, <strong>2%</strong> quilombolas.</p>
-                      <p><strong className="text-gray-200">Decreto 9.508/2018</strong> / Lei 8.112/90: PcD <strong className="text-sky-300">mín. 5%</strong> (até 20%), apurado em separado.</p>
-                      <p><strong className="text-gray-200">Deslocamento:</strong> todo cotista também concorre na ampla; se classificado dentro das vagas da ampla, <strong>não ocupa</strong> vaga reservada — a fila da cota sobe e outro cotista é convocado.</p>
-                      <p><strong className="text-gray-200">Acúmulo:</strong> quem se enquadra em mais de uma categoria concorre na de maior percentual (negro &gt; indígena &gt; quilombola).</p>
-                      <p className="text-xs text-gray-600 pt-1">Simulação educativa. O desempate exato (idade, notas específicas) e regras de alternância de nomeação variam conforme o edital.</p>
+                    <div className="px-5 pb-5 text-sm text-fg-muted space-y-2 border-t border-border-dark pt-4">
+                      <p><strong className="text-fg">Lei 15.142/2025</strong> + Decreto 12.536/2025 (substituiu a Lei 12.990/2014): reserva total de <strong className="text-amber-300">30%</strong> étnico-racial → <strong>25%</strong> pretos/pardos, <strong>3%</strong> indígenas, <strong>2%</strong> quilombolas.</p>
+                      <p><strong className="text-fg">Decreto 9.508/2018</strong> / Lei 8.112/90: PcD <strong className="text-sky-300">mín. 5%</strong> (até 20%), apurado em separado.</p>
+                      <p><strong className="text-fg">Deslocamento:</strong> todo cotista também concorre na ampla; se classificado dentro das vagas da ampla, <strong>não ocupa</strong> vaga reservada — a fila da cota sobe e outro cotista é convocado.</p>
+                      <p><strong className="text-fg">Acúmulo:</strong> quem se enquadra em mais de uma categoria concorre na de maior percentual (negro &gt; indígena &gt; quilombola).</p>
+                      <p className="text-xs text-fg-faint pt-1">Simulação educativa. O desempate exato (idade, notas específicas) e regras de alternância de nomeação variam conforme o edital.</p>
                     </div>
                   )}
                 </div>
@@ -452,7 +452,7 @@ function PageHeader({ children }: { children?: React.ReactNode }) {
   return (
     <header className="sticky top-0 z-30 bg-bg-dark/80 backdrop-blur-md border-b border-border-dark px-4 md:px-8 py-4 flex items-center gap-4">
       {children || (
-        <h1 className="text-xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-xl font-bold text-fg-strong flex items-center gap-2">
           <span className="material-symbols-outlined text-primary">leaderboard</span>
           Concorrência
         </h1>
@@ -464,7 +464,7 @@ function PageHeader({ children }: { children?: React.ReactNode }) {
 function Section({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3">
+      <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-fg-muted mb-3">
         <span className="material-symbols-outlined text-primary text-[16px]">{icon}</span>{title}
       </h3>
       <div className="space-y-3">{children}</div>
@@ -475,10 +475,10 @@ function Section({ icon, title, children }: { icon: string; title: string; child
 function SectionTitle({ icon, title, sub }: { icon: string; title: string; sub?: string }) {
   return (
     <div className="flex items-baseline gap-3 mb-3">
-      <h3 className="flex items-center gap-2 text-sm font-bold text-white">
+      <h3 className="flex items-center gap-2 text-sm font-bold text-fg-strong">
         <span className="material-symbols-outlined text-primary text-[18px]">{icon}</span>{title}
       </h3>
-      {sub && <span className="text-[11px] text-gray-500">{sub}</span>}
+      {sub && <span className="text-[11px] text-fg-faint">{sub}</span>}
     </div>
   );
 }
@@ -486,7 +486,7 @@ function SectionTitle({ icon, title, sub }: { icon: string; title: string; sub?:
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{label}</label>
+      <label className="block text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1.5">{label}</label>
       {children}
     </div>
   );
@@ -495,7 +495,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function Select({ value, onChange, options, labels }: { value: string; onChange: (v: string) => void; options: string[]; labels?: Record<string, string> }) {
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 bg-bg-dark border border-border-dark rounded-lg text-sm text-white focus:ring-1 focus:ring-primary focus:border-primary appearance-none cursor-pointer">
+      className="w-full px-3 py-2 bg-bg-dark border border-border-dark rounded-lg text-sm text-fg-strong focus:ring-1 focus:ring-primary focus:border-primary appearance-none cursor-pointer">
       {options.map((o) => <option key={o} value={o}>{labels?.[o] || o}</option>)}
     </select>
   );
@@ -505,10 +505,10 @@ function Stepper({ value, onChange, min, max }: { value: number; onChange: (v: n
   const set = (v: number) => onChange(Math.max(min, Math.min(max, v)));
   return (
     <div className="flex items-center bg-bg-dark border border-border-dark rounded-lg overflow-hidden">
-      <button onClick={() => set(value - 1)} className="px-3 py-2 text-gray-400 hover:text-white hover:bg-white/5 transition-colors">−</button>
+      <button onClick={() => set(value - 1)} className="px-3 py-2 text-fg-muted hover:text-fg-strong hover:bg-white/5 transition-colors">−</button>
       <input type="number" value={value} onChange={(e) => set(parseInt(e.target.value) || min)}
-        className="cc-num flex-1 min-w-0 bg-transparent text-center text-lg font-bold text-white outline-none py-1.5" />
-      <button onClick={() => set(value + 1)} className="px-3 py-2 text-gray-400 hover:text-white hover:bg-white/5 transition-colors">+</button>
+        className="cc-num flex-1 min-w-0 bg-transparent text-center text-lg font-bold text-fg-strong outline-none py-1.5" />
+      <button onClick={() => set(value + 1)} className="px-3 py-2 text-fg-muted hover:text-fg-strong hover:bg-white/5 transition-colors">+</button>
     </div>
   );
 }
@@ -516,7 +516,7 @@ function Stepper({ value, onChange, min, max }: { value: number; onChange: (v: n
 function Badge({ icon, text }: { icon: string; text: string }) {
   return (
     <span className="flex items-center gap-1.5">
-      <span className="material-symbols-outlined text-[15px] text-gray-600">{icon}</span>{text}
+      <span className="material-symbols-outlined text-[15px] text-fg-faint">{icon}</span>{text}
     </span>
   );
 }
@@ -537,23 +537,23 @@ function CorteCard({ mod, result, i }: { mod: Mod; result: SimResult; i: number 
         <span className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide ${c.text}`}>
           <span className="material-symbols-outlined text-[15px]">{c.icon}</span>{c.curto}
         </span>
-        <span className="cc-num text-[10px] text-gray-500">{vagas}v · {conv} conv.</span>
+        <span className="cc-num text-[10px] text-fg-faint">{vagas}v · {conv} conv.</span>
       </div>
       <div>
-        <p className="cc-num text-3xl font-extrabold text-white leading-none">
-          {corte != null ? corte.toLocaleString("pt-BR") : <span className="text-gray-600 text-xl">—</span>}
+        <p className="cc-num text-3xl font-extrabold text-fg-strong leading-none">
+          {corte != null ? corte.toLocaleString("pt-BR") : <span className="text-fg-faint text-xl">—</span>}
           {corte != null && pct != null && (
             <span className="text-sm font-bold text-emerald-300 ml-1.5">{pct.toLocaleString("pt-BR")}%</span>
           )}
         </p>
-        <p className="text-[10px] text-gray-500 mt-1">{c.nome}</p>
+        <p className="text-[10px] text-fg-faint mt-1">{c.nome}</p>
       </div>
       {g && !inativa && (
-        <div className="text-[10px] text-gray-500 border-t border-white/5 pt-2 cc-num">
+        <div className="text-[10px] text-fg-faint border-t border-white/5 pt-2 cc-num">
           {g.total_inscritos} inscritos · {g.preenchidas} convocados
         </div>
       )}
-      {inativa && <div className="text-[10px] text-gray-600 border-t border-white/5 pt-2">Sem vaga neste recorte</div>}
+      {inativa && <div className="text-[10px] text-fg-faint border-t border-white/5 pt-2">Sem vaga neste recorte</div>}
     </div>
   );
 }
@@ -574,8 +574,8 @@ function Distribuicao({ d }: { d: SimResult["distribuicao"] }) {
           <div key={m} className="flex items-center gap-2">
             <span className={`h-3 w-3 rounded-sm ${MOD[m].bar} ${d.vagas[m] === 0 ? "opacity-30" : ""}`} />
             <div>
-              <p className="text-[11px] text-gray-400">{MOD[m].curto}</p>
-              <p className="cc-num text-sm font-bold text-white">{d.vagas[m]} <span className="text-[10px] font-normal text-gray-500">/ {d.convocados[m]} CR</span></p>
+              <p className="text-[11px] text-fg-muted">{MOD[m].curto}</p>
+              <p className="cc-num text-sm font-bold text-fg-strong">{d.vagas[m]} <span className="text-[10px] font-normal text-fg-faint">/ {d.convocados[m]} CR</span></p>
             </div>
           </div>
         ))}
@@ -596,16 +596,16 @@ function Deslocamento({ result }: { result: SimResult }) {
   return (
     <div className="bg-gradient-to-br from-primary/10 to-transparent border border-primary/20 rounded-xl p-5 cc-reveal">
       <SectionTitle icon="swap_vert" title="Regra do deslocamento (a fila sobe)" />
-      <p className="text-sm text-gray-400 mb-4">
-        <strong className="cc-num text-primary">{totalDesloc}</strong> cotista(s) foram classificados <strong className="text-white">dentro das vagas da ampla concorrência</strong>.
-        Pela Lei 15.142/2025, eles assumem a vaga de ampla e <strong className="text-white">não ocupam</strong> a vaga reservada — então a fila da cota sobe e outro candidato é convocado no lugar.
+      <p className="text-sm text-fg-muted mb-4">
+        <strong className="cc-num text-primary">{totalDesloc}</strong> cotista(s) foram classificados <strong className="text-fg-strong">dentro das vagas da ampla concorrência</strong>.
+        Pela Lei 15.142/2025, eles assumem a vaga de ampla e <strong className="text-fg-strong">não ocupam</strong> a vaga reservada — então a fila da cota sobe e outro candidato é convocado no lugar.
       </p>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {grupos.map((g) => (
           <div key={g.sigla} className="bg-bg-dark/60 border border-border-dark rounded-lg p-3">
             <p className={`text-[11px] font-bold uppercase ${MOD[g.sigla].text} mb-1`}>{MOD[g.sigla].curto}</p>
-            <p className="cc-num text-2xl font-extrabold text-white">{g.deslocados_ampla}</p>
-            <p className="text-[10px] text-gray-500 mt-0.5">passaram na ampla · {g.concorrem_reserva} disputam a reserva</p>
+            <p className="cc-num text-2xl font-extrabold text-fg-strong">{g.deslocados_ampla}</p>
+            <p className="text-[10px] text-fg-faint mt-0.5">passaram na ampla · {g.concorrem_reserva} disputam a reserva</p>
           </div>
         ))}
       </div>
@@ -629,12 +629,12 @@ function SuaPosicao({ p }: { p: NonNullable<SimResult["pessoal"]> }) {
           <PosBox key={ci.sigla} titulo={ci.nome} pos={ci.posicao} conv={ci.convocados} passa={ci.passa} corte={ci.nota_corte} cortePct={pctOf(ci.nota_corte)} falta={ci.falta} mod={ci.sigla} />
         ))}
         {cats.length === 0 && (
-          <div className="flex items-center justify-center text-xs text-gray-600 border border-dashed border-border-dark rounded-lg p-4 sm:col-span-1">
+          <div className="flex items-center justify-center text-xs text-fg-faint border border-dashed border-border-dark rounded-lg p-4 sm:col-span-1">
             Marque suas cotas no painel (pode acumular) para comparar cada lista.
           </div>
         )}
       </div>
-      <p className="text-[11px] text-gray-500 mt-3 flex items-center gap-1.5">
+      <p className="text-[11px] text-fg-faint mt-3 flex items-center gap-1.5">
         <span className="material-symbols-outlined text-[14px] text-primary">tips_and_updates</span>
         {melhorSigla
           ? <>Você seria <strong className="text-accent-success">convocado</strong> {melhorSigla === "AC" ? "pela ampla concorrência" : `pela lista ${MOD[melhorSigla].nome}`} — basta passar em <strong>uma</strong> das listas.</>
@@ -657,11 +657,11 @@ function PosBox({ titulo, pos, conv, passa, corte, cortePct, falta, mod }: { tit
           <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-accent-error/20 text-accent-error">Fora</span>
         )}
       </div>
-      <p className="cc-num text-3xl font-extrabold text-white flex items-center gap-1.5">
+      <p className="cc-num text-3xl font-extrabold text-fg-strong flex items-center gap-1.5">
         {passa && <span className="material-symbols-outlined text-accent-success text-[26px]">emoji_events</span>}
-        {pos}º <span className="text-sm font-normal text-gray-500">/ {conv} conv.</span>
+        {pos}º <span className="text-sm font-normal text-fg-faint">/ {conv} conv.</span>
       </p>
-      <p className="cc-num text-[11px] text-gray-500 mt-1">
+      <p className="cc-num text-[11px] text-fg-faint mt-1">
         Corte: {corte != null ? corte : "—"}{cortePct != null && <span className="text-emerald-300"> ({cortePct}%)</span>}
         {!passa && falta > 0 && <span className="text-amber-400"> · faltam {falta} pts</span>}
       </p>
@@ -689,15 +689,15 @@ function Classificacao({ result, minhaPont }: { result: SimResult; minhaPont: st
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 border-b border-border-dark">
         <SectionTitle icon="format_list_numbered" title="Lista de classificação" sub={`top ${result.classificacao.length} de ${result.classificacao_total.toLocaleString("pt-BR")}`} />
         <div className="relative">
-          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-600 text-[18px]">search</span>
+          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-faint text-[18px]">search</span>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="inscrição ou UF"
-            className="pl-8 pr-3 py-1.5 bg-bg-dark border border-border-dark rounded-lg text-xs text-white placeholder-gray-600 focus:ring-1 focus:ring-primary w-full sm:w-48" />
+            className="pl-8 pr-3 py-1.5 bg-bg-dark border border-border-dark rounded-lg text-xs text-fg-strong placeholder:text-fg-faint focus:ring-1 focus:ring-primary w-full sm:w-48" />
         </div>
       </div>
       <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-surface-dark z-10">
-            <tr className="text-[10px] uppercase tracking-wider text-gray-500 border-b border-border-dark">
+            <tr className="text-[10px] uppercase tracking-wider text-fg-faint border-b border-border-dark">
               <th className="text-left font-semibold px-4 py-2.5 w-16">#</th>
               <th className="text-left font-semibold px-3 py-2.5">Inscrição</th>
               <th className="text-left font-semibold px-3 py-2.5">UF</th>
@@ -713,14 +713,14 @@ function Classificacao({ result, minhaPont }: { result: SimResult; minhaPont: st
               return (
                 <tr key={r.inscricao + r.rank_geral}
                   className={`border-b border-border-dark/50 transition-colors ${mine ? "bg-primary/10" : "hover:bg-white/[0.03]"}`}>
-                  <td className="px-4 py-2 cc-num text-gray-500">{r.rank_geral}</td>
-                  <td className="px-3 py-2 cc-num text-gray-300">{r.inscricao}</td>
-                  <td className="px-3 py-2 text-gray-400">{r.polo}</td>
-                  <td className="px-3 py-2 cc-num text-right font-bold text-white">
+                  <td className="px-4 py-2 cc-num text-fg-faint">{r.rank_geral}</td>
+                  <td className="px-3 py-2 cc-num text-fg">{r.inscricao}</td>
+                  <td className="px-3 py-2 text-fg-muted">{r.polo}</td>
+                  <td className="px-3 py-2 cc-num text-right font-bold text-fg-strong">
                     {r.nota}
                     {esp && r.nota_pct != null && <span className="text-[10px] font-medium text-emerald-300 ml-1">{r.nota_pct}%</span>}
                   </td>
-                  {esp && <td className="px-3 py-2 cc-num text-right text-gray-500">{r.pontos}</td>}
+                  {esp && <td className="px-3 py-2 cc-num text-right text-fg-faint">{r.pontos}</td>}
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       {tags(r).map((t) => (
@@ -735,7 +735,7 @@ function Classificacao({ result, minhaPont }: { result: SimResult; minhaPont: st
                         {MOD[r.entrou_por].curto}
                       </span>
                     ) : (
-                      <span className="text-[10px] text-gray-600">fora do CR</span>
+                      <span className="text-[10px] text-fg-faint">fora do CR</span>
                     )}
                   </td>
                 </tr>

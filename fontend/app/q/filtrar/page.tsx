@@ -251,8 +251,8 @@ export default function FiltrarPage() {
   const gruposDaCategoria = GRUPOS_FACET[categoria];
 
   return (
-    <div className="min-h-screen bg-[#121212] text-gray-200">
-      <header className="border-b border-gray-700 px-6 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-page text-fg">
+      <header className="border-b border-border px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-semibold">Filtrar Questões</h1>
           <Link href="/q/cadernos" className="text-sm text-cyan-400 hover:underline flex items-center gap-1">
@@ -282,12 +282,12 @@ export default function FiltrarPage() {
 
       <div className="grid grid-cols-[200px_1fr_280px] min-h-[calc(100vh-60px)]">
         {/* Sidebar categorias */}
-        <aside className="border-r border-gray-700 py-2">
+        <aside className="border-r border-border py-2">
           {CATEGORIAS.map((c) => (
             <button
               key={c}
               onClick={() => setCategoria(c)}
-              className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-800 ${
+              className={`block w-full text-left px-4 py-2 text-sm hover:bg-surface-2 ${
                 categoria === c ? "bg-cyan-950 border-l-2 border-cyan-500 text-cyan-300" : ""
               }`}
             >
@@ -304,7 +304,7 @@ export default function FiltrarPage() {
               placeholder="Pesquisar por nome…"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              className="w-full mb-3 px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm focus:outline-none focus:border-cyan-500"
+              className="w-full mb-3 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-cyan-500"
             />
           )}
 
@@ -314,18 +314,18 @@ export default function FiltrarPage() {
                 <li key={m.id}>
                   <button
                     onClick={() => togglePasta(m.id)}
-                    className="w-full text-left flex items-center gap-2 px-2 py-1.5 hover:bg-gray-800 rounded text-sm"
+                    className="w-full text-left flex items-center gap-2 px-2 py-1.5 hover:bg-surface-2 rounded text-sm"
                   >
                     <span className="text-yellow-500">📁</span>
                     <span className={expanded.has(m.id) ? "font-semibold" : ""}>{m.nome}</span>
-                    <span className="ml-auto text-xs text-gray-500">{contagem.facets["materia"]?.[m.nome] || 0}</span>
+                    <span className="ml-auto text-xs text-fg-faint">{contagem.facets["materia"]?.[m.nome] || 0}</span>
                   </button>
                   {expanded.has(m.id) && (
                     <ul className="pl-8 space-y-0.5 mt-0.5">
                       <li>
                         <button
                           onClick={() => selecionarMateriaInteira(m)}
-                          className="text-left px-2 py-1 text-xs text-cyan-400 hover:bg-gray-800 rounded w-full"
+                          className="text-left px-2 py-1 text-xs text-cyan-400 hover:bg-surface-2 rounded w-full"
                         >
                           ✓ Todo o conteúdo de &quot;{m.nome}&quot;
                         </button>
@@ -334,12 +334,12 @@ export default function FiltrarPage() {
                         <li key={a.id}>
                           <button
                             onClick={() => toggleAssunto(a.nome)}
-                            className={`text-left px-2 py-1 text-sm hover:bg-gray-800 rounded w-full flex items-center justify-between ${
+                            className={`text-left px-2 py-1 text-sm hover:bg-surface-2 rounded w-full flex items-center justify-between ${
                               filtros.assuntos?.includes(a.nome) ? "text-cyan-400 font-medium" : ""
                             }`}
                           >
                             <span>📄 {a.nome}</span>
-                            <span className="text-xs text-gray-500">{contagem.facets["assuntos"]?.[a.nome] || 0}</span>
+                            <span className="text-xs text-fg-faint">{contagem.facets["assuntos"]?.[a.nome] || 0}</span>
                           </button>
                         </li>
                       ))}
@@ -354,9 +354,9 @@ export default function FiltrarPage() {
             const itens = itensFacet(campo);
             return (
               <div key={campo} className="mb-4">
-                {titulo && <h3 className="text-xs uppercase tracking-wide text-gray-500 mb-1 px-2">{titulo}</h3>}
+                {titulo && <h3 className="text-xs uppercase tracking-wide text-fg-faint mb-1 px-2">{titulo}</h3>}
                 {itens.length === 0 ? (
-                  <p className="text-sm text-gray-500 italic px-2">
+                  <p className="text-sm text-fg-faint italic px-2">
                     {NOTA_SEM_DADOS[categoria] || "Nenhum item disponível com os filtros atuais."}
                   </p>
                 ) : (
@@ -367,12 +367,12 @@ export default function FiltrarPage() {
                         <li key={nome}>
                           <button
                             onClick={() => toggleFacet(campo, nome)}
-                            className={`text-left px-2 py-1 text-sm hover:bg-gray-800 rounded w-full flex justify-between ${
+                            className={`text-left px-2 py-1 text-sm hover:bg-surface-2 rounded w-full flex justify-between ${
                               ativo ? "text-cyan-400 font-medium" : ""
                             }`}
                           >
                             <span className="truncate">{ativo ? "✓ " : ""}{nome}</span>
-                            <span className="text-xs text-gray-500 shrink-0 ml-2">{n}</span>
+                            <span className="text-xs text-fg-faint shrink-0 ml-2">{n}</span>
                           </button>
                         </li>
                       );
@@ -389,7 +389,7 @@ export default function FiltrarPage() {
                 <input type="checkbox" checked={favoritas} onChange={(e) => setFavoritas(e.target.checked)} />
                 Apenas questões favoritas
               </label>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-fg-faint">
                 {favTotal === null ? "Carregando…" : `${favTotal} questão(ões) favoritada(s).`}{" "}
                 Marque a estrela ⭐ no cabeçalho da questão dentro de um caderno para favoritar.
               </p>
@@ -403,9 +403,9 @@ export default function FiltrarPage() {
                 placeholder="Palavras no enunciado…"
                 value={qEnunciado}
                 onChange={(e) => setQEnunciado(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm focus:outline-none focus:border-cyan-500"
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-cyan-500"
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-fg-faint">
                 Busca textual no enunciado das questões (Meilisearch). Combine com os demais filtros.
               </p>
             </div>
@@ -434,8 +434,8 @@ export default function FiltrarPage() {
         </section>
 
         {/* Painel direito Opções */}
-        <aside className="border-l border-gray-700 p-4 bg-[#0a0a0a]">
-          <h2 className="text-sm font-semibold mb-3 text-gray-400">
+        <aside className="border-l border-border p-4 bg-page">
+          <h2 className="text-sm font-semibold mb-3 text-fg-muted">
             Filtros ativos: <span className="text-cyan-400">{totalChips}</span>
           </h2>
           <div className="space-y-2 mb-4 max-h-[50vh] overflow-y-auto">
@@ -446,7 +446,7 @@ export default function FiltrarPage() {
               </div>
             )}
             {qEnunciado.trim() && (
-              <div className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs">
+              <div className="flex items-center justify-between bg-surface-2 border border-border rounded px-2 py-1 text-xs">
                 <span className="truncate">Enunciado: “{qEnunciado.trim()}”</span>
                 <button onClick={() => setQEnunciado("")} className="ml-2 text-red-400 hover:text-red-300">✕</button>
               </div>
@@ -471,7 +471,7 @@ export default function FiltrarPage() {
               ))
             )}
           </div>
-          <div className="text-xs text-gray-500 mb-1">Atalhos:</div>
+          <div className="text-xs text-fg-faint mb-1">Atalhos:</div>
           <button
             onClick={() => toggleStatusExcluir("ANULADA")}
             className="text-xs text-cyan-400 hover:underline block"
@@ -487,12 +487,12 @@ export default function FiltrarPage() {
         </aside>
       </div>
 
-      <footer className="border-t border-gray-700 px-6 py-4 bg-[#0a0a0a] flex items-center gap-4">
+      <footer className="border-t border-border px-6 py-4 bg-page flex items-center gap-4">
         <div className="flex-1">
           <div className="text-2xl font-semibold text-cyan-400">
-            {contagem.total.toLocaleString("pt-BR")} <span className="text-base text-gray-400">questões encontradas</span>
+            {contagem.total.toLocaleString("pt-BR")} <span className="text-base text-fg-muted">questões encontradas</span>
           </div>
-          <div className="text-xs text-gray-500">Meili: {contagem.ms}ms</div>
+          <div className="text-xs text-fg-faint">Meili: {contagem.ms}ms</div>
         </div>
         <div className="flex gap-2 items-center">
           <input
@@ -501,7 +501,7 @@ export default function FiltrarPage() {
             onChange={(e) => setPastaCaderno(e.target.value)}
             placeholder="Pasta (opcional)"
             list="pastas-existentes"
-            className="px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm w-44"
+            className="px-3 py-2 bg-surface-2 border border-border rounded text-sm w-44"
             disabled={gerando}
           />
           <datalist id="pastas-existentes">
@@ -512,13 +512,13 @@ export default function FiltrarPage() {
             value={nomeCaderno}
             onChange={(e) => setNomeCaderno(e.target.value)}
             placeholder="Nome do caderno"
-            className="px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm"
+            className="px-3 py-2 bg-surface-2 border border-border rounded text-sm"
             disabled={gerando}
           />
           <button
             onClick={gerarCaderno}
             disabled={gerando || contagem.total === 0}
-            className="bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:cursor-not-allowed px-4 py-2 rounded text-sm font-semibold"
+            className="bg-cyan-600 hover:bg-cyan-500 disabled:bg-surface-2 disabled:cursor-not-allowed px-4 py-2 rounded text-sm font-semibold"
           >
             {gerando ? "Gerando…" : "GERAR CADERNO"}
           </button>

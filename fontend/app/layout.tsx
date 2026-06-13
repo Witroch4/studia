@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import AppShell from "./components/AppShell";
+import { ThemeProvider } from "./components/ThemeProvider";
 import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -50,7 +51,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: siteConfig.themeColor,
-  colorScheme: "dark",
+  // color-scheme é definido por tema no globals.css (:root claro / .dark escuro);
+  // não fixamos aqui para os controles nativos acompanharem o toggle.
 };
 
 export default function RootLayout({
@@ -59,7 +61,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className="dark">
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <link
           href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
@@ -70,8 +72,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-bg-dark text-text-dark min-h-screen flex antialiased">
-        <AppShell>{children}</AppShell>
+      <body className="bg-page text-fg min-h-screen flex antialiased">
+        <ThemeProvider>
+          <AppShell>{children}</AppShell>
+        </ThemeProvider>
       </body>
     </html>
   );

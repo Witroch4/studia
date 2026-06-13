@@ -39,7 +39,7 @@ function statusBadge(s: string): string {
   if (s === "done") return "bg-green-900/40 text-green-300 border-green-700";
   if (s === "collecting") return "bg-cyan-900/40 text-cyan-300 border-cyan-700";
   if (s === "error") return "bg-red-900/40 text-red-300 border-red-700";
-  return "bg-gray-800 text-gray-300 border-gray-700";
+  return "bg-surface-2 text-fg border-border";
 }
 
 /**
@@ -129,13 +129,13 @@ export default function GuiasPanel() {
   }
 
   return (
-    <section className="border border-gray-800 rounded-lg bg-gray-950/70 p-4 space-y-4">
+    <section className="border border-border rounded-lg bg-page/70 p-4 space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-gray-100 flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-fg-strong flex items-center gap-2">
           <span className="material-symbols-outlined text-cyan-400 text-[18px]">menu_book</span>
           Guias de estudo
         </h2>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-fg-faint mt-1">
           Importe um guia inteiro do TC pela URL base. Cada caderro do guia é coletado
           pela mesma fila abaixo, e vira um caderno de estudo por matéria.
         </p>
@@ -148,18 +148,18 @@ export default function GuiasPanel() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://www.tecconcursos.com.br/guias/oab-2026"
-          className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm focus:outline-none focus:border-cyan-500 font-mono"
+          className="flex-1 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-cyan-500 font-mono"
           disabled={importando}
         />
         <button
           onClick={() => void importar(url)}
           disabled={importando}
-          className="bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 px-4 py-2 rounded text-sm font-semibold whitespace-nowrap"
+          className="bg-cyan-600 hover:bg-cyan-500 disabled:bg-surface-2 px-4 py-2 rounded text-sm font-semibold whitespace-nowrap"
         >
           {importando ? "Importando…" : "Importar guia"}
         </button>
       </div>
-      <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+      <label className="flex items-center gap-2 text-xs text-fg-muted cursor-pointer">
         <input type="checkbox" checked={iniciarColeta} onChange={(e) => setIniciarColeta(e.target.checked)} disabled={importando} />
         Iniciar a coleta das questões logo após importar
       </label>
@@ -172,13 +172,13 @@ export default function GuiasPanel() {
           onChange={(e) => setTermo(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && void buscar()}
           placeholder="Buscar guias no TC (ex.: oab, sefaz, trt)"
-          className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm focus:outline-none focus:border-cyan-500"
+          className="flex-1 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-cyan-500"
           disabled={buscando}
         />
         <button
           onClick={() => void buscar()}
           disabled={buscando || !termo.trim()}
-          className="bg-gray-800 hover:bg-gray-700 disabled:opacity-60 px-4 py-2 rounded text-sm font-semibold whitespace-nowrap"
+          className="bg-surface-2 hover:bg-fg-strong/6 disabled:opacity-60 px-4 py-2 rounded text-sm font-semibold whitespace-nowrap"
         >
           {buscando ? "Buscando…" : "Buscar"}
         </button>
@@ -187,10 +187,10 @@ export default function GuiasPanel() {
       {resultados.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {resultados.map((g) => (
-            <div key={g.slug} className="rounded border border-gray-800 bg-black/30 p-2 flex items-center justify-between gap-2">
+            <div key={g.slug} className="rounded border border-border bg-black/30 p-2 flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <div className="text-sm text-gray-200 truncate">{g.orgao} {g.ano}</div>
-                <div className="text-xs text-gray-500 truncate">
+                <div className="text-sm text-fg truncate">{g.orgao} {g.ano}</div>
+                <div className="text-xs text-fg-faint truncate">
                   {g.banca}{g.data_prova ? ` · prova ${g.data_prova.slice(0, 10)}` : ""}
                 </div>
               </div>
@@ -202,7 +202,7 @@ export default function GuiasPanel() {
                 <button
                   onClick={() => void importar(g.url, g.slug)}
                   disabled={importandoSlug === g.slug}
-                  className="text-xs bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 px-2 py-1 rounded font-semibold whitespace-nowrap"
+                  className="text-xs bg-cyan-600 hover:bg-cyan-500 disabled:bg-surface-2 px-2 py-1 rounded font-semibold whitespace-nowrap"
                 >
                   {importandoSlug === g.slug ? "…" : "Importar"}
                 </button>
@@ -218,24 +218,24 @@ export default function GuiasPanel() {
       {/* Guias importados */}
       {guias.length > 0 && (
         <div className="space-y-2 pt-1">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Guias importados</div>
+          <div className="text-xs text-fg-faint uppercase tracking-wide">Guias importados</div>
           {guias.map((g) => (
             <Link
               key={g.id}
               href={`/q/guias/${g.id}`}
-              className="block rounded border border-gray-800 bg-black/20 hover:border-cyan-700 p-3"
+              className="block rounded border border-border bg-black/20 hover:border-cyan-700 p-3"
             >
               <div className="flex items-center justify-between gap-2">
-                <div className="text-sm font-medium text-gray-100 truncate">{g.nome}</div>
+                <div className="text-sm font-medium text-fg-strong truncate">{g.nome}</div>
                 <span className={`text-[10px] uppercase font-semibold px-2 py-0.5 rounded border ${statusBadge(g.status)}`}>
                   {STATUS_LABEL[g.status] || g.status}
                 </span>
               </div>
-              <div className="mt-1 text-xs text-gray-400">
+              <div className="mt-1 text-xs text-fg-muted">
                 {g.questoes_coletadas.toLocaleString("pt-BR")}/{g.questoes_esperadas.toLocaleString("pt-BR")} questões ·{" "}
                 {g.cadernos_materializados}/{g.cadernos_total} cadernos prontos
               </div>
-              <div className="h-1.5 rounded-full bg-gray-800 overflow-hidden mt-2">
+              <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden mt-2">
                 <div className="h-full bg-cyan-500 transition-all" style={{ width: `${Math.min(100, g.pct)}%` }} />
               </div>
             </Link>

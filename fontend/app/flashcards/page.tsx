@@ -45,12 +45,12 @@ export default function FlashcardsPage() {
   return (
     <>
       <header className="hidden md:flex sticky top-0 z-30 bg-bg-dark/80 backdrop-blur-md border-b border-border-dark px-8 py-4 justify-between items-center">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-fg-strong flex items-center gap-2">
           <span className="material-symbols-outlined text-primary">style</span>
           Biblioteca de Flashcards
         </h1>
         <div className="flex items-center gap-4">
-          <button className="p-2 rounded-full hover:bg-gray-800 text-gray-300 relative">
+          <button className="p-2 rounded-full hover:bg-surface-2 text-fg relative">
             <span className="material-symbols-outlined">notifications</span>
             <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-secondary animate-pulse" />
           </button>
@@ -60,14 +60,14 @@ export default function FlashcardsPage() {
       <main className="w-full px-4 md:px-8 py-8 overflow-y-auto h-full">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div className="flex flex-col gap-1">
-            <h2 className="text-3xl font-bold text-white">Meus Baralhos</h2>
-            <p className="text-sm text-gray-400">Gerencie seus estudos e acompanhe seu progresso diário.</p>
+            <h2 className="text-3xl font-bold text-fg-strong">Meus Baralhos</h2>
+            <p className="text-sm text-fg-muted">Gerencie seus estudos e acompanhe seu progresso diário.</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
             <div className="grow sm:grow-0 sm:w-64">
               <Input icon="search" placeholder="Buscar baralho..." />
             </div>
-            <button className="p-2.5 bg-surface-dark border border-border-dark rounded-lg hover:bg-gray-700 text-gray-300 transition-colors">
+            <button className="p-2.5 bg-surface-dark border border-border-dark rounded-lg hover:bg-surface-2 text-fg transition-colors">
               <span className="material-symbols-outlined text-[20px]">filter_list</span>
             </button>
             <Link href="/flashcards/novo" className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary hover:bg-cyan-600 text-white rounded-lg shadow-lg shadow-cyan-500/20 transition-all font-medium whitespace-nowrap">
@@ -93,12 +93,12 @@ export default function FlashcardsPage() {
               </>
             )}
 
-          <Link href="/flashcards/novo" className="bg-surface-dark rounded-xl border border-dashed border-gray-700 hover:border-primary transition-all group flex flex-col h-full items-center justify-center cursor-pointer min-h-[300px]">
-            <div className="h-16 w-16 rounded-full bg-gray-800 flex items-center justify-center mb-4 group-hover:bg-primary/10 transition-colors">
-              <span className="material-symbols-outlined text-3xl text-gray-400 group-hover:text-primary">add</span>
+          <Link href="/flashcards/novo" className="bg-surface-dark rounded-xl border border-dashed border-border hover:border-primary transition-all group flex flex-col h-full items-center justify-center cursor-pointer min-h-[300px]">
+            <div className="h-16 w-16 rounded-full bg-surface-2 flex items-center justify-center mb-4 group-hover:bg-primary/10 transition-colors">
+              <span className="material-symbols-outlined text-3xl text-fg-muted group-hover:text-primary">add</span>
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">Novo Baralho</h3>
-            <p className="text-sm text-gray-400 text-center px-6">
+            <h3 className="text-lg font-bold text-fg-strong mb-2">Novo Baralho</h3>
+            <p className="text-sm text-fg-muted text-center px-6">
               Adicione uma nova disciplina ou tópico para começar a criar flashcards.
             </p>
           </Link>
@@ -111,11 +111,11 @@ export default function FlashcardsPage() {
 function DeckSkeleton() {
   return (
     <div className="bg-surface-dark rounded-xl border border-border-dark p-6 animate-pulse min-h-[300px]">
-      <div className="h-10 w-10 rounded-lg bg-gray-700 mb-4" />
-      <div className="h-5 w-32 bg-gray-700 rounded mb-2" />
-      <div className="h-3 w-24 bg-gray-800 rounded mb-6" />
-      <div className="h-4 w-16 bg-gray-700 rounded mb-2" />
-      <div className="h-6 w-12 bg-gray-700 rounded" />
+      <div className="h-10 w-10 rounded-lg bg-surface-2 mb-4" />
+      <div className="h-5 w-32 bg-surface-2 rounded mb-2" />
+      <div className="h-3 w-24 bg-surface-2 rounded mb-6" />
+      <div className="h-4 w-16 bg-surface-2 rounded mb-2" />
+      <div className="h-6 w-12 bg-surface-2 rounded" />
     </div>
   );
 }
@@ -129,18 +129,18 @@ function AllDeckCard({ total, revisar }: { total: number; revisar: number }) {
             <span className="material-symbols-outlined">library_books</span>
           </div>
         </div>
-        <Link href="/flashcards/todos" className="text-lg font-bold text-white mb-1 hover:text-primary transition-colors block">Todos</Link>
-        <p className="text-xs text-gray-400 mb-6">{total} cartões de todos os baralhos</p>
+        <Link href="/flashcards/todos" className="text-lg font-bold text-fg-strong mb-1 hover:text-primary transition-colors block">Todos</Link>
+        <p className="text-xs text-fg-muted mb-6">{total} cartões de todos os baralhos</p>
 
         <div className="flex items-center justify-between mb-6">
           <div className="space-y-3">
             <div>
-              <p className="text-xs text-gray-400 uppercase font-semibold">Total de Cartões</p>
-              <p className="text-xl font-bold text-white">{total}</p>
+              <p className="text-xs text-fg-muted uppercase font-semibold">Total de Cartões</p>
+              <p className="text-xl font-bold text-fg-strong">{total}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 uppercase font-semibold">Para Revisar Hoje</p>
-              <p className={`text-xl font-bold ${revisar > 0 ? "text-primary" : "text-gray-500"}`}>
+              <p className="text-xs text-fg-muted uppercase font-semibold">Para Revisar Hoje</p>
+              <p className={`text-xl font-bold ${revisar > 0 ? "text-primary" : "text-fg-faint"}`}>
                 {revisar}
               </p>
             </div>
@@ -149,7 +149,7 @@ function AllDeckCard({ total, revisar }: { total: number; revisar: number }) {
           <div className="relative w-16 h-16">
             <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
               <path
-                className="text-gray-700"
+                className="text-border"
                 d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 fill="none"
                 stroke="currentColor"
@@ -166,7 +166,7 @@ function AllDeckCard({ total, revisar }: { total: number; revisar: number }) {
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-xs font-bold text-white">0%</span>
+              <span className="text-xs font-bold text-fg-strong">0%</span>
             </div>
           </div>
         </div>
@@ -206,7 +206,7 @@ function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: numb
                 e.stopPropagation();
                 setMenuOpen(!menuOpen);
               }}
-              className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-700 transition-colors"
+              className="text-fg-muted hover:text-fg-strong p-1 rounded-lg hover:bg-surface-2 transition-colors"
             >
               <span className="material-symbols-outlined">more_vert</span>
             </button>
@@ -217,21 +217,21 @@ function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: numb
               >
                 <button
                   onClick={() => { setMenuOpen(false); /* TODO: rename */ }}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-fg hover:bg-surface-2 hover:text-fg-strong transition-colors"
                 >
                   <span className="material-symbols-outlined text-[18px]">edit</span>
                   Renomear
                 </button>
                 <button
                   onClick={() => { setMenuOpen(false); /* TODO: export */ }}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-fg hover:bg-surface-2 hover:text-fg-strong transition-colors"
                 >
                   <span className="material-symbols-outlined text-[18px]">download</span>
                   Exportar
                 </button>
                 <button
                   onClick={() => { setMenuOpen(false); /* TODO: reset */ }}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-fg hover:bg-surface-2 hover:text-fg-strong transition-colors"
                 >
                   <span className="material-symbols-outlined text-[18px]">restart_alt</span>
                   Resetar Progresso
@@ -255,18 +255,18 @@ function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: numb
             )}
           </div>
         </div>
-        <h3 className="text-lg font-bold text-white mb-1 group-hover:text-primary transition-colors">{deck.nome}</h3>
-        <p className="text-xs text-gray-400 mb-6">{deck.total} cartões</p>
+        <h3 className="text-lg font-bold text-fg-strong mb-1 group-hover:text-primary transition-colors">{deck.nome}</h3>
+        <p className="text-xs text-fg-muted mb-6">{deck.total} cartões</p>
 
         <div className="flex items-center justify-between mb-6">
           <div className="space-y-3">
             <div>
-              <p className="text-xs text-gray-400 uppercase font-semibold">Total de Cartões</p>
-              <p className="text-xl font-bold text-white">{deck.total}</p>
+              <p className="text-xs text-fg-muted uppercase font-semibold">Total de Cartões</p>
+              <p className="text-xl font-bold text-fg-strong">{deck.total}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 uppercase font-semibold">Para Revisar Hoje</p>
-              <p className={`text-xl font-bold ${deck.revisar > 0 ? "text-primary" : "text-gray-500"}`}>
+              <p className="text-xs text-fg-muted uppercase font-semibold">Para Revisar Hoje</p>
+              <p className={`text-xl font-bold ${deck.revisar > 0 ? "text-primary" : "text-fg-faint"}`}>
                 {deck.revisar}
               </p>
             </div>
@@ -275,7 +275,7 @@ function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: numb
           <div className="relative w-16 h-16">
             <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
               <path
-                className="text-gray-700"
+                className="text-border"
                 d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 fill="none"
                 stroke="currentColor"
@@ -292,7 +292,7 @@ function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: numb
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-xs font-bold text-white">{deck.pct}%</span>
+              <span className="text-xs font-bold text-fg-strong">{deck.pct}%</span>
             </div>
           </div>
         </div>
@@ -300,7 +300,7 @@ function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: numb
 
       <div className="p-4 border-t border-border-dark bg-white/[0.02] rounded-b-xl">
         {isAllDone ? (
-          <div className="w-full py-2 bg-surface-dark border border-gray-600 text-gray-500 rounded-lg font-medium text-sm flex items-center justify-center gap-2">
+          <div className="w-full py-2 bg-surface-dark border border-border-strong text-fg-faint rounded-lg font-medium text-sm flex items-center justify-center gap-2">
             <span className="material-symbols-outlined text-[18px]">check</span>
             Tudo em dia
           </div>

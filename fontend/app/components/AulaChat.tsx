@@ -110,12 +110,12 @@ export default function AulaChat({ aulaId, disabled = false }: AulaChatProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-surface-dark border border-border-dark rounded-xl overflow-hidden">
+    <div className="flex flex-col h-full bg-surface border border-border rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border-dark">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined text-primary text-[20px]">forum</span>
-          <h3 className="text-sm font-semibold text-white">Dúvidas da Aula</h3>
+          <h3 className="text-sm font-semibold text-fg-strong">Dúvidas da Aula</h3>
         </div>
         <ModelSelector value={modelo} onChange={setModelo} compact />
       </div>
@@ -125,7 +125,7 @@ export default function AulaChat({ aulaId, disabled = false }: AulaChatProps) {
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center gap-3 py-8">
             <span className="material-symbols-outlined text-5xl text-primary/30">smart_toy</span>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-fg-faint">
               Pergunte qualquer coisa sobre esta aula.
               <br />O tutor tem acesso ao conteúdo completo do PDF.
             </p>
@@ -148,7 +148,7 @@ export default function AulaChat({ aulaId, disabled = false }: AulaChatProps) {
       </div>
 
       {/* Input */}
-      <div className="border-t border-border-dark p-3">
+      <div className="border-t border-border p-3">
         <div className="flex items-end gap-2">
           <textarea
             ref={inputRef}
@@ -158,7 +158,7 @@ export default function AulaChat({ aulaId, disabled = false }: AulaChatProps) {
             placeholder={disabled ? "Aguarde o processamento..." : "Pergunte sobre a aula..."}
             disabled={disabled || loading}
             rows={1}
-            className="flex-1 bg-gray-800/50 border border-border-dark rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 resize-none focus:ring-1 focus:ring-primary focus:border-primary disabled:opacity-40"
+            className="flex-1 bg-surface-2/50 border border-border rounded-lg px-3 py-2.5 text-sm text-fg-strong placeholder:text-fg-faint resize-none focus:ring-1 focus:ring-primary focus:border-primary disabled:opacity-40"
             style={{ maxHeight: "120px" }}
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;

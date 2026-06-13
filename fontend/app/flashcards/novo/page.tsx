@@ -22,17 +22,17 @@ export default function NovoFlashcardPage() {
   return (
     <>
       {/* Header */}
-      <header className="hidden md:flex sticky top-0 z-30 bg-bg-dark/80 backdrop-blur-md border-b border-border-dark px-8 py-4 justify-between items-center">
+      <header className="hidden md:flex sticky top-0 z-30 bg-page/80 backdrop-blur-md border-b border-border px-8 py-4 justify-between items-center">
         <div className="flex items-center gap-4">
           <Link
             href="/flashcards"
-            className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-sm"
+            className="flex items-center gap-2 text-fg-faint hover:text-fg-strong transition-colors text-sm"
           >
             <span className="material-symbols-outlined text-[18px]">arrow_back</span>
             Voltar
           </Link>
-          <div className="h-6 w-px bg-gray-700" />
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+          <div className="h-6 w-px bg-border" />
+          <h1 className="text-xl font-bold text-fg-strong flex items-center gap-2">
             <span className="material-symbols-outlined text-primary">add_circle</span>
             Novo Flashcard
           </h1>
@@ -41,13 +41,13 @@ export default function NovoFlashcardPage() {
 
       <main className="w-full px-4 md:px-8 py-8 overflow-y-auto h-full">
         {/* Tabs */}
-        <div className="flex gap-1 mb-8 bg-surface-dark rounded-xl p-1 w-fit">
+        <div className="flex gap-1 mb-8 bg-surface rounded-xl p-1 w-fit">
           <button
             onClick={() => setTab("individual")}
             className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
               tab === "individual"
                 ? "bg-primary text-white shadow-lg shadow-cyan-500/20"
-                : "text-gray-400 hover:text-white"
+                : "text-fg-muted hover:text-fg-strong"
             }`}
           >
             <span className="material-symbols-outlined text-[16px] mr-1 align-middle">edit_note</span>
@@ -58,7 +58,7 @@ export default function NovoFlashcardPage() {
             className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
               tab === "importar"
                 ? "bg-primary text-white shadow-lg shadow-cyan-500/20"
-                : "text-gray-400 hover:text-white"
+                : "text-fg-muted hover:text-fg-strong"
             }`}
           >
             <span className="material-symbols-outlined text-[16px] mr-1 align-middle">upload_file</span>
@@ -108,24 +108,24 @@ function IndividualForm() {
     <div className="max-w-4xl">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div>
-          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+          <label className="block text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2">
             Tema / Disciplina
           </label>
           <input
             value={tema}
             onChange={(e) => setTema(e.target.value)}
-            className="w-full px-4 py-2.5 bg-surface-dark border border-border-dark rounded-lg text-sm text-white placeholder-gray-500 focus:ring-primary focus:border-primary"
+            className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-sm text-fg-strong placeholder:text-fg-faint focus:ring-primary focus:border-primary"
             placeholder="ex: Geotecnia"
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+          <label className="block text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2">
             Assunto
           </label>
           <input
             value={assunto}
             onChange={(e) => setAssunto(e.target.value)}
-            className="w-full px-4 py-2.5 bg-surface-dark border border-border-dark rounded-lg text-sm text-white placeholder-gray-500 focus:ring-primary focus:border-primary"
+            className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-sm text-fg-strong placeholder:text-fg-faint focus:ring-primary focus:border-primary"
             placeholder="ex: Bulbo de Tensões"
           />
         </div>
@@ -133,26 +133,26 @@ function IndividualForm() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div>
-          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+          <label className="block text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2">
             Frente (Pergunta)
           </label>
           <textarea
             value={frente}
             onChange={(e) => setFrente(e.target.value)}
             rows={6}
-            className="w-full px-4 py-3 bg-surface-dark border border-border-dark rounded-lg text-sm text-white placeholder-gray-500 focus:ring-primary focus:border-primary resize-none font-mono"
+            className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-sm text-fg-strong placeholder:text-fg-faint focus:ring-primary focus:border-primary resize-none font-mono"
             placeholder="Suporta **markdown**, $LaTeX$ e tags XML..."
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+          <label className="block text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2">
             Verso (Resposta)
           </label>
           <textarea
             value={verso}
             onChange={(e) => setVerso(e.target.value)}
             rows={6}
-            className="w-full px-4 py-3 bg-surface-dark border border-border-dark rounded-lg text-sm text-white placeholder-gray-500 focus:ring-primary focus:border-primary resize-none font-mono"
+            className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-sm text-fg-strong placeholder:text-fg-faint focus:ring-primary focus:border-primary resize-none font-mono"
             placeholder="Use <atencao>, <destaque>, <resumo>..."
           />
         </div>
@@ -161,7 +161,7 @@ function IndividualForm() {
       {/* Preview toggle */}
       <button
         onClick={() => setShowPreview(!showPreview)}
-        className="flex items-center gap-2 text-sm text-gray-400 hover:text-primary mb-4 transition-colors"
+        className="flex items-center gap-2 text-sm text-fg-muted hover:text-primary mb-4 transition-colors"
       >
         <span className="material-symbols-outlined text-[18px]">
           {showPreview ? "visibility_off" : "visibility"}
@@ -171,13 +171,13 @@ function IndividualForm() {
 
       {showPreview && (frente || verso) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div className="bg-surface-dark border border-border-dark rounded-xl p-6">
+          <div className="bg-surface border border-border rounded-xl p-6">
             <p className="text-[0.7rem] font-semibold tracking-wider uppercase text-primary mb-3">
               Frente
             </p>
             <MarkdownRenderer content={frente} />
           </div>
-          <div className="bg-surface-dark border border-border-dark rounded-xl p-6">
+          <div className="bg-surface border border-border rounded-xl p-6">
             <p className="text-[0.7rem] font-semibold tracking-wider uppercase text-primary mb-3">
               Verso
             </p>
@@ -276,13 +276,13 @@ function ImportForm() {
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-700 hover:border-primary rounded-xl p-8 text-center cursor-pointer transition-colors mb-6 group"
+            className="border-2 border-dashed border-border hover:border-primary rounded-xl p-8 text-center cursor-pointer transition-colors mb-6 group"
           >
-            <span className="material-symbols-outlined text-4xl text-gray-500 group-hover:text-primary mb-2 block">
+            <span className="material-symbols-outlined text-4xl text-fg-faint group-hover:text-primary mb-2 block">
               upload_file
             </span>
-            <p className="text-gray-400 text-sm">
-              Arraste um arquivo <strong className="text-white">.md</strong> aqui ou clique para selecionar
+            <p className="text-fg-muted text-sm">
+              Arraste um arquivo <strong className="text-fg-strong">.md</strong> aqui ou clique para selecionar
             </p>
             <input
               ref={fileInputRef}
@@ -298,14 +298,14 @@ function ImportForm() {
 
           {/* Textarea */}
           <div className="mb-6">
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2">
               Ou cole o conteúdo aqui
             </label>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={16}
-              className="w-full px-4 py-3 bg-surface-dark border border-border-dark rounded-lg text-sm text-white placeholder-gray-500 focus:ring-primary focus:border-primary resize-none font-mono leading-relaxed"
+              className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-sm text-fg-strong placeholder:text-fg-faint focus:ring-primary focus:border-primary resize-none font-mono leading-relaxed"
               placeholder={`Flashcard: Tema: Assunto\nFrente: Pergunta aqui...\nVerso:\nResposta com **markdown**, $LaTeX$ e <atencao>tags</atencao>...\n\nFlashcard: Tema: Outro Assunto\n...`}
             />
           </div>
@@ -338,16 +338,16 @@ function ImportForm() {
           <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 mb-6 flex items-center gap-3">
             <span className="material-symbols-outlined text-green-400 text-2xl">check_circle</span>
             <div>
-              <p className="text-white font-bold">
+              <p className="text-fg-strong font-bold">
                 {cards.length} flashcards importados!
               </p>
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-fg-muted">
                 Temas: {[...new Set(cards.map((c) => c.tema))].join(", ")}
               </p>
             </div>
             <button
               onClick={handleReset}
-              className="ml-auto px-4 py-2 text-sm bg-surface-dark border border-border-dark rounded-lg text-gray-300 hover:text-white transition-colors"
+              className="ml-auto px-4 py-2 text-sm bg-surface border border-border rounded-lg text-fg hover:text-fg-strong transition-colors"
             >
               Importar mais
             </button>
@@ -358,37 +358,37 @@ function ImportForm() {
             {cards.map((card, idx) => (
               <div
                 key={card.id}
-                className="bg-surface-dark border border-border-dark rounded-xl overflow-hidden"
+                className="bg-surface border border-border rounded-xl overflow-hidden"
               >
                 <button
                   onClick={() => setPreviewIdx(previewIdx === idx ? null : idx)}
-                  className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-white/[0.02] transition-colors"
+                  className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-white/2 transition-colors"
                 >
-                  <span className="text-xs font-mono text-gray-500 w-8">#{card.id}</span>
+                  <span className="text-xs font-mono text-fg-faint w-8">#{card.id}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded-full">
                         {card.tema}
                       </span>
-                      <span className="text-[0.65rem] text-gray-500">{card.assunto}</span>
+                      <span className="text-[0.65rem] text-fg-faint">{card.assunto}</span>
                     </div>
-                    <p className="text-sm text-gray-300 truncate">{card.frente}</p>
+                    <p className="text-sm text-fg truncate">{card.frente}</p>
                   </div>
-                  <span className="material-symbols-outlined text-gray-500 text-[18px]">
+                  <span className="material-symbols-outlined text-fg-faint text-[18px]">
                     {previewIdx === idx ? "expand_less" : "expand_more"}
                   </span>
                 </button>
 
                 {previewIdx === idx && (
-                  <div className="px-5 pb-5 border-t border-border-dark">
+                  <div className="px-5 pb-5 border-t border-border">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      <div className="bg-black/20 rounded-lg p-4">
+                      <div className="bg-inset rounded-lg p-4">
                         <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-cyan-400 mb-2">
                           Frente
                         </p>
                         <MarkdownRenderer content={card.frente} />
                       </div>
-                      <div className="bg-black/20 rounded-lg p-4">
+                      <div className="bg-inset rounded-lg p-4">
                         <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-cyan-400 mb-2">
                           Verso
                         </p>

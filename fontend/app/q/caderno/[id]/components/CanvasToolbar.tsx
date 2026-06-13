@@ -50,13 +50,13 @@ export function CanvasToolbar({
         className={`inline-flex h-8 items-center gap-2 rounded-full border px-2.5 transition ${
           active
             ? "border-cyan-400 bg-cyan-500/15 text-cyan-100"
-            : "border-gray-700 bg-gray-950/70 text-gray-400 hover:border-gray-600 hover:text-gray-100"
+            : "border-border bg-page/70 text-fg-muted hover:border-border-strong hover:text-fg-strong"
         }`}
         title="Ativar ou desativar canvas"
       >
         <span
           className={`flex h-4 w-7 items-center rounded-full p-0.5 transition ${
-            active ? "bg-cyan-500" : "bg-gray-700"
+            active ? "bg-cyan-500" : "bg-surface-2"
           }`}
           aria-hidden="true"
         >
@@ -67,7 +67,7 @@ export function CanvasToolbar({
 
       {active && (
         <>
-          <div className="flex items-center gap-1 rounded-lg border border-gray-700 bg-gray-950/80 p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-page/80 p-1">
             {TOOLS.map((item) => (
               <button
                 key={item.id}
@@ -78,7 +78,7 @@ export function CanvasToolbar({
                 className={`grid h-7 w-7 place-items-center rounded transition ${
                   tool === item.id
                     ? "bg-cyan-500 text-white shadow-sm shadow-cyan-500/20"
-                    : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                    : "text-fg-muted hover:bg-surface-2 hover:text-fg-strong"
                 }`}
                 title={item.label}
               >
@@ -91,14 +91,14 @@ export function CanvasToolbar({
             type="color"
             value={color}
             onChange={(event) => onColorChange(event.target.value)}
-            className="h-8 w-8 rounded border border-gray-700 bg-gray-950 p-0.5"
+            className="h-8 w-8 rounded border border-border bg-page p-0.5"
             title="Cor do traco"
             aria-label="Cor do traco"
           />
 
-          <label className="flex h-8 items-center gap-2 rounded border border-gray-700 bg-gray-950/70 px-2 text-gray-400">
+          <label className="flex h-8 items-center gap-2 rounded border border-border bg-page/70 px-2 text-fg-muted">
             <span className="sr-only">Espessura</span>
-            <span className="w-8 text-right font-mono text-[11px] text-gray-500" aria-hidden="true">
+            <span className="w-8 text-right font-mono text-[11px] text-fg-faint" aria-hidden="true">
               {width}px
             </span>
             <input
@@ -117,7 +117,7 @@ export function CanvasToolbar({
             type="button"
             disabled={!hasStrokes}
             onClick={onClear}
-            className="inline-flex h-8 items-center gap-1 rounded border border-gray-700 px-2 text-gray-300 transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-8 items-center gap-1 rounded border border-border px-2 text-fg transition hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
             title="Limpar canvas"
           >
             <Icon name="delete" size={16} aria-hidden="true" />
@@ -129,7 +129,7 @@ export function CanvasToolbar({
       <button
         type="button"
         onClick={onOpenCalculator}
-        className="inline-flex h-8 items-center gap-1 rounded border border-gray-700 px-2 text-gray-300 transition hover:bg-gray-800"
+        className="inline-flex h-8 items-center gap-1 rounded border border-border px-2 text-fg transition hover:bg-surface-2"
         title="Calculadora"
       >
         <Icon name="calculate" size={16} aria-hidden="true" />
@@ -146,7 +146,7 @@ export function CanvasToolbar({
       >
         {saving ? (
           <span
-            className="h-3 w-3 animate-spin rounded-full border-2 border-gray-600 border-t-cyan-400"
+            className="h-3 w-3 animate-spin rounded-full border-2 border-border-strong border-t-cyan-400"
             aria-hidden="true"
           />
         ) : saveError ? (

@@ -1,38 +1,98 @@
 @import "tailwindcss";
 
+/* dark mode dirigido por classe .dark no <html> (next-themes attribute="class") */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ──────────────────────────────────────────────────────────────────────────
- * Tailwind theme — generates utilities (bg-primary, text-secondary, …).
- * Names here are consumed across existing pages; keep them stable.
+ * Tailwind theme — gera as utilities semânticas que TROCAM com o tema.
+ * Cada --color-* aponta (via @theme inline) para uma role-var resolvida em
+ * runtime; quem define o valor é :root (claro) e .dark (escuro) lá embaixo.
+ * Utilities resultantes: bg-page, bg-surface, bg-surface-2, border-border,
+ * text-fg, text-fg-muted, text-fg-faint, bg-primary, etc.
+ * Aliases legados (bg-bg-dark / bg-surface-dark / border-border-dark /
+ * text-text-dark) continuam existindo E agora também trocam com o tema.
  * ──────────────────────────────────────────────────────────────────────── */
 @theme inline {
-  --color-primary: #06b6d4;
-  --color-secondary: #8b5cf6;
-  --color-bg-dark: #121212;
-  --color-surface-dark: #1e1e1e;
-  --color-border-dark: #333333;
-  --color-text-dark: #e5e7eb;
-  --color-accent-success: #10b981;
-  --color-accent-error: #ef4444;
+  /* Brand */
+  --color-primary: var(--primary);
+  --color-primary-600: var(--primary-600);
+  --color-secondary: var(--secondary);
+
+  /* Surfaces */
+  --color-page: var(--surface-page);
+  --color-surface: var(--surface-card);
+  --color-surface-2: var(--surface-raised);
+  --color-inset: var(--surface-inset);
+
+  /* Borders */
+  --color-border: var(--border-default);
+  --color-border-strong: var(--border-strong);
+
+  /* Foreground / text */
+  --color-fg: var(--text-body);
+  --color-fg-strong: var(--text-strong);
+  --color-fg-muted: var(--text-muted);
+  --color-fg-faint: var(--text-faint);
+  --color-on-primary: var(--text-on-primary);
+
+  /* Feedback */
+  --color-success: var(--success);
+  --color-error: var(--error);
+  --color-warning: var(--warning);
+
+  /* Legacy aliases — mantêm classes antigas vivas E theme-aware */
+  --color-bg-dark: var(--surface-page);
+  --color-surface-dark: var(--surface-card);
+  --color-border-dark: var(--border-default);
+  --color-text-dark: var(--text-body);
+  --color-accent-success: var(--success);
+  --color-accent-error: var(--error);
+
   --font-sans: 'Inter', sans-serif;
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
- * studIA Design System tokens (from claude.ai/design handoff).
- * Plain :root custom properties so var(--token) works in the ds/* components
- * and arbitrary-value utilities alike. Dark-only "night-mode engineering lab".
+ * :root = TEMA CLARO (opt-in). .dark = TEMA ESCURO (padrão do app).
+ * Apenas as "role tokens" de cor mudam entre os dois; tudo que é
+ * theme-independente (raios, espaçamento, motion, deck, tints) fica só aqui.
  * ──────────────────────────────────────────────────────────────────────── */
 :root {
+  color-scheme: light;
+
   /* ----- Brand accents ----- */
-  --color-primary: #06b6d4;        /* Electric Cyan — CTAs, active nav, data */
-  --color-primary-600: #0891b2;    /* hover/darken */
-  --color-secondary: #8b5cf6;      /* Deep Violet — badges, glows, gradient end */
+  --primary: #0891b2;          /* cyan-600 — contraste AA sobre branco */
+  --primary-600: #0e7490;      /* hover/darken */
+  --secondary: #7c3aed;        /* violet-600 */
 
-  /* ----- Backgrounds & surfaces ----- */
-  --color-bg-dark: #121212;
-  --color-surface-dark: #1e1e1e;
-  --color-border-dark: #333333;
+  /* ----- Surface roles (claro) ----- */
+  --surface-page: #f6f7f9;
+  --surface-card: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-inset: rgba(15, 23, 42, 0.03);
+  --border-default: #e4e7ec;
+  --border-strong: #cbd2da;
 
-  /* ----- Neutral gray ramp (Tailwind gray, used verbatim) ----- */
+  /* ----- Text roles (claro) ----- */
+  --text-strong: #0d1117;
+  --text-body: #2e3540;
+  --text-muted: #5a6472;
+  --text-faint: #8b94a3;
+  --text-on-primary: #ffffff;
+
+  /* ----- Semantic / feedback ----- */
+  --success: #059669;
+  --error: #dc2626;
+  --warning: #d97706;
+
+  /* ----- Shadows (claro: neutras e suaves) ----- */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-xl: 0 8px 32px rgba(15, 23, 42, 0.12);
+  --glow-primary: 0 8px 24px rgba(6, 182, 212, 0.20);
+  --glow-primary-soft: 0 8px 24px rgba(6, 182, 212, 0.12);
+  --glow-flashcard: 0 8px 32px rgba(15, 23, 42, 0.10), 0 0 60px rgba(6, 182, 212, 0.05);
+
+  /* ----- Neutral gray ramp (var() usage em ds/*) ----- */
   --color-gray-200: #e5e7eb;
   --color-gray-300: #d1d5db;
   --color-gray-400: #9ca3af;
@@ -41,11 +101,6 @@
   --color-gray-700: #374151;
   --color-gray-800: #1f2937;
 
-  /* ----- Semantic / feedback ----- */
-  --color-success: #10b981;
-  --color-error: #ef4444;
-  --color-warning: #f59e0b;
-
   /* ----- Deck / discipline accent set ----- */
   --color-deck-blue: #3b82f6;
   --color-deck-orange: #f97316;
@@ -53,21 +108,6 @@
   --color-deck-green: #22c55e;
   --color-deck-purple: #a855f7;
   --color-deck-cyan: #06b6d4;
-
-  /* ----- Text roles ----- */
-  --text-strong: #ffffff;
-  --text-body: var(--color-gray-200);
-  --text-muted: var(--color-gray-400);
-  --text-faint: var(--color-gray-500);
-  --text-on-primary: #ffffff;
-
-  /* ----- Surface roles ----- */
-  --surface-page: var(--color-bg-dark);
-  --surface-card: var(--color-surface-dark);
-  --surface-raised: var(--color-surface-dark);
-  --surface-inset: rgba(255, 255, 255, 0.02);
-  --border-default: var(--color-border-dark);
-  --border-strong: var(--color-gray-600);
 
   /* ----- Tint roles (signature "/10–/15" translucent fills) ----- */
   --tint-primary-soft: rgba(6, 182, 212, 0.10);
@@ -79,27 +119,19 @@
   --tint-neutral: rgba(107, 114, 128, 0.15);
 
   /* ----- Focus ring ----- */
-  --ring-primary: var(--color-primary);
+  --ring-primary: var(--primary);
 
   /* ----- Typography ----- */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: ui-monospace, Menlo, Monaco, monospace;
 
   /* ----- Corner radii ----- */
-  --radius-sm: 0.25rem;    /* 4px */
-  --radius-md: 0.5rem;     /* 8px — buttons, inputs, nav */
-  --radius-lg: 0.75rem;    /* 12px — cards */
-  --radius-xl: 1rem;       /* 16px — upload zones, modals */
-  --radius-2xl: 1.5rem;    /* 24px — large flashcard */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
   --radius-full: 9999px;
-
-  /* ----- Shadows (quiet) + signature cyan glows ----- */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
-  --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --glow-primary: 0 8px 24px rgba(6, 182, 212, 0.30);
-  --glow-primary-soft: 0 8px 24px rgba(6, 182, 212, 0.20);
-  --glow-flashcard: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 60px rgba(6, 182, 212, 0.04);
 
   /* ----- Motion ----- */
   --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
@@ -122,10 +154,43 @@
   --sidebar-width: 16rem;
 }
 
+/* ----- TEMA ESCURO (padrão) — "night-mode engineering lab" ----- */
+.dark {
+  color-scheme: dark;
+
+  --primary: #06b6d4;          /* Electric Cyan */
+  --primary-600: #0891b2;
+  --secondary: #8b5cf6;        /* Deep Violet */
+
+  --surface-page: #121212;
+  --surface-card: #1e1e1e;
+  --surface-raised: #1e1e1e;
+  --surface-inset: rgba(255, 255, 255, 0.02);
+  --border-default: #333333;
+  --border-strong: #4b5563;
+
+  --text-strong: #ffffff;
+  --text-body: #e5e7eb;
+  --text-muted: #9ca3af;
+  --text-faint: #6b7280;
+  --text-on-primary: #ffffff;
+
+  --success: #10b981;
+  --error: #ef4444;
+  --warning: #f59e0b;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --glow-primary: 0 8px 24px rgba(6, 182, 212, 0.30);
+  --glow-primary-soft: 0 8px 24px rgba(6, 182, 212, 0.20);
+  --glow-flashcard: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 60px rgba(6, 182, 212, 0.04);
+}
+
 body {
   font-family: 'Inter', sans-serif;
-  background: var(--color-bg-dark);
-  color: var(--color-text-dark);
+  background: var(--surface-page);
+  color: var(--text-body);
 }
 
 /* Custom scrollbar — 8px, charcoal track, ember thumb */
@@ -134,14 +199,14 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #1e1e1e;
+  background: var(--surface-card);
 }
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: var(--border-strong);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: var(--text-faint);
 }
 
 /* ----- Entry animation ----- */

@@ -95,7 +95,7 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
       <main className="w-full flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-400 text-sm">Carregando cartões...</p>
+          <p className="text-fg-muted text-sm">Carregando cartões...</p>
         </div>
       </main>
     );
@@ -105,8 +105,8 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
     return (
       <main className="w-full flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-center">
-          <span className="material-symbols-outlined text-5xl text-gray-600">inbox</span>
-          <p className="text-gray-400">Nenhum cartão encontrado neste baralho.</p>
+          <span className="material-symbols-outlined text-5xl text-fg-faint">inbox</span>
+          <p className="text-fg-muted">Nenhum cartão encontrado neste baralho.</p>
           <Link href="/flashcards" className="text-primary hover:underline text-sm">
             Voltar para a biblioteca
           </Link>
@@ -122,30 +122,30 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
         <div className="flex items-center gap-4">
           <Link
             href="/flashcards"
-            className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-sm"
+            className="flex items-center gap-2 text-fg-faint hover:text-fg-strong transition-colors text-sm"
           >
             <span className="material-symbols-outlined text-[18px]">arrow_back</span>
             Voltar
           </Link>
-          <div className="h-6 w-px bg-gray-700" />
+          <div className="h-6 w-px bg-border" />
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
               <span className="material-symbols-outlined text-[16px] text-primary">style</span>
             </div>
-            <span className="font-semibold text-white">{deckName}</span>
+            <span className="font-semibold text-fg-strong">{deckName}</span>
           </div>
         </div>
         <div className="flex items-center gap-6">
-          <div className="w-28 h-[3px] bg-gray-700 rounded-full overflow-hidden">
+          <div className="w-28 h-[3px] bg-border rounded-full overflow-hidden">
             <div
               className="h-full bg-primary rounded-full transition-all duration-400"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <span className="text-sm text-gray-400">
+          <span className="text-sm text-fg-muted">
             Cartão <span className="text-primary font-bold">{currentCard + 1}</span> de <span className="text-primary font-bold">{total}</span>
           </span>
-          <div className="flex items-center gap-2 text-sm text-gray-400">
+          <div className="flex items-center gap-2 text-sm text-fg-muted">
             <span className="material-symbols-outlined text-[16px]">timer</span>
             {formatTime(timer)}
           </div>
@@ -154,10 +154,10 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
 
       {/* Mobile header */}
       <div className="md:hidden px-4 py-3 border-b border-border-dark flex items-center justify-between">
-        <Link href="/flashcards" className="text-gray-400 hover:text-white">
+        <Link href="/flashcards" className="text-fg-muted hover:text-fg-strong">
           <span className="material-symbols-outlined">arrow_back</span>
         </Link>
-        <span className="text-sm font-medium text-white">{deckName}</span>
+        <span className="text-sm font-medium text-fg-strong">{deckName}</span>
         <span className="text-xs text-primary font-bold">
           {currentCard + 1}/{total}
         </span>
@@ -176,7 +176,7 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
             {/* Left arrow */}
             <button
               onClick={handlePrev}
-              className="shrink-0 w-10 h-10 rounded-full bg-surface-dark border border-border-dark flex items-center justify-center text-gray-400 hover:text-white hover:border-primary/50 transition-all"
+              className="shrink-0 w-10 h-10 rounded-full bg-surface-dark border border-border-dark flex items-center justify-center text-fg-muted hover:text-fg-strong hover:border-primary/50 transition-all"
               title="Cartão anterior"
             >
               <span className="material-symbols-outlined text-xl">chevron_left</span>
@@ -206,7 +206,7 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
                     {card.tema}
                   </span>
                   {/* Card number top-right */}
-                  <span className="absolute top-5 right-5 text-xs text-gray-500 font-medium">
+                  <span className="absolute top-5 right-5 text-xs text-fg-faint font-medium">
                     #{card.id}
                   </span>
 
@@ -219,12 +219,12 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
                   <div className="w-full max-w-lg text-center mt-6">
                     <MarkdownRenderer
                       content={card.frente}
-                      className="text-xl md:text-2xl font-medium text-white leading-relaxed [&_p]:text-xl [&_p]:md:text-2xl [&_p]:text-white [&_p]:font-medium [&_p]:leading-relaxed"
+                      className="text-xl md:text-2xl font-medium text-fg-strong leading-relaxed [&_p]:text-xl [&_p]:md:text-2xl [&_p]:text-fg-strong [&_p]:font-medium [&_p]:leading-relaxed"
                     />
                   </div>
 
                   {/* Tap hint */}
-                  <div className="absolute bottom-5 right-5 flex items-center gap-2 text-gray-500 text-xs animate-pulse">
+                  <div className="absolute bottom-5 right-5 flex items-center gap-2 text-fg-faint text-xs animate-pulse">
                     <span className="material-symbols-outlined text-[16px]">touch_app</span>
                     Toque para ver a resposta
                   </div>
@@ -249,7 +249,7 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
             {/* Right arrow */}
             <button
               onClick={handleNext}
-              className="shrink-0 w-10 h-10 rounded-full bg-surface-dark border border-border-dark flex items-center justify-center text-gray-400 hover:text-white hover:border-primary/50 transition-all"
+              className="shrink-0 w-10 h-10 rounded-full bg-surface-dark border border-border-dark flex items-center justify-center text-fg-muted hover:text-fg-strong hover:border-primary/50 transition-all"
               title="Próximo cartão"
             >
               <span className="material-symbols-outlined text-xl">chevron_right</span>
@@ -260,7 +260,7 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
           <button
             onClick={handleRandom}
             disabled={total <= 1}
-            className="mb-6 flex items-center gap-2 px-5 py-2 rounded-lg bg-surface-dark border border-border-dark text-gray-400 hover:text-primary hover:border-primary/50 transition-all text-sm font-medium disabled:opacity-30 disabled:pointer-events-none"
+            className="mb-6 flex items-center gap-2 px-5 py-2 rounded-lg bg-surface-dark border border-border-dark text-fg-muted hover:text-primary hover:border-primary/50 transition-all text-sm font-medium disabled:opacity-30 disabled:pointer-events-none"
           >
             <span className="material-symbols-outlined text-[18px]">shuffle</span>
             Aleatório
@@ -274,7 +274,7 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
                 : "opacity-0 translate-y-3 pointer-events-none"
             }`}
           >
-            <p className="text-center text-[0.75rem] font-semibold tracking-wide uppercase text-gray-500 mb-3">
+            <p className="text-center text-[0.75rem] font-semibold tracking-wide uppercase text-fg-faint mb-3">
               Como foi?
             </p>
             <div className="grid grid-cols-4 gap-3">
@@ -294,7 +294,7 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
                 >
                   <span className="material-symbols-outlined text-xl">{btn.icon}</span>
                   <span className="font-bold text-sm">{btn.label}</span>
-                  <span className="text-[0.65rem] font-medium text-gray-500 group-hover:text-white/70">
+                  <span className="text-[0.65rem] font-medium text-fg-faint group-hover:text-white/70">
                     {btn.time}
                   </span>
                 </button>
@@ -303,12 +303,12 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
           </div>
 
           {/* Footer actions */}
-          <div className="flex items-center gap-4 text-sm text-gray-500 mt-6">
-            <button className="hover:text-white flex items-center gap-1 transition-colors">
+          <div className="flex items-center gap-4 text-sm text-fg-faint mt-6">
+            <button className="hover:text-fg-strong flex items-center gap-1 transition-colors">
               <span className="material-symbols-outlined text-[18px]">edit</span> Editar Cartão
             </button>
             <span>•</span>
-            <button className="hover:text-white flex items-center gap-1 transition-colors">
+            <button className="hover:text-fg-strong flex items-center gap-1 transition-colors">
               <span className="material-symbols-outlined text-[18px]">flag</span> Reportar Erro
             </button>
           </div>

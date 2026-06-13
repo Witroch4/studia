@@ -61,12 +61,12 @@ export function StrikableAlternative({
     >
       <span
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-sm ${
-          selected ? "border-cyan-400 text-cyan-300" : "border-gray-600 text-gray-400"
+          selected ? "border-cyan-400 text-cyan-300" : "border-border-strong text-fg-muted"
         }`}
       >
         {letra}
       </span>
-      <span className={`flex-1 ${struck ? "text-gray-500 line-through decoration-red-500 decoration-2" : ""}`}>
+      <span className={`flex-1 ${struck ? "text-fg-faint line-through decoration-red-500 decoration-2" : ""}`}>
         {children}
       </span>
     </button>

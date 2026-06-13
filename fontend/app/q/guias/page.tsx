@@ -71,13 +71,13 @@ export default function GuiasPage() {
   }, [carregar]);
 
   return (
-    <div className="min-h-screen bg-bg-dark text-text-dark">
-      <header className="border-b border-border-dark px-6 py-5">
+    <div className="min-h-screen bg-page text-fg">
+      <header className="border-b border-border px-6 py-5">
         <h1 className="text-2xl font-semibold flex items-center gap-2">
           <span className="material-symbols-outlined text-primary text-3xl">menu_book</span>
           Guias de Estudos
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-fg-faint mt-1">
           Escolha um guia e monte os cadernos por matéria para estudar — cada matéria
           vira um caderno de questões na ordem oficial do TecConcursos.
         </p>
@@ -86,11 +86,11 @@ export default function GuiasPage() {
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-100">Guias disponíveis</h2>
+            <h2 className="text-lg font-semibold text-fg-strong">Guias disponíveis</h2>
             <button
               onClick={() => void carregar()}
               disabled={carregando}
-              className="text-xs bg-gray-800 hover:bg-gray-700 disabled:opacity-60 px-3 py-2 rounded"
+              className="text-xs bg-surface-2 hover:bg-fg-strong/6 disabled:opacity-60 px-3 py-2 rounded"
             >
               {carregando ? "Atualizando…" : "Atualizar"}
             </button>
@@ -103,7 +103,7 @@ export default function GuiasPage() {
           )}
 
           {!erro && guias.length === 0 && !carregando && (
-            <div className="text-sm text-gray-500 border border-dashed border-gray-700 rounded-lg p-8 text-center">
+            <div className="text-sm text-fg-faint border border-dashed border-border rounded-lg p-8 text-center">
               Nenhum guia disponível ainda.
             </div>
           )}
@@ -115,12 +115,12 @@ export default function GuiasPage() {
                 <Link
                   key={g.id}
                   href={`/q/guias/${g.id}`}
-                  className="rounded-xl border border-border-dark bg-surface-dark hover:border-primary transition-colors p-5 flex flex-col gap-3"
+                  className="rounded-xl border border-border bg-surface hover:border-primary transition-colors p-5 flex flex-col gap-3"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="font-semibold text-gray-100 truncate">{g.nome}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">
+                      <div className="font-semibold text-fg-strong truncate">{g.nome}</div>
+                      <div className="text-xs text-fg-faint mt-0.5">
                         {g.banca ? `Banca: ${g.banca} · ` : ""}
                         {g.cadernos_total} cadernos
                       </div>
@@ -134,14 +134,14 @@ export default function GuiasPage() {
 
                   {isAdmin ? (
                     <div>
-                      <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                      <div className="flex items-center justify-between text-xs text-fg-muted mb-1">
                         <span>
                           {g.questoes_coletadas.toLocaleString("pt-BR")} /{" "}
                           {g.questoes_esperadas.toLocaleString("pt-BR")} questões
                         </span>
                         <span>{g.pct.toFixed(1)}%</span>
                       </div>
-                      <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
+                      <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
                         <div
                           className="h-full bg-primary transition-all"
                           style={{ width: `${Math.min(100, g.pct)}%` }}
@@ -149,12 +149,12 @@ export default function GuiasPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="text-sm text-gray-200 font-medium">
+                    <div className="text-sm text-fg font-medium">
                       {g.questoes_coletadas.toLocaleString("pt-BR")} questões
                     </div>
                   )}
 
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-fg-faint">
                     {g.cadernos_materializados}/{g.cadernos_total} cadernos prontos para estudo
                   </div>
                 </Link>

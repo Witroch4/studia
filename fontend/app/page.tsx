@@ -179,7 +179,8 @@ function JsonLd() {
 
 export default function Landing() {
   return (
-    <div className="lp-bg lp-grain relative min-h-screen w-full overflow-x-clip text-gray-300">
+    // `dark` fixo: a landing neon-noir é sempre escura, independe do toggle do app
+    <div className="dark lp-bg lp-grain relative min-h-screen w-full overflow-x-clip text-gray-300">
       {/* fontes da landing (escopo local; React 19 hoista o <link> pro <head>) */}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

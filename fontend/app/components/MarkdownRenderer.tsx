@@ -41,24 +41,24 @@ function preprocessTags(content: string): string {
 
 const mdComponents: Components = {
   h1: ({ children }) => (
-    <h1 className="text-xl font-bold text-white mb-3 mt-4">{children}</h1>
+    <h1 className="text-xl font-bold text-fg-strong mb-3 mt-4">{children}</h1>
   ),
   h2: ({ children }) => (
-    <h2 className="text-lg font-bold text-white mb-2 mt-3">{children}</h2>
+    <h2 className="text-lg font-bold text-fg-strong mb-2 mt-3">{children}</h2>
   ),
   h3: ({ children }) => (
-    <h3 className="text-base font-bold text-white mb-2 mt-3 pb-1 border-b border-primary/15">
+    <h3 className="text-base font-bold text-fg-strong mb-2 mt-3 pb-1 border-b border-primary/15">
       {children}
     </h3>
   ),
   p: ({ children }) => (
-    <p className="text-gray-300 text-[0.9rem] leading-relaxed mb-3">{children}</p>
+    <p className="text-fg text-[0.9rem] leading-relaxed mb-3">{children}</p>
   ),
   strong: ({ children }) => (
-    <strong className="text-white font-semibold">{children}</strong>
+    <strong className="text-fg-strong font-semibold">{children}</strong>
   ),
   em: ({ children }) => (
-    <em className="text-gray-200 italic">{children}</em>
+    <em className="text-fg italic">{children}</em>
   ),
   ul: ({ children }) => (
     <ul className="space-y-1.5 pl-4 mb-3">{children}</ul>
@@ -67,7 +67,7 @@ const mdComponents: Components = {
     <ol className="space-y-1.5 pl-4 mb-3 list-decimal">{children}</ol>
   ),
   li: ({ children }) => (
-    <li className="text-gray-300 text-[0.9rem] leading-relaxed list-disc marker:text-primary/50">
+    <li className="text-fg text-[0.9rem] leading-relaxed list-disc marker:text-primary/50">
       {children}
     </li>
   ),
@@ -90,7 +90,7 @@ const mdComponents: Components = {
 
     if (dataTag === "atencao") {
       return (
-        <div className="my-3 bg-red-500/8 border-l-3 border-red-500 px-4 py-2.5 rounded-r-lg text-sm text-gray-200">
+        <div className="my-3 bg-red-500/8 border-l-3 border-red-500 px-4 py-2.5 rounded-r-lg text-sm text-fg">
           {children}
         </div>
       );

@@ -39,15 +39,15 @@ export default function ConcursoUploader({ onUpload, uploading = false }: Props)
             ? "border-primary bg-primary/5"
             : file
             ? "border-accent-success/50 bg-accent-success/5"
-            : "border-border-dark hover:border-primary/50 bg-bg-dark/40"
+            : "border-border hover:border-primary/50 bg-page/40"
         }`}
       >
         <input ref={inputRef} type="file" accept=".csv,text/csv" onChange={(e) => pick(e.target.files?.[0])} className="hidden" />
         {file ? (
           <div className="flex flex-col items-center gap-2">
             <span className="material-symbols-outlined text-5xl text-accent-success">table_view</span>
-            <p className="text-sm font-medium text-white">{file.name}</p>
-            <p className="text-xs text-gray-500 font-mono">{(file.size / 1024).toFixed(0)} KB</p>
+            <p className="text-sm font-medium text-fg-strong">{file.name}</p>
+            <p className="text-xs text-fg-faint font-mono">{(file.size / 1024).toFixed(0)} KB</p>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setFile(null); }}
@@ -58,10 +58,10 @@ export default function ConcursoUploader({ onUpload, uploading = false }: Props)
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
-            <span className="material-symbols-outlined text-5xl text-gray-600">upload_file</span>
+            <span className="material-symbols-outlined text-5xl text-fg-faint">upload_file</span>
             <div>
-              <p className="text-sm text-gray-300">Arraste o CSV de concorrência aqui</p>
-              <p className="text-xs text-gray-600 mt-1">colunas: CARGO, POLO, MACROPOLO, PONTOS, AC, PCD, PN, PI, PQ…</p>
+              <p className="text-sm text-fg">Arraste o CSV de concorrência aqui</p>
+              <p className="text-xs text-fg-faint mt-1">colunas: CARGO, POLO, MACROPOLO, PONTOS, AC, PCD, PN, PI, PQ…</p>
             </div>
           </div>
         )}
@@ -73,7 +73,7 @@ export default function ConcursoUploader({ onUpload, uploading = false }: Props)
             value={nome}
             onChange={(e) => setNome(e.target.value)}
             placeholder="Nome do concurso (ex: CNU 2025 - Engenharia)"
-            className="flex-1 px-4 py-2.5 bg-bg-dark border border-border-dark rounded-lg text-sm text-white placeholder-gray-600 focus:ring-1 focus:ring-primary focus:border-primary"
+            className="flex-1 px-4 py-2.5 bg-page border border-border rounded-lg text-sm text-fg-strong placeholder:text-fg-faint focus:ring-1 focus:ring-primary focus:border-primary"
           />
           <button
             type="button"
