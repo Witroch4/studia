@@ -25,12 +25,12 @@ type Situacao = { label: string; classe: string };
 
 function situacaoGuia(g: GuiaCard): Situacao {
   if (g.cadernos_total > 0 && g.cadernos_materializados >= g.cadernos_total) {
-    return { label: "Pronto p/ estudar", classe: "bg-green-900/40 text-green-300 border-green-700" };
+    return { label: "Pronto p/ estudar", classe: "bg-success/15 text-success border-success/40" };
   }
   if (g.coleta_completa) {
-    return { label: "Pronto p/ montar", classe: "bg-cyan-900/40 text-cyan-300 border-cyan-700" };
+    return { label: "Pronto p/ montar", classe: "bg-primary/15 text-primary border-primary/40" };
   }
-  return { label: `Coletando ${g.pct.toFixed(0)}%`, classe: "bg-yellow-900/40 text-yellow-300 border-yellow-700" };
+  return { label: `Coletando ${g.pct.toFixed(0)}%`, classe: "bg-warning/15 text-warning border-warning/40" };
 }
 
 export default function GuiasPage() {
@@ -97,8 +97,8 @@ export default function GuiasPage() {
           </div>
 
           {erro && (
-            <div className="bg-red-950 border border-red-700 rounded p-3 text-sm mb-4">
-              <strong className="text-red-400">Falha:</strong> {erro}
+            <div className="bg-error/10 border border-error/40 rounded p-3 text-sm mb-4">
+              <strong className="text-error">Falha:</strong> {erro}
             </div>
           )}
 

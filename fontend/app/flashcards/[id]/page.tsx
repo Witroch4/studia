@@ -211,7 +211,7 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
                   </span>
 
                   {/* Assunto tag */}
-                  <span className="absolute top-14 left-5 px-2.5 py-0.5 text-[0.65rem] font-medium rounded-full border bg-purple-500/10 text-purple-400 border-purple-500/20">
+                  <span className="absolute top-14 left-5 px-2.5 py-0.5 text-[0.65rem] font-medium rounded-full border bg-secondary/10 text-secondary border-secondary/20">
                     {card.assunto}
                   </span>
 
@@ -279,10 +279,10 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
             </p>
             <div className="grid grid-cols-4 gap-3">
               {[
-                { key: "errei", icon: "close", label: "Errei", time: "< 1 min", color: "border-red-500", hoverBg: "hover:bg-red-500", text: "text-red-500", shadow: "hover:shadow-red-500/30" },
-                { key: "dificil", icon: "bolt", label: "Difícil", time: "~3 min", color: "border-orange-500", hoverBg: "hover:bg-orange-500", text: "text-orange-500", shadow: "hover:shadow-orange-500/30" },
-                { key: "bom", icon: "check", label: "Bom", time: "~7 min", color: "border-green-500", hoverBg: "hover:bg-green-500", text: "text-green-500", shadow: "hover:shadow-green-500/30" },
-                { key: "facil", icon: "kid_star", label: "Fácil", time: "~15 min", color: "border-blue-500", hoverBg: "hover:bg-blue-500", text: "text-blue-500", shadow: "hover:shadow-blue-500/30" },
+                { key: "errei", icon: "close", label: "Errei", time: "< 1 min", color: "border-error", hoverBg: "hover:bg-red-500", text: "text-error", shadow: "hover:shadow-red-500/30" },
+                { key: "dificil", icon: "bolt", label: "Difícil", time: "~3 min", color: "border-warning", hoverBg: "hover:bg-orange-500", text: "text-warning", shadow: "hover:shadow-orange-500/30" },
+                { key: "bom", icon: "check", label: "Bom", time: "~7 min", color: "border-success", hoverBg: "hover:bg-green-500", text: "text-success", shadow: "hover:shadow-green-500/30" },
+                { key: "facil", icon: "kid_star", label: "Fácil", time: "~15 min", color: "border-primary", hoverBg: "hover:bg-blue-500", text: "text-primary", shadow: "hover:shadow-blue-500/30" },
               ].map((btn) => (
                 <button
                   key={btn.key}

@@ -77,7 +77,7 @@ function NoticeBox({ notice }: { notice: Notice }) {
   if (!notice) return null;
   const ok = notice.kind === "ok";
   return (
-    <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${ok ? "border border-green-500/30 bg-green-500/10 text-green-400" : "border border-red-500/30 bg-red-500/10 text-red-400"}`}>
+    <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${ok ? "border border-success/40 bg-success/10 text-success" : "border border-error/40 bg-error/10 text-error"}`}>
       <span className="material-symbols-outlined text-[18px]">{ok ? "check_circle" : "error"}</span>
       {notice.msg}
     </div>

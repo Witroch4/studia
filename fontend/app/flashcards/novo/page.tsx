@@ -311,7 +311,7 @@ function ImportForm() {
           </div>
 
           {error && (
-            <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2 text-red-400 text-sm">
+            <div className="mb-4 bg-error/10 border border-error/30 rounded-lg p-3 flex items-center gap-2 text-error text-sm">
               <span className="material-symbols-outlined text-[18px]">error</span>
               {error}
             </div>
@@ -335,8 +335,8 @@ function ImportForm() {
       ) : (
         <>
           {/* Success banner */}
-          <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 mb-6 flex items-center gap-3">
-            <span className="material-symbols-outlined text-green-400 text-2xl">check_circle</span>
+          <div className="bg-success/10 border border-success/30 rounded-xl p-4 mb-6 flex items-center gap-3">
+            <span className="material-symbols-outlined text-success text-2xl">check_circle</span>
             <div>
               <p className="text-fg-strong font-bold">
                 {cards.length} flashcards importados!
@@ -383,13 +383,13 @@ function ImportForm() {
                   <div className="px-5 pb-5 border-t border-border">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                       <div className="bg-inset rounded-lg p-4">
-                        <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-cyan-400 mb-2">
+                        <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-primary mb-2">
                           Frente
                         </p>
                         <MarkdownRenderer content={card.frente} />
                       </div>
                       <div className="bg-inset rounded-lg p-4">
-                        <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-cyan-400 mb-2">
+                        <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-primary mb-2">
                           Verso
                         </p>
                         <MarkdownRenderer content={card.verso} />

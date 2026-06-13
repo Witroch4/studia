@@ -27,7 +27,7 @@ type DisciplinaDetail = {
 };
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; icon: string; label: string }> = {
-  PENDENTE: { bg: "bg-amber-500/15", text: "text-amber-400", icon: "schedule", label: "Pendente" },
+  PENDENTE: { bg: "bg-warning/15", text: "text-warning", icon: "schedule", label: "Pendente" },
   PROCESSANDO: { bg: "bg-primary/15", text: "text-primary", icon: "sync", label: "Processando" },
   CONCLUIDO: { bg: "bg-accent-success/15", text: "text-accent-success", icon: "check_circle", label: "Concluído" },
   ERRO: { bg: "bg-accent-error/15", text: "text-accent-error", icon: "error", label: "Erro" },

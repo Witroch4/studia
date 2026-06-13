@@ -77,7 +77,6 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const [tab, setTab] = useState<Tab>("Questoes");
   const [tempo, setTempo] = useState(0);
   const [pausado, setPausado] = useState(false);
-  const [modoLeitura, setModoLeitura] = useState(false);
   const [canvasActive, setCanvasActive] = useState(false);
   const [canvasTool, setCanvasTool] = useState<CanvasTool>("pen");
   const [canvasColor, setCanvasColor] = useState("#22c55e");
@@ -230,7 +229,6 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     p: () => { if (!canvasActive) setGotoOpen(true); },
     m: () => { if (!canvasActive) toggleFavorita(); },
     j: () => { if (!canvasActive) toggleFavorita(); },
-    k: () => { if (!canvasActive) setModoLeitura((m) => !m); },
     "+": () => { if (!canvasActive) setFontSize((s) => Math.min(28, s + 2)); },
     "=": () => { if (!canvasActive) setFontSize((s) => Math.min(28, s + 2)); },
     "-": () => { if (!canvasActive) setFontSize((s) => Math.max(12, s - 2)); },
@@ -266,7 +264,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
 
   return (
     <div
-      className={`min-h-screen ${modoLeitura ? "bg-amber-50 text-gray-900" : "bg-page text-fg"}`}
+      className="min-h-screen bg-page text-fg"
       style={{ fontSize }}
     >
       {/* ─── Top breadcrumb + timer ─── */}
@@ -275,14 +273,14 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
         <span className="text-fg-faint">›</span>
         <button
           onClick={() => router.push("/q/cadernos")}
-          className="text-fg-faint hover:text-cyan-400 hover:underline"
+          className="text-fg-faint hover:text-primary hover:underline"
         >
           Minhas pastas
         </button>
         <span className="text-fg-faint">›</span>
         <button
           onClick={() => router.push(`/q/cadernos?pasta=${encodeURIComponent(caderno.pasta ?? "")}`)}
-          className="text-fg-faint hover:text-cyan-400 hover:underline truncate max-w-[24rem]"
+          className="text-fg-faint hover:text-primary hover:underline truncate max-w-[24rem]"
           title={caderno.pasta ?? "Sem classificação"}
         >
           {caderno.pasta ?? "Sem classificação"}
@@ -296,10 +294,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
         >
           ✕
         </button>
-        <div className="flex items-center gap-2 text-cyan-400 font-mono">
-          <span title="Modo leitura (K)" className="cursor-pointer" onClick={() => setModoLeitura((m) => !m)}>
-            👁
-          </span>
+        <div className="flex items-center gap-2 text-primary font-mono">
           <span>↔</span>
           <button
             onClick={() => setPausado((p) => !p)}
@@ -326,14 +321,14 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
             onClick={() => setTab(key)}
             className={`px-4 py-2.5 border-b-2 transition ${
               tab === key
-                ? "border-cyan-500 text-cyan-400"
+                ? "border-primary text-primary"
                 : "border-transparent text-fg-muted hover:text-fg"
             }`}
           >
             {label}
           </button>
         ))}
-        <button className="ml-auto px-4 py-2.5 text-cyan-400 hover:underline text-xs">
+        <button className="ml-auto px-4 py-2.5 text-primary hover:underline text-xs">
           🔗 Compartilhar
         </button>
       </nav>
@@ -359,7 +354,6 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       {tab === "Configuracoes" && (
         <ConfigTab
           fontSize={fontSize} setFontSize={setFontSize}
-          modoLeitura={modoLeitura} setModoLeitura={setModoLeitura}
           pausado={pausado} setPausado={setPausado}
           tempo={tempo}
         />
@@ -388,17 +382,17 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-semibold flex items-center gap-2 flex-wrap">
-                Questão <span className="text-cyan-400">{idx + 1}</span> de {caderno.total}
+                Questão <span className="text-primary">{idx + 1}</span> de {caderno.total}
                 <span className="text-xs font-normal">
-                  (<span className="text-cyan-400">{stats.resolvidas}</span> Resolvidas,{" "}
-                  <span className="text-green-400">{stats.acertos}</span> Acertos e{" "}
-                  <span className="text-red-400">{stats.erros}</span> Erros{stats.resolvidas > 0 && `, ${taxa}% acerto`}) ✕
+                  (<span className="text-primary">{stats.resolvidas}</span> Resolvidas,{" "}
+                  <span className="text-success">{stats.acertos}</span> Acertos e{" "}
+                  <span className="text-error">{stats.erros}</span> Erros{stats.resolvidas > 0 && `, ${taxa}% acerto`}) ✕
                 </span>
                 {fav && <span className="text-yellow-400">⭐</span>}
               </div>
               <div className="text-xs text-fg-muted mt-0.5">
                 <span className="text-fg-faint">Matéria:</span>{" "}
-                <a href={`/q/filtrar?materia=${encodeURIComponent(questao.materia?.nome || "")}`} className="text-cyan-400 hover:underline">
+                <a href={`/q/filtrar?materia=${encodeURIComponent(questao.materia?.nome || "")}`} className="text-primary hover:underline">
                   {questao.materia?.nome}
                 </a>
                 <br />
@@ -406,7 +400,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                 {questao.assuntos.map((a, i) => (
                   <span key={a.id}>
                     {i > 0 && ", "}
-                    <a href={`/q/filtrar?assunto=${encodeURIComponent(a.nome)}`} className="text-cyan-400 hover:underline">
+                    <a href={`/q/filtrar?assunto=${encodeURIComponent(a.nome)}`} className="text-primary hover:underline">
                       {a.nome}
                     </a>
                   </span>
@@ -432,29 +426,29 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                 onClear={annotations.clearCanvas}
                 onOpenCalculator={() => setCalculatorOpen(true)}
               />
-              <button title="Comentário (O)" className="hover:text-cyan-400">🎓</button>
-              <button title="Teoria" className="hover:text-cyan-400">📕</button>
-              <button title="Fórum (F)" className="hover:text-cyan-400">💬</button>
+              <button title="Comentário (O)" className="hover:text-primary">🎓</button>
+              <button title="Teoria" className="hover:text-primary">📕</button>
+              <button title="Fórum (F)" className="hover:text-primary">💬</button>
               <button title="Favoritar (M)" onClick={toggleFavorita} className={fav ? "text-yellow-400" : "hover:text-yellow-400"}>
                 {fav ? "★" : "☆"}
               </button>
-              <button title="Anotação (W)" className="hover:text-cyan-400">✏️</button>
-              <button title="Estatísticas" className="hover:text-cyan-400">⭕</button>
-              <button title="Mais opções" className="hover:text-cyan-400">⋮</button>
+              <button title="Anotação (W)" className="hover:text-primary">✏️</button>
+              <button title="Estatísticas" className="hover:text-primary">⭕</button>
+              <button title="Mais opções" className="hover:text-primary">⋮</button>
             </div>
           </header>
 
           {/* ─── Linha enxuta com código + banca ─── */}
           <div className="px-4 py-2 bg-surface-2 border-b border-border/60 text-xs flex items-center gap-2">
             <span className="text-fg-faint">🔗</span>
-            <span className="text-cyan-400 font-mono">#{questao.id_externo}</span>
+            <span className="text-primary font-mono">#{questao.id_externo}</span>
             <span className="font-semibold text-fg">{questao.banca?.sigla}</span>
             <span className="text-fg-faint">-</span>
             <span className="text-fg-muted">
               {questao.cargo?.ano} - {questao.cargo?.nome} / {questao.orgao?.sigla} / {questao.cargo?.ano}
             </span>
             {questao.status === "ANULADA" && (
-              <span className="ml-2 px-2 py-0.5 bg-yellow-950 text-yellow-300 rounded text-[10px] font-semibold">ANULADA</span>
+              <span className="ml-2 px-2 py-0.5 bg-warning/15 text-warning rounded text-[10px] font-semibold border border-warning/40">ANULADA</span>
             )}
             <button className="ml-auto text-fg-faint hover:text-fg" title="Reportar erro">↗</button>
             <button className="text-fg-faint hover:text-fg" title="Anterior (←)" onClick={() => avancar(-1)}>←</button>
@@ -488,9 +482,9 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                       onSelect={() => setSelecionada(alt.letra)}
                       onToggleStrike={() => annotations.toggleStrike({ type: "alternative", id: alt.id })}
                       className={`w-full text-left flex items-start gap-3 px-3 py-2 rounded border transition ${
-                        isCorreta ? "border-green-500 bg-green-950/40" :
-                        isErrada ? "border-red-500 bg-red-950/40" :
-                        selecionada === alt.letra ? "border-cyan-500 bg-cyan-950/40" :
+                        isCorreta ? "border-success bg-success/10" :
+                        isErrada ? "border-error bg-error/10" :
+                        selecionada === alt.letra ? "border-primary bg-primary/10" :
                         "border-border hover:bg-surface-2/40"
                       }`}
                     >
@@ -513,8 +507,8 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
 
             {resolvida && (
               <div className={`p-3 rounded text-sm font-medium ${
-                acertou ? "bg-green-950 border border-green-700 text-green-300" :
-                "bg-red-950 border border-red-700 text-red-300"
+                acertou ? "bg-success/15 border border-success/40 text-success" :
+                "bg-error/15 border border-error/40 text-error"
               }`}>
                 {acertou ? "✓ Você acertou!" : `✗ Resposta esperada: ${gabaritoLabel}`}
               </div>
@@ -538,8 +532,8 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
             <div className="mt-3 text-xs text-fg-faint flex items-center gap-1">
               <span className="text-red-500">⊘</span>
               <span>Encontrou algum erro nesta questão?</span>
-              <button className="text-cyan-400 hover:underline">Fale conosco</button>
-              <button onClick={() => setShowAtalhos(true)} className="ml-auto text-cyan-400 hover:underline">
+              <button className="text-primary hover:underline">Fale conosco</button>
+              <button onClick={() => setShowAtalhos(true)} className="ml-auto text-primary hover:underline">
                 ⓘ Lista das teclas de atalho
               </button>
             </div>
@@ -562,7 +556,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
             <h2 className="text-lg font-semibold mb-4">Atalhos de teclado</h2>
             {(["nav", "acao", "ui"] as const).map((grupo) => (
               <div key={grupo} className="mb-4">
-                <h3 className="text-xs uppercase tracking-wider text-cyan-400 mb-2">
+                <h3 className="text-xs uppercase tracking-wider text-primary mb-2">
                   {grupo === "nav" ? "Navegação" : grupo === "acao" ? "Ações" : "Interface"}
                 </h3>
                 <table className="w-full text-sm">
@@ -571,7 +565,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                       .filter(([, v]) => v.group === grupo)
                       .map(([k, v]) => (
                         <tr key={k}>
-                          <td className="py-1 pr-4 font-mono text-cyan-300">{k}</td>
+                          <td className="py-1 pr-4 font-mono text-primary">{k}</td>
                           <td className="py-1 text-fg">{v.label}</td>
                         </tr>
                       ))}
@@ -614,7 +608,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               onChange={(e) => setGotoValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Escape") { setGotoOpen(false); setGotoValue(""); } }}
               placeholder={`1 – ${caderno.total}`}
-              className="w-full bg-bg-dark border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 mb-5"
+              className="w-full bg-bg-dark border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary mb-5"
             />
             <div className="flex justify-end gap-2">
               <button
@@ -738,7 +732,7 @@ function EstatisticasTab({ cadernoId }: { cadernoId: number }) {
       <section className="border border-border/60 rounded-lg bg-surface p-4">
         <div className="flex items-center justify-between mb-2 text-sm">
           <span className="text-fg-muted">Progresso no caderno</span>
-          <span className="text-cyan-400 font-semibold">{progresso}%</span>
+          <span className="text-primary font-semibold">{progresso}%</span>
         </div>
         <div className="h-3 bg-surface-2 rounded overflow-hidden">
           <div
@@ -780,9 +774,9 @@ function EstatisticasTab({ cadernoId }: { cadernoId: number }) {
             <tbody>
               {data.ultimas_resolucoes.map((r, i) => (
                 <tr key={i} className="border-b border-border/60">
-                  <td className="py-1.5 px-2 font-mono text-cyan-400">Q{r.id_externo}</td>
+                  <td className="py-1.5 px-2 font-mono text-primary">Q{r.id_externo}</td>
                   <td className="py-1.5 px-2 font-mono">{r.resposta}</td>
-                  <td className={`py-1.5 px-2 ${r.acertou ? "text-green-400" : "text-red-400"}`}>
+                  <td className={`py-1.5 px-2 ${r.acertou ? "text-success" : "text-error"}`}>
                     {r.acertou ? "✓ Acerto" : "✗ Erro"}
                   </td>
                   <td className="py-1.5 px-2 text-right text-fg-muted">
@@ -813,11 +807,11 @@ function Card({ label, value, sub, color, mono }: {
   mono?: boolean;
 }) {
   const colors = {
-    cyan: "text-cyan-400",
-    green: "text-green-400",
-    red: "text-red-400",
-    violet: "text-violet-400",
-    amber: "text-amber-400",
+    cyan: "text-primary",
+    green: "text-success",
+    red: "text-error",
+    violet: "text-secondary",
+    amber: "text-warning",
   };
   return (
     <div className="border border-border/60 rounded-lg bg-surface p-4">
@@ -843,7 +837,7 @@ function BarBlock({ titulo, items }: {
               <span className="text-fg truncate flex-1 mr-2">{it.nome}</span>
               <span className="text-fg-faint whitespace-nowrap">
                 {it.acertos}/{it.resolvidas}
-                <span className={`ml-2 font-semibold ${it.taxa >= 70 ? "text-green-400" : it.taxa >= 50 ? "text-amber-400" : "text-red-400"}`}>
+                <span className={`ml-2 font-semibold ${it.taxa >= 70 ? "text-success" : it.taxa >= 50 ? "text-warning" : "text-error"}`}>
                   {it.taxa}%
                 </span>
               </span>
@@ -902,7 +896,7 @@ function IndiceTab({ cadernoId, onAbrir, idxAtual }: {
           value={filtro}
           onChange={(e) => setFiltro(e.target.value)}
           placeholder="Filtrar por matéria, banca, ID ou texto…"
-          className="flex-1 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-cyan-500"
+          className="flex-1 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-primary"
         />
         <span className="text-xs text-fg-faint">{filtrados.length} / {items.length}</span>
       </div>
@@ -914,13 +908,13 @@ function IndiceTab({ cadernoId, onAbrir, idxAtual }: {
               key={it.questao_id}
               onClick={() => onAbrir(it.n)}
               className={`w-full text-left px-4 py-2.5 border-b border-border/60 hover:bg-surface-2/40 flex items-start gap-3 ${
-                it.n === idxAtual + 1 ? "bg-cyan-950/30 border-l-2 border-l-cyan-500" : ""
+                it.n === idxAtual + 1 ? "bg-primary/10 border-l-2 border-l-primary" : ""
               }`}
             >
               <span className="font-mono text-xs text-fg-faint w-12 shrink-0 pt-0.5">#{it.n}</span>
               <div className="flex-1 min-w-0">
                 <div className="text-xs text-fg-muted flex gap-2 mb-0.5">
-                  <span className="text-cyan-400 font-mono">Q{it.id_externo}</span>
+                  <span className="text-primary font-mono">Q{it.id_externo}</span>
                   <span className="text-fg-faint">·</span>
                   <span>{it.banca}</span>
                   <span className="text-fg-faint">·</span>
@@ -964,10 +958,10 @@ function GabaritoTab({ cadernoId }: { cadernoId: number }) {
 
   function corDe(g: string | null) {
     if (!g) return "text-fg-faint";
-    if (g.includes("ANULADA")) return "text-yellow-400 bg-yellow-950";
-    if (g === "CERTO") return "text-green-400 bg-green-950";
-    if (g === "ERRADO") return "text-red-400 bg-red-950";
-    return "text-cyan-300 bg-cyan-950";
+    if (g.includes("ANULADA")) return "text-warning bg-warning/10 border-warning/40";
+    if (g === "CERTO") return "text-success bg-success/10 border-success/40";
+    if (g === "ERRADO") return "text-error bg-error/10 border-error/40";
+    return "text-primary bg-primary/10 border-primary/40";
   }
 
   function abrev(g: string | null) {
@@ -1002,10 +996,9 @@ function GabaritoTab({ cadernoId }: { cadernoId: number }) {
 // ════════════════════════════ CONFIGURAÇÕES ════════════════════════════
 
 function ConfigTab({
-  fontSize, setFontSize, modoLeitura, setModoLeitura, pausado, setPausado, tempo,
+  fontSize, setFontSize, pausado, setPausado, tempo,
 }: {
   fontSize: number; setFontSize: (n: number) => void;
-  modoLeitura: boolean; setModoLeitura: (b: boolean) => void;
   pausado: boolean; setPausado: (b: boolean) => void;
   tempo: number;
 }) {
@@ -1014,7 +1007,7 @@ function ConfigTab({
       <div className="border border-border/60 rounded-lg bg-surface p-4">
         <h3 className="text-sm font-semibold text-fg mb-3">Cronômetro</h3>
         <div className="flex items-center gap-3">
-          <div className="text-2xl font-mono text-cyan-400">{formatTempo(tempo)}</div>
+          <div className="text-2xl font-mono text-primary">{formatTempo(tempo)}</div>
           <button
             onClick={() => setPausado(!pausado)}
             className="bg-surface-2 hover:bg-surface-2/80 px-4 py-2 rounded text-sm"
@@ -1028,19 +1021,10 @@ function ConfigTab({
         <h3 className="text-sm font-semibold text-fg mb-3">Tamanho da fonte</h3>
         <div className="flex items-center gap-3">
           <button onClick={() => setFontSize(Math.max(12, fontSize - 2))} className="w-10 h-10 border border-border rounded hover:bg-surface-2">−</button>
-          <div className="font-mono text-cyan-400 w-14 text-center">{fontSize}px</div>
+          <div className="font-mono text-primary w-14 text-center">{fontSize}px</div>
           <button onClick={() => setFontSize(Math.min(28, fontSize + 2))} className="w-10 h-10 border border-border rounded hover:bg-surface-2">+</button>
           <button onClick={() => setFontSize(16)} className="ml-3 text-xs text-fg-muted hover:text-fg underline">Padrão (0)</button>
         </div>
-      </div>
-
-      <div className="border border-border/60 rounded-lg bg-surface p-4">
-        <h3 className="text-sm font-semibold text-fg mb-3">Modo leitura</h3>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" checked={modoLeitura} onChange={(e) => setModoLeitura(e.target.checked)} />
-          <span className="text-sm">Fundo claro (amber-50) para leitura prolongada</span>
-          <span className="text-xs text-fg-faint ml-auto">Atalho (K)</span>
-        </label>
       </div>
 
       <div className="border border-border/60 rounded-lg bg-surface p-4 text-xs text-fg-muted space-y-1">

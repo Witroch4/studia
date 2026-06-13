@@ -246,7 +246,7 @@ function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: numb
                       if (res.ok) onDelete(deck.id);
                     } catch (e) { console.error(e); }
                   }}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-error hover:bg-error/15 hover:text-error transition-colors"
                 >
                   <span className="material-symbols-outlined text-[18px]">delete</span>
                   Excluir Baralho

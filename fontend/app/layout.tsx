@@ -63,6 +63,15 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        {/* Estado da sidebar aplicado ANTES da pintura: respeita a preferência
+            salva e, na 1ª visita, recolhe automático em telas estreitas (<1024px).
+            Só mexe em classe do <html> (CSS), nunca no markup → sem mismatch. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var v=localStorage.getItem('studia-sidebar');if(v==='collapsed'||(!v&&window.innerWidth<1024))document.documentElement.classList.add('sidebar-collapsed')}catch(e){}",
+          }}
+        />
         <link
           href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
           rel="stylesheet"

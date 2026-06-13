@@ -92,13 +92,13 @@ function AssinarInner() {
       <p className="text-fg-muted mb-8">Resolva sem limites e desbloqueie tudo da plataforma.</p>
 
       {statusParam === "sucesso" && (
-        <div className="mb-6 flex items-start gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400">
+        <div className="mb-6 flex items-start gap-2 rounded-lg border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">
           <span className="material-symbols-outlined text-[18px]">check_circle</span>
           <span>Pagamento confirmado! Ativando sua assinatura… (pode levar alguns segundos)</span>
         </div>
       )}
       {statusParam === "cancelado" && (
-        <div className="mb-6 flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-400">
+        <div className="mb-6 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
           <span className="material-symbols-outlined text-[18px]">info</span>
           <span>Checkout cancelado. Você pode assinar quando quiser.</span>
         </div>
@@ -148,7 +148,7 @@ function AssinarInner() {
           </ul>
 
           {erro && (
-            <div className="mt-5 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+            <div className="mt-5 flex items-start gap-2 rounded-lg border border-error/40 bg-error/10 px-3 py-2 text-sm text-error">
               <span className="material-symbols-outlined text-[18px]">error</span>
               <span>{erro}</span>
             </div>
@@ -163,7 +163,7 @@ function AssinarInner() {
             {checkingOut ? "Redirecionando…" : "Assinar agora"}
           </button>
           {!status?.stripe_configurado && (
-            <p className="mt-3 text-center text-xs text-yellow-500/80">
+            <p className="mt-3 text-center text-xs text-warning/80">
               Pagamentos ainda não configurados neste ambiente.
             </p>
           )}

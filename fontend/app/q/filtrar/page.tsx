@@ -255,7 +255,7 @@ export default function FiltrarPage() {
       <header className="border-b border-border px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-semibold">Filtrar Questões</h1>
-          <Link href="/q/cadernos" className="text-sm text-cyan-400 hover:underline flex items-center gap-1">
+          <Link href="/q/cadernos" className="text-sm text-primary hover:underline flex items-center gap-1">
             📁 Minhas pastas
           </Link>
         </div>
@@ -288,7 +288,7 @@ export default function FiltrarPage() {
               key={c}
               onClick={() => setCategoria(c)}
               className={`block w-full text-left px-4 py-2 text-sm hover:bg-surface-2 ${
-                categoria === c ? "bg-cyan-950 border-l-2 border-cyan-500 text-cyan-300" : ""
+                categoria === c ? "bg-primary/10 border-l-2 border-primary text-primary" : ""
               }`}
             >
               {c}
@@ -304,7 +304,7 @@ export default function FiltrarPage() {
               placeholder="Pesquisar por nome…"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              className="w-full mb-3 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-cyan-500"
+              className="w-full mb-3 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-primary"
             />
           )}
 
@@ -325,7 +325,7 @@ export default function FiltrarPage() {
                       <li>
                         <button
                           onClick={() => selecionarMateriaInteira(m)}
-                          className="text-left px-2 py-1 text-xs text-cyan-400 hover:bg-surface-2 rounded w-full"
+                          className="text-left px-2 py-1 text-xs text-primary hover:bg-surface-2 rounded w-full"
                         >
                           ✓ Todo o conteúdo de &quot;{m.nome}&quot;
                         </button>
@@ -335,7 +335,7 @@ export default function FiltrarPage() {
                           <button
                             onClick={() => toggleAssunto(a.nome)}
                             className={`text-left px-2 py-1 text-sm hover:bg-surface-2 rounded w-full flex items-center justify-between ${
-                              filtros.assuntos?.includes(a.nome) ? "text-cyan-400 font-medium" : ""
+                              filtros.assuntos?.includes(a.nome) ? "text-primary font-medium" : ""
                             }`}
                           >
                             <span>📄 {a.nome}</span>
@@ -368,7 +368,7 @@ export default function FiltrarPage() {
                           <button
                             onClick={() => toggleFacet(campo, nome)}
                             className={`text-left px-2 py-1 text-sm hover:bg-surface-2 rounded w-full flex justify-between ${
-                              ativo ? "text-cyan-400 font-medium" : ""
+                              ativo ? "text-primary font-medium" : ""
                             }`}
                           >
                             <span className="truncate">{ativo ? "✓ " : ""}{nome}</span>
@@ -403,7 +403,7 @@ export default function FiltrarPage() {
                 placeholder="Palavras no enunciado…"
                 value={qEnunciado}
                 onChange={(e) => setQEnunciado(e.target.value)}
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-cyan-500"
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-primary"
               />
               <p className="text-xs text-fg-faint">
                 Busca textual no enunciado das questões (Meilisearch). Combine com os demais filtros.
@@ -436,19 +436,19 @@ export default function FiltrarPage() {
         {/* Painel direito Opções */}
         <aside className="border-l border-border p-4 bg-page">
           <h2 className="text-sm font-semibold mb-3 text-fg-muted">
-            Filtros ativos: <span className="text-cyan-400">{totalChips}</span>
+            Filtros ativos: <span className="text-primary">{totalChips}</span>
           </h2>
           <div className="space-y-2 mb-4 max-h-[50vh] overflow-y-auto">
             {favoritas && (
-              <div className="flex items-center justify-between bg-yellow-950 border border-yellow-800 rounded px-2 py-1 text-xs">
+              <div className="flex items-center justify-between bg-warning/15 border border-warning/40 rounded px-2 py-1 text-xs">
                 <span className="truncate">⭐ Apenas favoritas</span>
-                <button onClick={() => setFavoritas(false)} className="ml-2 text-red-400 hover:text-red-300">✕</button>
+                <button onClick={() => setFavoritas(false)} className="ml-2 text-error hover:text-error">✕</button>
               </div>
             )}
             {qEnunciado.trim() && (
               <div className="flex items-center justify-between bg-surface-2 border border-border rounded px-2 py-1 text-xs">
                 <span className="truncate">Enunciado: “{qEnunciado.trim()}”</span>
-                <button onClick={() => setQEnunciado("")} className="ml-2 text-red-400 hover:text-red-300">✕</button>
+                <button onClick={() => setQEnunciado("")} className="ml-2 text-error hover:text-error">✕</button>
               </div>
             )}
             {CAMPOS_CHIP.flatMap((campo) =>
@@ -457,16 +457,16 @@ export default function FiltrarPage() {
                   key={`${campo}:${v}`}
                   className={`flex items-center justify-between rounded px-2 py-1 text-xs border ${
                     campo === "assuntos"
-                      ? "bg-cyan-950 border-cyan-800"
+                      ? "bg-primary/10 border-primary/40"
                       : campo === "status_excluir"
-                        ? "bg-red-950 border-red-800"
-                        : "bg-violet-950 border-violet-800"
+                        ? "bg-error/10 border-error/40"
+                        : "bg-secondary/10 border-secondary/40"
                   }`}
                 >
                   <span className="truncate">
                     {campo === "status_excluir" ? `Sem ${String(v).toLowerCase()}s` : `${CHIP_PREFIX[campo]}${v}`}
                   </span>
-                  <button onClick={() => removerChip(campo, String(v))} className="ml-2 text-red-400 hover:text-red-300">✕</button>
+                  <button onClick={() => removerChip(campo, String(v))} className="ml-2 text-error hover:text-error">✕</button>
                 </div>
               ))
             )}
@@ -474,13 +474,13 @@ export default function FiltrarPage() {
           <div className="text-xs text-fg-faint mb-1">Atalhos:</div>
           <button
             onClick={() => toggleStatusExcluir("ANULADA")}
-            className="text-xs text-cyan-400 hover:underline block"
+            className="text-xs text-primary hover:underline block"
           >
             {(filtros.status_excluir || []).includes("ANULADA") ? "✓ Anuladas removidas" : "Remover anuladas"}
           </button>
           <button
             onClick={() => toggleStatusExcluir("DESATUALIZADA")}
-            className="text-xs text-cyan-400 hover:underline block"
+            className="text-xs text-primary hover:underline block"
           >
             {(filtros.status_excluir || []).includes("DESATUALIZADA") ? "✓ Desatualizadas removidas" : "Remover desatualizadas"}
           </button>
@@ -489,7 +489,7 @@ export default function FiltrarPage() {
 
       <footer className="border-t border-border px-6 py-4 bg-page flex items-center gap-4">
         <div className="flex-1">
-          <div className="text-2xl font-semibold text-cyan-400">
+          <div className="text-2xl font-semibold text-primary">
             {contagem.total.toLocaleString("pt-BR")} <span className="text-base text-fg-muted">questões encontradas</span>
           </div>
           <div className="text-xs text-fg-faint">Meili: {contagem.ms}ms</div>
@@ -525,7 +525,7 @@ export default function FiltrarPage() {
         </div>
       </footer>
       {erroGerar && (
-        <div className="fixed bottom-20 right-6 bg-red-950 border border-red-700 rounded p-3 text-xs max-w-sm">
+        <div className="fixed bottom-20 right-6 bg-error/10 border border-error/40 rounded p-3 text-xs max-w-sm">
           Erro: {erroGerar}
         </div>
       )}

@@ -49,7 +49,7 @@ export function CanvasToolbar({
         onClick={() => onActiveChange(!active)}
         className={`inline-flex h-8 items-center gap-2 rounded-full border px-2.5 transition ${
           active
-            ? "border-cyan-400 bg-cyan-500/15 text-cyan-100"
+            ? "border-primary bg-primary/15 text-primary"
             : "border-border bg-page/70 text-fg-muted hover:border-border-strong hover:text-fg-strong"
         }`}
         title="Ativar ou desativar canvas"
@@ -107,7 +107,7 @@ export function CanvasToolbar({
               max={18}
               value={width}
               onChange={(event) => onWidthChange(Number(event.target.value))}
-              className="w-24 accent-cyan-500"
+              className="w-24 accent-primary"
               title="Espessura"
               aria-label="Espessura"
             />
@@ -146,11 +146,11 @@ export function CanvasToolbar({
       >
         {saving ? (
           <span
-            className="h-3 w-3 animate-spin rounded-full border-2 border-border-strong border-t-cyan-400"
+            className="h-3 w-3 animate-spin rounded-full border-2 border-border-strong border-t-primary"
             aria-hidden="true"
           />
         ) : saveError ? (
-          <Icon name="error" size={14} className="text-amber-300" aria-hidden="true" />
+          <Icon name="error" size={14} className="text-warning" aria-hidden="true" />
         ) : null}
         <span className="sr-only">
           {saving ? "Salvando anotações" : saveError ? "Erro ao salvar anotações" : ""}

@@ -308,7 +308,7 @@ export default function ColetarPage() {
 
         <div className="border-t border-border pt-6">
           <h2 className="text-sm font-semibold text-fg-strong mb-1 flex items-center gap-2">
-            <span className="material-symbols-outlined text-cyan-400 text-[18px]">cloud_download</span>
+            <span className="material-symbols-outlined text-primary text-[18px]">cloud_download</span>
             Coletar caderno avulso
           </h2>
           <p className="text-xs text-fg-faint mb-3">
@@ -325,11 +325,11 @@ export default function ColetarPage() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://www.tecconcursos.com.br/questoes/cadernos/95846378"
-            className="w-full px-4 py-3 bg-surface-2 border border-border rounded-lg text-sm focus:outline-none focus:border-cyan-500 font-mono"
+            className="w-full px-4 py-3 bg-surface-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary font-mono"
             disabled={carregando}
           />
           {id && (
-            <div className="mt-2 text-xs text-cyan-400">
+            <div className="mt-2 text-xs text-primary">
               ✓ Caderno detectado: <span className="font-mono font-semibold">#{id}</span>
               {knownTotal ? (
                 <span className="text-fg-muted"> · total conhecido: {knownTotal.toLocaleString("pt-BR")}</span>
@@ -358,8 +358,8 @@ export default function ColetarPage() {
           </div>
 
           {erroJobs && (
-            <div className="bg-red-950 border border-red-700 rounded p-3 text-sm">
-              <strong className="text-red-400">Falha no painel:</strong> {erroJobs}
+            <div className="bg-error/10 border border-error/40 rounded p-3 text-sm">
+              <strong className="text-error">Falha no painel:</strong> {erroJobs}
             </div>
           )}
 
@@ -383,18 +383,18 @@ export default function ColetarPage() {
                   <div
                     key={job.job_id}
                     className={`rounded-lg border p-4 ${
-                      destaqueAtual ? "border-cyan-600 bg-cyan-950/20" : "border-border bg-black/20"
+                      destaqueAtual ? "border-primary bg-primary/10" : "border-border bg-black/20"
                     }`}
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
                         <div className="text-sm font-semibold text-fg-strong">
                           {job.caderno_nome ? (
-                            <span className="text-cyan-300">{job.caderno_nome}</span>
+                            <span className="text-primary">{job.caderno_nome}</span>
                           ) : (
                             <>Caderno #{job.caderno_id}</>
                           )}
-                          <span className="ml-2 text-cyan-400">Job #{job.job_id}</span>
+                          <span className="ml-2 text-primary">Job #{job.job_id}</span>
                         </div>
                         {job.caderno_nome && (
                           <div className="text-[11px] text-fg-faint">Caderno #{job.caderno_id}</div>
@@ -402,7 +402,7 @@ export default function ColetarPage() {
                         <div className="mt-1 text-xs text-fg-muted">
                           Status: {statusTexto(job.status)}
                           {job.paused && (
-                            <span className="ml-1.5 inline-flex items-center gap-1 rounded-full border border-amber-700 bg-amber-900/40 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">
+                            <span className="ml-1.5 inline-flex items-center gap-1 rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase text-warning">
                               <span className="material-symbols-outlined text-[12px]">pause</span> Pausado
                             </span>
                           )}
@@ -413,7 +413,7 @@ export default function ColetarPage() {
                             <button
                               onClick={() => recoletarCaderno(job)}
                               disabled={recoletando === job.caderno_id}
-                              className="inline-flex w-fit items-center gap-1 rounded border border-amber-700 bg-amber-900/40 px-2.5 py-1 text-xs font-medium text-amber-200 transition hover:bg-amber-900/60 disabled:opacity-50"
+                              className="inline-flex w-fit items-center gap-1 rounded border border-warning/40 bg-warning/15 px-2.5 py-1 text-xs font-medium text-warning transition hover:bg-warning/20 disabled:opacity-50"
                             >
                               <span className={`material-symbols-outlined text-[14px] ${recoletando === job.caderno_id ? "animate-spin" : ""}`}>
                                 {recoletando === job.caderno_id ? "progress_activity" : "restart_alt"}
@@ -426,10 +426,10 @@ export default function ColetarPage() {
                           </div>
                         ) : job.status === "done" ? (
                           montados[job.caderno_id] ? (
-                            <div className="mt-2 rounded border border-green-700 bg-green-900/30 p-2 text-xs text-green-300">
+                            <div className="mt-2 rounded border border-success/40 bg-success/15 p-2 text-xs text-success">
                               <span className="material-symbols-outlined text-[14px] align-middle">check_circle</span>{" "}
                               Montado em <strong>Importados do TC</strong> ·{" "}
-                              <a href={`/q/caderno/${montados[job.caderno_id].id}`} className="underline hover:text-green-200">
+                              <a href={`/q/caderno/${montados[job.caderno_id].id}`} className="underline hover:text-success">
                                 abrir “{montados[job.caderno_id].nome}” ({montados[job.caderno_id].total} questões)
                               </a>
                             </div>
@@ -442,12 +442,12 @@ export default function ColetarPage() {
                                   setNomesEdit((prev) => ({ ...prev, [job.caderno_id]: e.target.value }))
                                 }
                                 placeholder={`Caderno ${job.caderno_id}`}
-                                className="w-full sm:w-64 rounded border border-border bg-surface-2 px-2.5 py-1 text-xs focus:border-cyan-500 focus:outline-none"
+                                className="w-full sm:w-64 rounded border border-border bg-surface-2 px-2.5 py-1 text-xs focus:border-primary focus:outline-none"
                               />
                               <button
                                 onClick={() => montarNaPasta(job)}
                                 disabled={montando === job.caderno_id}
-                                className="inline-flex items-center gap-1 rounded border border-cyan-700 bg-cyan-900/40 px-2.5 py-1 text-xs font-medium text-cyan-200 transition hover:bg-cyan-900/60 disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded border border-primary/40 bg-primary/15 px-2.5 py-1 text-xs font-medium text-primary transition hover:bg-primary/20 disabled:opacity-50"
                               >
                                 <span className={`material-symbols-outlined text-[14px] ${montando === job.caderno_id ? "animate-spin" : ""}`}>
                                   {montando === job.caderno_id ? "progress_activity" : "create_new_folder"}
@@ -463,7 +463,7 @@ export default function ColetarPage() {
                               disabled={pausando === job.job_id}
                               className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
                                 job.paused
-                                  ? "border border-green-700 bg-green-900/40 text-green-300 hover:bg-green-900/60"
+                                  ? "border border-success/40 bg-success/15 text-success hover:bg-success/20"
                                   : "border border-border bg-surface-2 text-fg hover:bg-fg-strong/6"
                               }`}
                             >
@@ -475,27 +475,27 @@ export default function ColetarPage() {
                           </div>
                         )}
                         {primeiraFaixa && (
-                          <div className="mt-2 text-xs text-amber-300">
+                          <div className="mt-2 text-xs text-warning">
                             Proxima faixa observada: {faixaResumo(primeiraFaixa)}
                           </div>
                         )}
                         {destaqueAtual && (
-                          <div className="mt-2 text-xs text-cyan-300">
+                          <div className="mt-2 text-xs text-primary">
                             Esse caderno ja tem job ativo. Nao precisa cadastrar de novo.
                           </div>
                         )}
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center text-xs md:min-w-[240px]">
                         <div className="rounded bg-page px-3 py-2">
-                          <div className="text-lg font-semibold text-green-400">{job.done_units}</div>
+                          <div className="text-lg font-semibold text-success">{job.done_units}</div>
                           <div className="text-fg-faint">Done</div>
                         </div>
                         <div className="rounded bg-page px-3 py-2">
-                          <div className="text-lg font-semibold text-yellow-400">{job.running_units + job.queued_units}</div>
+                          <div className="text-lg font-semibold text-warning">{job.running_units + job.queued_units}</div>
                           <div className="text-fg-faint">Fila/Run</div>
                         </div>
                         <div className="rounded bg-page px-3 py-2">
-                          <div className="text-lg font-semibold text-red-400">{job.blocked_units}</div>
+                          <div className="text-lg font-semibold text-error">{job.blocked_units}</div>
                           <div className="text-fg-faint">Blocked</div>
                         </div>
                       </div>
@@ -537,7 +537,7 @@ export default function ColetarPage() {
             value={expectedTotalText}
             onChange={(e) => setExpectedTotalText(e.target.value)}
             placeholder={knownTotal ? `${knownTotal}` : "Ex.: 29774"}
-            className="w-full px-4 py-3 bg-surface-2 border border-border rounded-lg text-sm focus:outline-none focus:border-cyan-500 font-mono"
+            className="w-full px-4 py-3 bg-surface-2 border border-border rounded-lg text-sm focus:outline-none focus:border-primary font-mono"
             disabled={carregando}
           />
           <div className="mt-2 text-xs text-fg-faint">
@@ -567,21 +567,21 @@ export default function ColetarPage() {
         </button>
 
         {jobAtual && (
-          <div className="bg-amber-950 border border-amber-700 rounded p-4 text-sm text-amber-100">
-            <strong className="text-amber-300">Ja existe job ativo para #{jobAtual.caderno_id}.</strong>{" "}
+          <div className="bg-warning/10 border border-warning/40 rounded p-4 text-sm text-fg">
+            <strong className="text-warning">Ja existe job ativo para #{jobAtual.caderno_id}.</strong>{" "}
             Acompanhe o card acima. O sistema vai retomar faixas bloqueadas automaticamente; nao cadastre o mesmo caderno de novo.
           </div>
         )}
 
         {erro && (
-          <div className="bg-red-950 border border-red-700 rounded p-4 text-sm">
-            <strong className="text-red-400">Erro:</strong> {erro}
+          <div className="bg-error/10 border border-error/40 rounded p-4 text-sm">
+            <strong className="text-error">Erro:</strong> {erro}
           </div>
         )}
 
         {resultado && (
-          <div className="bg-green-950 border border-green-700 rounded-lg p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-green-300">
+          <div className="bg-success/10 border border-success/40 rounded-lg p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-success">
               Job aceito — caderno #{resultado.caderno_id}
             </h2>
             <p className="text-sm text-fg">
@@ -590,32 +590,32 @@ export default function ColetarPage() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
               <div className="bg-black/30 rounded p-3">
-                <div className="text-2xl font-bold text-cyan-400">
+                <div className="text-2xl font-bold text-primary">
                   #{resultado.job_id}
                 </div>
                 <div className="text-xs text-fg-muted">Job</div>
               </div>
               <div className="bg-black/30 rounded p-3">
-                <div className="text-2xl font-bold text-green-400">
+                <div className="text-2xl font-bold text-success">
                   {resultado.total_units}
                 </div>
                 <div className="text-xs text-fg-muted">Faixas</div>
               </div>
               <div className="bg-black/30 rounded p-3">
-                <div className="text-2xl font-bold text-yellow-400">
+                <div className="text-2xl font-bold text-warning">
                   {resultado.enqueued_units}
                 </div>
                 <div className="text-xs text-fg-muted">Enfileirada agora</div>
               </div>
               <div className="bg-black/30 rounded p-3">
-                <div className="text-2xl font-bold text-violet-400">
+                <div className="text-2xl font-bold text-secondary">
                   {statusTexto(resultado.status)}
                 </div>
                 <div className="text-xs text-fg-muted">Status</div>
               </div>
             </div>
 
-            <div className="text-xs text-fg-muted border-t border-green-800 pt-3 space-y-1">
+            <div className="text-xs text-fg-muted border-t border-success/30 pt-3 space-y-1">
               <div>
                 <strong>Total esperado:</strong> {resultado.expected_total.toLocaleString("pt-BR")} questões.
               </div>

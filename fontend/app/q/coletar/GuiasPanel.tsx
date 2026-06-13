@@ -36,9 +36,9 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function statusBadge(s: string): string {
-  if (s === "done") return "bg-green-900/40 text-green-300 border-green-700";
-  if (s === "collecting") return "bg-cyan-900/40 text-cyan-300 border-cyan-700";
-  if (s === "error") return "bg-red-900/40 text-red-300 border-red-700";
+  if (s === "done") return "bg-success/15 text-success border-success/40";
+  if (s === "collecting") return "bg-primary/15 text-primary border-primary/40";
+  if (s === "error") return "bg-error/15 text-error border-error/40";
   return "bg-surface-2 text-fg border-border";
 }
 
@@ -132,7 +132,7 @@ export default function GuiasPanel() {
     <section className="border border-border rounded-lg bg-page/70 p-4 space-y-4">
       <div>
         <h2 className="text-sm font-semibold text-fg-strong flex items-center gap-2">
-          <span className="material-symbols-outlined text-cyan-400 text-[18px]">menu_book</span>
+          <span className="material-symbols-outlined text-primary text-[18px]">menu_book</span>
           Guias de estudo
         </h2>
         <p className="text-xs text-fg-faint mt-1">
@@ -148,7 +148,7 @@ export default function GuiasPanel() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://www.tecconcursos.com.br/guias/oab-2026"
-          className="flex-1 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-cyan-500 font-mono"
+          className="flex-1 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-primary font-mono"
           disabled={importando}
         />
         <button
@@ -172,7 +172,7 @@ export default function GuiasPanel() {
           onChange={(e) => setTermo(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && void buscar()}
           placeholder="Buscar guias no TC (ex.: oab, sefaz, trt)"
-          className="flex-1 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-cyan-500"
+          className="flex-1 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-primary"
           disabled={buscando}
         />
         <button
@@ -195,7 +195,7 @@ export default function GuiasPanel() {
                 </div>
               </div>
               {g.guia_id ? (
-                <Link href={`/q/guias/${g.guia_id}`} className="text-xs bg-green-900/40 text-green-300 border border-green-700 px-2 py-1 rounded whitespace-nowrap">
+                <Link href={`/q/guias/${g.guia_id}`} className="text-xs bg-success/15 text-success border border-success/40 px-2 py-1 rounded whitespace-nowrap">
                   Importado →
                 </Link>
               ) : (
@@ -212,8 +212,8 @@ export default function GuiasPanel() {
         </div>
       )}
 
-      {msg && <div className="text-xs text-cyan-300">{msg}</div>}
-      {erro && <div className="text-xs text-red-400">Falha ao listar guias: {erro}</div>}
+      {msg && <div className="text-xs text-primary">{msg}</div>}
+      {erro && <div className="text-xs text-error">Falha ao listar guias: {erro}</div>}
 
       {/* Guias importados */}
       {guias.length > 0 && (
@@ -223,7 +223,7 @@ export default function GuiasPanel() {
             <Link
               key={g.id}
               href={`/q/guias/${g.id}`}
-              className="block rounded border border-border bg-black/20 hover:border-cyan-700 p-3"
+              className="block rounded border border-border bg-black/20 hover:border-primary/40 p-3"
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="text-sm font-medium text-fg-strong truncate">{g.nome}</div>

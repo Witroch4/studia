@@ -51,13 +51,40 @@ export default function Sidebar() {
   }, []);
   const itensVisiveis = navItems.filter((item) => !item.adminOnly || isAdmin);
 
+  // Recolher/expandir a sidebar de forma IMPERATIVA: só alterna a classe no
+  // <html> e persiste no localStorage. Sem useState → o markup React é idêntico
+  // server/client, então não há mismatch de hidratação (o estado vive no CSS).
+  const toggleSidebar = () => {
+    const el = document.documentElement;
+    const collapsed = el.classList.toggle("sidebar-collapsed");
+    try {
+      localStorage.setItem("studia-sidebar", collapsed ? "collapsed" : "expanded");
+    } catch {}
+  };
+
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-64 h-screen sticky top-0 bg-surface-dark border-r border-border-dark flex-shrink-0 overflow-y-auto z-50">
-        <Link href="/painel" className="p-6 flex items-center border-b border-border-dark/50">
-          <Logo size={30} wordClassName="text-2xl" />
-        </Link>
+      <aside
+        data-sidebar
+        className="hidden md:flex flex-col w-64 h-screen sticky top-0 bg-surface-dark border-r border-border-dark flex-shrink-0 overflow-y-auto z-50"
+      >
+        <div className="flex items-center border-b border-border-dark/50 sidebar-row">
+          <Link href="/painel" className="sidebar-label flex-1 min-w-0 p-6 flex items-center">
+            <Logo size={30} wordClassName="text-2xl" />
+          </Link>
+          {/* Chevron SEMPRE visível: recolhe quando expandida, reexpande quando
+              colapsada (o ícone rotaciona 180° via CSS no estado colapsado). */}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label="Recolher ou expandir menu"
+            title="Recolher / expandir menu"
+            className="mx-2 p-2 rounded-lg text-fg-muted hover:text-fg-strong hover:bg-fg-strong/6"
+          >
+            <span className="material-symbols-outlined sidebar-collapse-icon text-[20px]">chevron_left</span>
+          </button>
+        </div>
 
         <nav className="flex-1 p-4 space-y-1">
           {itensVisiveis.map((item) => {
@@ -66,28 +93,39 @@ export default function Sidebar() {
               <Link
                 key={item.label}
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors group ${
+                title={item.label}
+                className={`sidebar-link flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors group ${
                   isActive
                     ? "bg-primary/10 text-primary"
                     : "text-fg-muted hover:text-fg-strong hover:bg-fg-strong/6"
                 }`}
               >
                 <span
-                  className={`material-symbols-outlined text-[20px] ${
+                  className={`material-symbols-outlined text-[20px] shrink-0 ${
                     isActive ? "" : "text-primary/70 group-hover:text-primary"
                   }`}
                 >
                   {item.icon}
                 </span>
-                {item.label}
+                <span className="sidebar-label">{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
         <div className="p-4 border-t border-border-dark/50 space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-medium text-fg-faint">Tema</span>
+          {/* Botão recolher — visível só quando expandida (some no modo ícone;
+              para reexpandir, use o chevron do topo, que rotaciona). */}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="sidebar-label w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-fg-muted hover:text-fg-strong hover:bg-fg-strong/6"
+          >
+            <span className="material-symbols-outlined sidebar-collapse-icon text-[20px]">chevron_left</span>
+            <span>Recolher menu</span>
+          </button>
+          <div className="flex items-center justify-between px-1 sidebar-row">
+            <span className="text-xs font-medium text-fg-faint sidebar-label">Tema</span>
             <AnimatedThemeToggle />
           </div>
           <UserNav variant="desktop" />

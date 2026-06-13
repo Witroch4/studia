@@ -243,6 +243,52 @@ body {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
+ * Sidebar colapsável (ajuda em telas estreitas). Dirigida pela classe
+ * `.sidebar-collapsed` no <html>, setada por um script bloqueante no layout
+ * ANTES da primeira pintura → sem flash. O markup React é IDÊNTICO nos dois
+ * estados (só o CSS muda), então não há mismatch de hidratação.
+ * ──────────────────────────────────────────────────────────────────────── */
+aside[data-sidebar] {
+  transition: width var(--dur-base) var(--ease-out-expo);
+}
+html.sidebar-collapsed aside[data-sidebar] {
+  width: 4.75rem;
+}
+html.sidebar-collapsed aside[data-sidebar] .sidebar-label {
+  display: none;
+}
+html.sidebar-collapsed aside[data-sidebar] .sidebar-link,
+html.sidebar-collapsed aside[data-sidebar] .sidebar-row {
+  justify-content: center;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+html.sidebar-collapsed .sidebar-collapse-icon {
+  transform: rotate(180deg);
+}
+.sidebar-collapse-icon {
+  transition: transform var(--dur-base) var(--ease-out-expo);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * cursor:pointer GLOBAL — o Tailwind v4 removeu o padrão de <button> no
+ * Preflight; precisa ser restaurado explicitamente, senão o mouse não vira
+ * "mãozinha" sobre botões. Cobre botões, role=button, summary e selects.
+ * ──────────────────────────────────────────────────────────────────────── */
+button:not(:disabled),
+[role="button"]:not(:disabled),
+summary,
+select:not(:disabled),
+label:has(> input[type="checkbox"]:not(:disabled)),
+label:has(> input[type="radio"]:not(:disabled)) {
+  cursor: pointer;
+}
+button:disabled,
+[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
  * Landing page ("lp-*") — estética "neon-noir editorial".
  * Display serifado (Instrument Serif) + rótulos mono (JetBrains Mono) sobre
  * fundo carvão com aurora ciano/violeta e grão. Escopo só na landing pública.

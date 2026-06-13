@@ -160,9 +160,9 @@ export default function AulaStudyPage({
           </div>
 
           {!isReady && (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6 flex items-center gap-3">
-              <div className="h-4 w-4 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin flex-shrink-0" />
-              <p className="text-sm text-amber-400">
+            <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 mb-6 flex items-center gap-3">
+              <div className="h-4 w-4 border-2 border-warning/30 border-t-warning rounded-full animate-spin flex-shrink-0" />
+              <p className="text-sm text-warning">
                 O PDF ainda está sendo processado pela IA. O conteúdo aparecerá aqui quando concluído.
               </p>
             </div>

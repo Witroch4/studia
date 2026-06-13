@@ -56,18 +56,18 @@ const KEYS: CalculatorKey[] = [
 
 function keyClass(key: CalculatorKey) {
   const base =
-    "h-10 rounded border text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-cyan-400/60";
+    "h-10 rounded border text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-primary/60";
 
   if (key.tone === "danger") {
-    return `${base} border-red-900/70 bg-red-950/40 text-red-200 hover:bg-red-900/50`;
+    return `${base} border-error/40 bg-error/10 text-error hover:bg-error/20`;
   }
 
   if (key.tone === "operator") {
-    return `${base} border-cyan-900/70 bg-cyan-950/30 text-cyan-200 hover:bg-cyan-900/40`;
+    return `${base} border-primary/40 bg-primary/10 text-primary hover:bg-primary/20`;
   }
 
   if (key.tone === "function") {
-    return `${base} border-border bg-surface/80 text-violet-200 hover:border-violet-700 hover:bg-violet-950/35`;
+    return `${base} border-border bg-surface/80 text-secondary hover:border-secondary/40 hover:bg-secondary/15`;
   }
 
   return `${base} border-border bg-page/75 text-fg hover:bg-surface-2`;
@@ -233,7 +233,7 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
       aria-label="Calculadora científica"
     >
       <header className="flex items-center gap-2 border-b border-border/70 bg-page px-3 py-2">
-        <Icon name="calculate" size={18} className="text-cyan-300" />
+        <Icon name="calculate" size={18} className="text-primary" />
         <h2 className="text-sm font-semibold">Calculadora</h2>
         {saving && (
           <span className="ml-1 text-[11px] text-fg-faint" aria-live="polite" aria-atomic="true">
@@ -262,18 +262,18 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
             setExpression(event.target.value);
             setError(null);
           }}
-          className="h-10 w-full rounded border border-border bg-page px-3 font-mono text-sm text-fg outline-none transition placeholder:text-fg-faint focus:border-cyan-500"
+          className="h-10 w-full rounded border border-border bg-page px-3 font-mono text-sm text-fg outline-none transition placeholder:text-fg-faint focus:border-primary"
           placeholder="sin(30)+sqrt(16)"
           inputMode="decimal"
         />
 
         <div className="rounded border border-border/70 bg-page/70 p-3" aria-live="polite" aria-atomic="true">
           <div className="text-[11px] uppercase tracking-wide text-fg-faint">Resultado</div>
-          <div className="mt-1 min-h-9 break-words font-mono text-3xl font-semibold text-cyan-300">
+          <div className="mt-1 min-h-9 break-words font-mono text-3xl font-semibold text-primary">
             {result || "0"}
           </div>
-          {error && <div className="mt-2 text-xs text-red-300">{error}</div>}
-          {historyError && <div className="mt-2 text-xs text-amber-300">{historyError}</div>}
+          {error && <div className="mt-2 text-xs text-error">{error}</div>}
+          {historyError && <div className="mt-2 text-xs text-warning">{historyError}</div>}
         </div>
 
         <div className="grid grid-cols-4 gap-1.5">
@@ -322,13 +322,13 @@ export function ScientificCalculator({ open, cadernoId, questaoId, onClose }: Sc
                     setError(null);
                     setHistoryError(null);
                   }}
-                  className="w-full rounded border border-border bg-page/40 px-2.5 py-2 text-left transition hover:border-cyan-900 hover:bg-cyan-950/20"
+                  className="w-full rounded border border-border bg-page/40 px-2.5 py-2 text-left transition hover:border-primary/40 hover:bg-primary/10"
                 >
                   <span className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg">{item.expression}</span>
                     {time && <span className="shrink-0 text-[11px] text-fg-faint">{time}</span>}
                   </span>
-                  <span className="mt-1 block truncate font-mono text-sm font-semibold text-cyan-300">
+                  <span className="mt-1 block truncate font-mono text-sm font-semibold text-primary">
                     = {item.result}
                   </span>
                 </button>

@@ -90,7 +90,7 @@ const mdComponents: Components = {
 
     if (dataTag === "atencao") {
       return (
-        <div className="my-3 bg-red-500/8 border-l-3 border-red-500 px-4 py-2.5 rounded-r-lg text-sm text-fg">
+        <div className="my-3 bg-error/10 border-l-3 border-error px-4 py-2.5 rounded-r-lg text-sm text-fg">
           {children}
         </div>
       );

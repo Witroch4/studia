@@ -8,11 +8,11 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 // ─── Identidade por modalidade ───────────────────────────
 type Mod = "AC" | "PN" | "PI" | "PQ" | "PCD";
 const MOD: Record<Mod, { nome: string; curto: string; text: string; bg: string; ring: string; bar: string; icon: string }> = {
-  AC:  { nome: "Ampla Concorrência", curto: "Ampla", text: "text-cyan-300",   bg: "bg-cyan-500/10",   ring: "ring-cyan-500/30",   bar: "bg-cyan-500",   icon: "groups" },
-  PN:  { nome: "Pretos e Pardos",    curto: "Negros", text: "text-amber-300",  bg: "bg-amber-500/10",  ring: "ring-amber-500/30",  bar: "bg-amber-500",  icon: "diversity_3" },
-  PI:  { nome: "Indígenas",          curto: "Indíg.", text: "text-emerald-300",bg: "bg-emerald-500/10",ring: "ring-emerald-500/30",bar: "bg-emerald-500",icon: "forest" },
-  PQ:  { nome: "Quilombolas",        curto: "Quilom.",text: "text-violet-300", bg: "bg-violet-500/10", ring: "ring-violet-500/30", bar: "bg-violet-500", icon: "cabin" },
-  PCD: { nome: "Pessoa c/ Deficiência", curto: "PcD",  text: "text-sky-300",   bg: "bg-sky-500/10",    ring: "ring-sky-500/30",    bar: "bg-sky-500",    icon: "accessible" },
+  AC:  { nome: "Ampla Concorrência", curto: "Ampla", text: "text-primary",   bg: "bg-primary/10",   ring: "ring-primary/30",   bar: "bg-cyan-500",   icon: "groups" },
+  PN:  { nome: "Pretos e Pardos",    curto: "Negros", text: "text-warning",  bg: "bg-warning/10",  ring: "ring-warning/30",  bar: "bg-amber-500",  icon: "diversity_3" },
+  PI:  { nome: "Indígenas",          curto: "Indíg.", text: "text-success",bg: "bg-success/10",ring: "ring-success/30",bar: "bg-emerald-500",icon: "forest" },
+  PQ:  { nome: "Quilombolas",        curto: "Quilom.",text: "text-secondary", bg: "bg-secondary/10", ring: "ring-secondary/30", bar: "bg-violet-500", icon: "cabin" },
+  PCD: { nome: "Pessoa c/ Deficiência", curto: "PcD",  text: "text-primary",   bg: "bg-primary/10",    ring: "ring-primary/30",    bar: "bg-sky-500",    icon: "accessible" },
 };
 const ORDER: Mod[] = ["AC", "PN", "PI", "PQ", "PCD"];
 
@@ -240,14 +240,14 @@ export default function ConcorrenciaPage() {
                   onClick={() => { setPct({ pn: 25, pi: 3, pq: 2, pcd: 5 }); setArredRacial("MEIO"); setFatorCR(4); setMaxEsp(40); }}
                   className={`relative text-left px-3 py-2.5 rounded-lg border transition-all ${
                     presetAtivo === "CAIXA"
-                      ? "border-amber-500 bg-amber-500/15 ring-1 ring-amber-500/40"
-                      : "border-border-dark bg-bg-dark hover:border-amber-500/40"
+                      ? "border-warning bg-warning/15 ring-1 ring-warning/40"
+                      : "border-border-dark bg-bg-dark hover:border-warning/40"
                   }`}
                 >
                   {presetAtivo === "CAIXA" && (
-                    <span className="material-symbols-outlined absolute top-2 right-2 text-amber-400 text-[16px]">check_circle</span>
+                    <span className="material-symbols-outlined absolute top-2 right-2 text-warning text-[16px]">check_circle</span>
                   )}
-                  <p className={`text-xs font-bold flex items-center gap-1.5 ${presetAtivo === "CAIXA" ? "text-amber-300" : "text-fg"}`}><span className="material-symbols-outlined text-[15px]">account_balance</span>Caixa 2025</p>
+                  <p className={`text-xs font-bold flex items-center gap-1.5 ${presetAtivo === "CAIXA" ? "text-warning" : "text-fg"}`}><span className="material-symbols-outlined text-[15px]">account_balance</span>Caixa 2025</p>
                   <p className="text-[10px] text-fg-faint mt-0.5">Fator 4 (imediatas + 3× CR) · cotas 25/3/2/5 · específica máx. 40</p>
                 </button>
                 <button
@@ -314,7 +314,7 @@ export default function ConcorrenciaPage() {
                   <p className="text-[10px] text-fg-faint mt-0.5">Soma geral · desempate: discursiva, idade</p>
                 </button>
                 <button onClick={() => setCriterio("ESPECIFICO")}
-                  className={`text-left px-3 py-2.5 rounded-lg border transition-all ${criterio === "ESPECIFICO" ? "bg-emerald-500/15 border-emerald-500 text-fg-strong" : "bg-bg-dark border-border-dark text-fg-muted hover:border-emerald-500/40"}`}>
+                  className={`text-left px-3 py-2.5 rounded-lg border transition-all ${criterio === "ESPECIFICO" ? "bg-success/15 border-success text-fg-strong" : "bg-bg-dark border-border-dark text-fg-muted hover:border-success/40"}`}>
                   <p className="text-xs font-bold flex items-center gap-1.5"><span className="material-symbols-outlined text-[15px]">workspace_premium</span>Padrão Petrobras</p>
                   <p className="text-[10px] text-fg-faint mt-0.5">Só conhecimento específico · desempate: Português → Inglês</p>
                 </button>
@@ -359,7 +359,7 @@ export default function ConcorrenciaPage() {
               </Field>
               <Field label="Suas cotas (pode marcar várias)">
                 <div className="flex flex-wrap gap-1.5">
-                  <span className="text-[11px] font-medium px-2.5 py-1 rounded-full border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 flex items-center gap-1">
+                  <span className="text-[11px] font-medium px-2.5 py-1 rounded-full border border-primary/40 bg-primary/10 text-primary flex items-center gap-1">
                     <span className="material-symbols-outlined text-[13px]">check</span>Ampla (sempre)
                   </span>
                   {(["PN", "PI", "PQ", "PCD"] as const).map((c) => {
@@ -429,8 +429,8 @@ export default function ConcorrenciaPage() {
                   </button>
                   {showLei && (
                     <div className="px-5 pb-5 text-sm text-fg-muted space-y-2 border-t border-border-dark pt-4">
-                      <p><strong className="text-fg">Lei 15.142/2025</strong> + Decreto 12.536/2025 (substituiu a Lei 12.990/2014): reserva total de <strong className="text-amber-300">30%</strong> étnico-racial → <strong>25%</strong> pretos/pardos, <strong>3%</strong> indígenas, <strong>2%</strong> quilombolas.</p>
-                      <p><strong className="text-fg">Decreto 9.508/2018</strong> / Lei 8.112/90: PcD <strong className="text-sky-300">mín. 5%</strong> (até 20%), apurado em separado.</p>
+                      <p><strong className="text-fg">Lei 15.142/2025</strong> + Decreto 12.536/2025 (substituiu a Lei 12.990/2014): reserva total de <strong className="text-warning">30%</strong> étnico-racial → <strong>25%</strong> pretos/pardos, <strong>3%</strong> indígenas, <strong>2%</strong> quilombolas.</p>
+                      <p><strong className="text-fg">Decreto 9.508/2018</strong> / Lei 8.112/90: PcD <strong className="text-primary">mín. 5%</strong> (até 20%), apurado em separado.</p>
                       <p><strong className="text-fg">Deslocamento:</strong> todo cotista também concorre na ampla; se classificado dentro das vagas da ampla, <strong>não ocupa</strong> vaga reservada — a fila da cota sobe e outro cotista é convocado.</p>
                       <p><strong className="text-fg">Acúmulo:</strong> quem se enquadra em mais de uma categoria concorre na de maior percentual (negro &gt; indígena &gt; quilombola).</p>
                       <p className="text-xs text-fg-faint pt-1">Simulação educativa. O desempate exato (idade, notas específicas) e regras de alternância de nomeação variam conforme o edital.</p>
@@ -543,7 +543,7 @@ function CorteCard({ mod, result, i }: { mod: Mod; result: SimResult; i: number 
         <p className="cc-num text-3xl font-extrabold text-fg-strong leading-none">
           {corte != null ? corte.toLocaleString("pt-BR") : <span className="text-fg-faint text-xl">—</span>}
           {corte != null && pct != null && (
-            <span className="text-sm font-bold text-emerald-300 ml-1.5">{pct.toLocaleString("pt-BR")}%</span>
+            <span className="text-sm font-bold text-success ml-1.5">{pct.toLocaleString("pt-BR")}%</span>
           )}
         </p>
         <p className="text-[10px] text-fg-faint mt-1">{c.nome}</p>
@@ -581,7 +581,7 @@ function Distribuicao({ d }: { d: SimResult["distribuicao"] }) {
         ))}
       </div>
       {!d.aplica_racial && (
-        <p className="text-[11px] text-amber-400/80 mt-3 flex items-center gap-1.5">
+        <p className="text-[11px] text-warning/80 mt-3 flex items-center gap-1.5">
           <span className="material-symbols-outlined text-[14px]">info</span>
           Reserva étnico-racial não se aplica: total de vagas abaixo do limiar legal.
         </p>
@@ -662,8 +662,8 @@ function PosBox({ titulo, pos, conv, passa, corte, cortePct, falta, mod }: { tit
         {pos}º <span className="text-sm font-normal text-fg-faint">/ {conv} conv.</span>
       </p>
       <p className="cc-num text-[11px] text-fg-faint mt-1">
-        Corte: {corte != null ? corte : "—"}{cortePct != null && <span className="text-emerald-300"> ({cortePct}%)</span>}
-        {!passa && falta > 0 && <span className="text-amber-400"> · faltam {falta} pts</span>}
+        Corte: {corte != null ? corte : "—"}{cortePct != null && <span className="text-success"> ({cortePct}%)</span>}
+        {!passa && falta > 0 && <span className="text-warning"> · faltam {falta} pts</span>}
       </p>
     </div>
   );
@@ -718,7 +718,7 @@ function Classificacao({ result, minhaPont }: { result: SimResult; minhaPont: st
                   <td className="px-3 py-2 text-fg-muted">{r.polo}</td>
                   <td className="px-3 py-2 cc-num text-right font-bold text-fg-strong">
                     {r.nota}
-                    {esp && r.nota_pct != null && <span className="text-[10px] font-medium text-emerald-300 ml-1">{r.nota_pct}%</span>}
+                    {esp && r.nota_pct != null && <span className="text-[10px] font-medium text-success ml-1">{r.nota_pct}%</span>}
                   </td>
                   {esp && <td className="px-3 py-2 cc-num text-right text-fg-faint">{r.pontos}</td>}
                   <td className="px-3 py-2">

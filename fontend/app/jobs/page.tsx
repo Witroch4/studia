@@ -25,19 +25,19 @@ type BatchJob = {
 };
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; icon: string; label: string }> = {
-  PENDENTE: { bg: "bg-amber-500/15", text: "text-amber-400", icon: "schedule", label: "Na Fila" },
+  PENDENTE: { bg: "bg-amber-500/15", text: "text-warning", icon: "schedule", label: "Na Fila" },
   PROCESSANDO: { bg: "bg-primary/15", text: "text-primary", icon: "sync", label: "Processando" },
   CONCLUIDO: { bg: "bg-accent-success/15", text: "text-accent-success", icon: "check_circle", label: "Concluído" },
   ERRO: { bg: "bg-accent-error/15", text: "text-accent-error", icon: "error", label: "Erro" },
 };
 
 const BATCH_STATE_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
-  JOB_STATE_PENDING: { bg: "bg-amber-500/15", text: "text-amber-400", label: "Pendente" },
+  JOB_STATE_PENDING: { bg: "bg-amber-500/15", text: "text-warning", label: "Pendente" },
   JOB_STATE_RUNNING: { bg: "bg-primary/15", text: "text-primary", label: "Rodando" },
   JOB_STATE_SUCCEEDED: { bg: "bg-accent-success/15", text: "text-accent-success", label: "Concluído" },
   JOB_STATE_FAILED: { bg: "bg-accent-error/15", text: "text-accent-error", label: "Falhou" },
-  JOB_STATE_CANCELLED: { bg: "bg-gray-500/15", text: "text-fg-muted", label: "Cancelado" },
-  JOB_STATE_EXPIRED: { bg: "bg-orange-500/15", text: "text-orange-400", label: "Expirado (48h)" },
+  JOB_STATE_CANCELLED: { bg: "bg-fg-muted/15", text: "text-fg-muted", label: "Cancelado" },
+  JOB_STATE_EXPIRED: { bg: "bg-warning/15", text: "text-warning", label: "Expirado (48h)" },
 };
 
 function timeAgo(dateStr: string | null): string {
@@ -340,7 +340,7 @@ function JobRow({ job }: { job: Job }) {
       {job.status === "CONCLUIDO" && (
         <Link
           href={`/disciplinas/${encodeURIComponent(job.disciplina.toLowerCase().replace(/\s+/g, "-"))}/aulas/${job.id}`}
-          className="text-primary hover:text-cyan-300 transition-colors shrink-0"
+          className="text-primary hover:text-primary/70 transition-colors shrink-0"
           title="Ver aula"
         >
           <span className="material-symbols-outlined">open_in_new</span>

@@ -85,14 +85,14 @@ export default function UserNav({ variant = "desktop" }: { variant?: "desktop" |
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-fg-strong/6 transition-colors text-left focus:outline-none focus:ring-2 focus:ring-primary/50"
+        className="sidebar-row w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-fg-strong/6 transition-colors text-left focus:outline-none focus:ring-2 focus:ring-primary/50"
       >
         {Avatar}
-        <div className="flex-1 min-w-0">
+        <div className="sidebar-label flex-1 min-w-0">
           <p className="text-sm font-medium text-fg-strong truncate">{name}</p>
           <p className="text-xs text-fg-faint truncate">{email || "—"}</p>
         </div>
-        <span className="material-symbols-outlined text-fg-faint text-[18px]">unfold_more</span>
+        <span className="sidebar-label material-symbols-outlined text-fg-faint text-[18px]">unfold_more</span>
       </button>
       {open && <Menu name={name} email={email} role={role} plano={plano} onLogout={handleLogout} loggingOut={loggingOut} />}
     </div>
@@ -156,7 +156,7 @@ function Menu({
         <button
           onClick={onLogout}
           disabled={loggingOut}
-          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-50"
+          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-error rounded-lg hover:bg-error/10 transition-colors disabled:opacity-50"
         >
           <span className="material-symbols-outlined text-[18px]">{loggingOut ? "progress_activity" : "logout"}</span>
           {loggingOut ? "Saindo…" : "Sair da conta"}

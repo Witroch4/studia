@@ -47,7 +47,6 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
   const [resolvida, setResolvida] = useState(false);
   const [favorita, setFavorita] = useState(false);
   const [fontSize, setFontSize] = useState(16);
-  const [modoLeitura, setModoLeitura] = useState(false);
   const [showAtalhos, setShowAtalhos] = useState(false);
 
   useEffect(() => {
@@ -83,7 +82,6 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
     "=": () => setFontSize((s) => Math.min(s + 2, 28)),
     "-": () => setFontSize((s) => Math.max(s - 2, 12)),
     "0": () => setFontSize(16),
-    k: () => setModoLeitura((m) => !m),
     ".": () => alert("Pausar relógio (.) — em breve"),
     "?": () => setShowAtalhos(true),
   });
@@ -92,7 +90,7 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
 
   return (
     <div
-      className={`min-h-screen ${modoLeitura ? "bg-yellow-50 text-gray-900" : "bg-page text-fg"}`}
+      className="min-h-screen bg-page text-fg"
       style={{ fontSize }}
     >
       <header className="border-b border-border px-6 py-3 flex items-center gap-4">
@@ -105,14 +103,14 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
             {favorita && <span className="text-yellow-400">⭐</span>}
           </div>
         </div>
-        <button onClick={() => setShowAtalhos(true)} className="text-xs text-cyan-400 hover:underline">
+        <button onClick={() => setShowAtalhos(true)} className="text-xs text-primary hover:underline">
           Atalhos (?)
         </button>
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-6">
         <div className="text-xs text-fg-muted mb-2 flex gap-3 flex-wrap">
-          <span className="bg-cyan-950 px-2 py-0.5 rounded">{q.banca?.sigla}</span>
+          <span className="bg-primary/10 px-2 py-0.5 rounded">{q.banca?.sigla}</span>
           <span>{q.orgao?.sigla} / {q.cargo?.nome} / {q.cargo?.ano}</span>
           <span className="text-fg-faint">{q.materia?.nome} › {q.assuntos[0]?.nome}</span>
         </div>
@@ -133,9 +131,9 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
                   onClick={() => !resolvida && setSelecionada(alt.letra)}
                   disabled={resolvida}
                   className={`w-full text-left flex items-start gap-3 p-3 rounded border transition ${
-                    isCorreta ? "border-green-500 bg-green-950" :
-                    isErrada ? "border-red-500 bg-red-950" :
-                    selecionada === alt.letra ? "border-cyan-500 bg-cyan-950" :
+                    isCorreta ? "border-success bg-success/10" :
+                    isErrada ? "border-error bg-error/10" :
+                    selecionada === alt.letra ? "border-primary bg-primary/10" :
                     "border-border hover:bg-surface-2"
                   }`}
                 >
@@ -161,8 +159,8 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
 
         {resolvida && (
           <div className="bg-surface-2 border border-border rounded p-4">
-            <div className="text-sm">Gabarito oficial: <strong className="text-cyan-400">{q.gabarito}</strong></div>
-            {q.status === "ANULADA" && <div className="text-sm text-yellow-400 mt-1">⚠ Questão ANULADA</div>}
+            <div className="text-sm">Gabarito oficial: <strong className="text-primary">{q.gabarito}</strong></div>
+            {q.status === "ANULADA" && <div className="text-sm text-warning mt-1">⚠ Questão ANULADA</div>}
           </div>
         )}
 
@@ -199,7 +197,7 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
             <h2 className="text-lg font-semibold mb-4">Lista das teclas de atalho</h2>
             {(["nav", "acao", "ui"] as const).map((grupo) => (
               <div key={grupo} className="mb-4">
-                <h3 className="text-xs uppercase tracking-wider text-cyan-400 mb-2">
+                <h3 className="text-xs uppercase tracking-wider text-primary mb-2">
                   {grupo === "nav" ? "Navegação" : grupo === "acao" ? "Ações" : "Interface"}
                 </h3>
                 <table className="w-full text-sm">
@@ -208,7 +206,7 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
                       .filter(([, v]) => v.group === grupo)
                       .map(([k, v]) => (
                         <tr key={k}>
-                          <td className="py-1 pr-4 font-mono text-cyan-300">{k}</td>
+                          <td className="py-1 pr-4 font-mono text-primary">{k}</td>
                           <td className="py-1 text-fg">{v.label}</td>
                         </tr>
                       ))}

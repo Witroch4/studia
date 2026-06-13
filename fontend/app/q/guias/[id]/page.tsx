@@ -49,13 +49,13 @@ const STATUS_LABEL: Record<string, string> = {
 function statusChip(status: string): string {
   switch (status) {
     case "materialized":
-      return "bg-green-900/40 text-green-300 border-green-700";
+      return "bg-success/15 text-success border-success/40";
     case "collected":
-      return "bg-cyan-900/40 text-cyan-300 border-cyan-700";
+      return "bg-primary/15 text-primary border-primary/40";
     case "collecting":
-      return "bg-yellow-900/40 text-yellow-300 border-yellow-700";
+      return "bg-warning/15 text-warning border-warning/40";
     case "blocked":
-      return "bg-red-900/40 text-red-300 border-red-700";
+      return "bg-error/15 text-error border-error/40";
     default:
       return "bg-surface-2 text-fg-muted border-border";
   }
@@ -171,7 +171,7 @@ export default function GuiaDetalhePage() {
     return <div className="p-8 text-fg-muted">Carregando guia…</div>;
   }
   if (erro && !guia) {
-    return <div className="p-8 text-red-400">Erro: {erro}</div>;
+    return <div className="p-8 text-error">Erro: {erro}</div>;
   }
   if (!guia) return null;
 
@@ -247,7 +247,7 @@ export default function GuiaDetalhePage() {
               Atualizar
             </button>
           </div>
-          {msg && <div className="mt-3 text-sm text-cyan-300">{msg}</div>}
+          {msg && <div className="mt-3 text-sm text-primary">{msg}</div>}
         </section>
 
         {/* Cadernos por matéria */}
@@ -303,7 +303,7 @@ export default function GuiaDetalhePage() {
                     <button
                       onClick={() => void salvarCaderno(c.tc_caderno_id)}
                       disabled={salvando === c.tc_caderno_id}
-                      className="text-xs bg-cyan-900/40 hover:bg-cyan-900/60 text-cyan-200 border border-cyan-700 px-3 py-2 rounded font-semibold whitespace-nowrap disabled:opacity-50 inline-flex items-center gap-1"
+                      className="text-xs bg-primary/15 hover:bg-primary/20 text-primary border border-primary/40 px-3 py-2 rounded font-semibold whitespace-nowrap disabled:opacity-50 inline-flex items-center gap-1"
                     >
                       <span className={`material-symbols-outlined text-[14px] ${salvando === c.tc_caderno_id ? "animate-spin" : ""}`}>
                         {salvando === c.tc_caderno_id ? "progress_activity" : "bookmark_add"}
