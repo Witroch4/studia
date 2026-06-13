@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import Logo from "@/app/components/Logo";
+import GoogleAuthButton from "@/app/components/GoogleAuthButton";
 
 function LoginForm() {
   const router = useRouter();
@@ -107,6 +108,8 @@ function LoginForm() {
               {loading ? "Entrando…" : "Entrar"}
             </button>
           </form>
+
+          <GoogleAuthButton callbackURL={redirect} />
         </div>
 
         <p className="mt-6 text-center text-xs text-fg-faint">

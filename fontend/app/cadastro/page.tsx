@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import Logo from "@/app/components/Logo";
+import GoogleAuthButton from "@/app/components/GoogleAuthButton";
 
 function CadastroForm() {
   const router = useRouter();
@@ -128,6 +129,8 @@ function CadastroForm() {
               {loading ? "Criando…" : "Criar conta grátis"}
             </button>
           </form>
+
+          <GoogleAuthButton callbackURL="/painel" label="Cadastrar com Google" />
         </div>
 
         <p className="mt-6 text-center text-xs text-fg-faint">

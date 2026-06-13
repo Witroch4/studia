@@ -15,6 +15,10 @@ COPY . .
 # frontend chama a API no mesmo domínio (Traefik roteia /api → backend).
 ARG NEXT_PUBLIC_API_URL=https://studia.witdev.com.br
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# "1" liga o botão "Continuar com Google" no /login e /cadastro. build.sh deriva
+# automaticamente de GOOGLE_CLIENT_ID presente no .env local.
+ARG NEXT_PUBLIC_GOOGLE_AUTH=
+ENV NEXT_PUBLIC_GOOGLE_AUTH=$NEXT_PUBLIC_GOOGLE_AUTH
 RUN pnpm run build
 
 # ---- Production ----

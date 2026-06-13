@@ -173,6 +173,11 @@ services:
       - BETTER_AUTH_URL=http://localhost:3000
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-studia-dev-better-auth-secret-change-in-prod-0001}
       - AUTH_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/studia
+      # Login com Google (Better Auth) — vêm do .env local. NEXT_PUBLIC_GOOGLE_AUTH=1
+      # faz o botão aparecer no /login e /cadastro.
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - NEXT_PUBLIC_GOOGLE_AUTH=${NEXT_PUBLIC_GOOGLE_AUTH:-}
     depends_on:
       - backend
     networks:

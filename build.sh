@@ -81,9 +81,14 @@ build_one() {
         -f "$SCRIPT_DIR/services/scraper/Dockerfile.prod" \
         -t "$(img scraper)" "$SCRIPT_DIR" ;;
     frontend)
-      log_info "build frontend → $(img frontend)  (NEXT_PUBLIC_API_URL=https://$HOST_DOMAIN)"
+      # Liga o botão "Continuar com Google" só quando há GOOGLE_CLIENT_ID no .env
+      # local — o flag é inlinado no bundle em build-time.
+      local gauth=""
+      grep -qE '^GOOGLE_CLIENT_ID=.+' "$LOCAL_ENV_FILE" 2>/dev/null && gauth="1"
+      log_info "build frontend → $(img frontend)  (NEXT_PUBLIC_API_URL=https://$HOST_DOMAIN, google_auth=${gauth:-0})"
       docker build $(cache_flag) --platform "$PLATFORM" --target production \
         --build-arg "NEXT_PUBLIC_API_URL=https://$HOST_DOMAIN" \
+        --build-arg "NEXT_PUBLIC_GOOGLE_AUTH=$gauth" \
         -t "$(img frontend)" "$SCRIPT_DIR/fontend" ;;
     *) die "serviço desconhecido: $svc" ;;
   esac
@@ -100,8 +105,12 @@ sync_remote_env() {
 
   local gemini better_secret meili_key pg_pass
   local stripe_pub stripe_sec stripe_whsec stripe_price
+  local google_id google_secret
   gemini="$(grep -E '^GEMINI_API_KEY=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
   better_secret="$(grep -E '^BETTER_AUTH_SECRET=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
+  # Google OAuth (Login com Google) — opcional; só grava no .env remoto se houver.
+  google_id="$(grep -E '^GOOGLE_CLIENT_ID=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
+  google_secret="$(grep -E '^GOOGLE_CLIENT_SECRET=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
   # Stripe (assinatura) — chaves de teste; tokens simples sem espaços.
   stripe_pub="$(grep -E '^STRIPE_PUBLISHABLE_KEY=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
   stripe_sec="$(grep -E '^STRIPE_SECRET_KEY=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
@@ -111,6 +120,7 @@ sync_remote_env() {
   [[ -n "$stripe_sec" ]] || log_warn "STRIPE_SECRET_KEY ausente no .env local (assinatura ficará desabilitada)"
   [[ -n "$gemini" ]] || log_warn "GEMINI_API_KEY ausente no .env local"
   [[ -n "$better_secret" ]] || die "BETTER_AUTH_SECRET ausente no .env local (necessário p/ Better Auth)"
+  [[ -n "$google_id" && -n "$google_secret" ]] || log_warn "GOOGLE_CLIENT_ID/SECRET ausentes no .env local (Login com Google ficará desabilitado)"
 
   # Senha do Postgres compartilhado: a fonte de verdade é a connection string
   # do platform-core (o secret-file do container pode estar rotacionado).
@@ -127,7 +137,7 @@ sync_remote_env() {
   # PG password + MinIO creds dos containers de infra. Grava 0600.
   GEMINI_API_KEY="$gemini" BETTER_AUTH_SECRET="$better_secret" MEILI_KEY="$meili_key" PG_PASS_RAW="$pg_pass" \
   ssh -i "$PROD_SSH_KEY" -o BatchMode=yes -o ConnectTimeout=20 \
-      "$PROD_SSH_HOST" "GEMINI_API_KEY='$gemini' BETTER_AUTH_SECRET='$better_secret' MEILI_KEY='$meili_key' PG_PASS_RAW='$pg_pass' STRIPE_PUBLISHABLE_KEY='$stripe_pub' STRIPE_SECRET_KEY='$stripe_sec' STRIPE_WEBHOOK_SECRET='$stripe_whsec' STRIPE_PRICE_ID='$stripe_price' bash -s" <<'REMOTE'
+      "$PROD_SSH_HOST" "GEMINI_API_KEY='$gemini' BETTER_AUTH_SECRET='$better_secret' MEILI_KEY='$meili_key' PG_PASS_RAW='$pg_pass' STRIPE_PUBLISHABLE_KEY='$stripe_pub' STRIPE_SECRET_KEY='$stripe_sec' STRIPE_WEBHOOK_SECRET='$stripe_whsec' STRIPE_PRICE_ID='$stripe_price' GOOGLE_CLIENT_ID='$google_id' GOOGLE_CLIENT_SECRET='$google_secret' bash -s" <<'REMOTE'
 set -euo pipefail
 ENV_FILE=/opt/studia/.env
 
@@ -174,6 +184,8 @@ umask 077
   [ -n "${STRIPE_SECRET_KEY:-}" ] && printf 'STRIPE_SECRET_KEY=%s\n' "$STRIPE_SECRET_KEY"
   [ -n "${STRIPE_WEBHOOK_SECRET:-}" ] && printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$STRIPE_WEBHOOK_SECRET"
   [ -n "${STRIPE_PRICE_ID:-}" ] && printf 'STRIPE_PRICE_ID=%s\n' "$STRIPE_PRICE_ID"
+  [ -n "${GOOGLE_CLIENT_ID:-}" ] && printf 'GOOGLE_CLIENT_ID=%s\n' "$GOOGLE_CLIENT_ID"
+  [ -n "${GOOGLE_CLIENT_SECRET:-}" ] && printf 'GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_CLIENT_SECRET"
   echo "BETTER_AUTH_URL=https://studia.witdev.com.br"
   echo "NEXT_PUBLIC_API_URL=https://studia.witdev.com.br"
   echo "NATS_SERVERS=nats://nats:4222"

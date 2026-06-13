@@ -22,6 +22,13 @@ const databaseUrl = (
   "postgresql://postgres:postgres@localhost:5432/studia"
 ).replace("+asyncpg", "");
 
+// Login com Google: só registra o provider se as duas chaves existirem no
+// ambiente (vêm de /opt/studia/.env em prod, do .env local em dev). Sem chaves,
+// o provider não é montado e o botão fica oculto — nada de OAuth quebrado.
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const googleEnabled = !!(googleClientId && googleClientSecret);
+
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
   secret: process.env.BETTER_AUTH_SECRET || DEFAULT_DEV_SECRET,
@@ -35,6 +42,17 @@ export const auth = betterAuth({
     disableSignUp: false,
     minPasswordLength: 6,
   },
+
+  ...(googleEnabled
+    ? {
+        socialProviders: {
+          google: {
+            clientId: googleClientId!,
+            clientSecret: googleClientSecret!,
+          },
+        },
+      }
+    : {}),
 
   session: {
     expiresIn: 60 * 60 * 24 * 30, // 30 dias
