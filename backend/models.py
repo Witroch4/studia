@@ -447,6 +447,31 @@ class CadernoQuestoes(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class CadernoSalvo(Base):
+    """Caderno do catálogo (de guia) que um usuário salvou nas suas "Minhas
+    Pastas".
+
+    NÃO duplica questões: aponta para o `CadernoQuestoes` compartilhado
+    (`owner_uid` NULL, materializado de um guia). O estudo/respostas/stats já
+    são por usuário via `Resolucao.usuario_uid` — aqui guardamos apenas o
+    vínculo "este usuário salvou este caderno do catálogo". Conta nova começa
+    sem nenhum salvo; saved-set vazio = Minhas Pastas vazia.
+    """
+
+    __tablename__ = "cadernos_salvos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    usuario_uid: Mapped[str] = mapped_column(String(64), index=True)
+    caderno_id: Mapped[int] = mapped_column(
+        ForeignKey("cadernos_questoes.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("usuario_uid", "caderno_id", name="uq_caderno_salvo"),
+    )
+
+
 # ─── Guias de estudo (importados do TC) ─────────────────────────
 
 

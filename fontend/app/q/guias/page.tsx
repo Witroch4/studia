@@ -17,6 +17,7 @@ interface GuiaCard {
   questoes_esperadas: number;
   questoes_coletadas: number;
   cadernos_materializados: number;
+  cadernos_salvos: number;
   coleta_completa: boolean;
   pct: number;
 }
@@ -59,7 +60,7 @@ export default function GuiasPage() {
   const carregar = useCallback(async (silent = false) => {
     if (!silent) setCarregando(true);
     try {
-      const r = await fetch(`${API}/api/q/guias`, { cache: "no-store" });
+      const r = await fetch(`${API}/api/q/guias`, { cache: "no-store", credentials: "include" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       setGuias(Array.isArray(data.guias) ? data.guias : []);
@@ -193,6 +194,19 @@ export default function GuiasPage() {
                   <div className="text-xs text-fg-faint">
                     {g.cadernos_materializados}/{g.cadernos_total} cadernos prontos para estudo
                   </div>
+                  {g.cadernos_materializados > 0 && (
+                    g.cadernos_salvos > 0 ? (
+                      <div className="text-xs text-success flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">bookmark_added</span>
+                        {g.cadernos_salvos}/{g.cadernos_materializados} matérias salvas nas suas pastas
+                      </div>
+                    ) : (
+                      <div className="text-xs text-fg-faint flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">bookmark_add</span>
+                        Salve matérias para montar suas pastas
+                      </div>
+                    )
+                  )}
                 </Link>
               );
             })}

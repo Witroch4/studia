@@ -22,9 +22,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import CurrentUser, require_admin, require_user
+from auth import CurrentUser, get_current_user_opt, require_admin, require_user
 from database import get_db
-from models import CadernoQuestoes, Guia, GuiaCaderno
+from models import CadernoQuestoes, CadernoSalvo, Guia, GuiaCaderno
 
 router = APIRouter(prefix="/api/q/guias", tags=["guias"])
 
@@ -55,6 +55,14 @@ class MaterializarReq(BaseModel):
     )
     tc_caderno_id: int | None = Field(
         None, description="Se informado, materializa só esse caderno do guia"
+    )
+
+
+class SalvarReq(BaseModel):
+    tc_caderno_id: int | None = Field(
+        None,
+        description="Se informado, salva só essa matéria; senão salva todas as "
+        "matérias prontas do guia",
     )
 
 
@@ -291,8 +299,27 @@ async def buscar_guias_tc(
     return {"termo": termo, "guias": encontrados}
 
 
+async def _salvos_do_usuario(
+    db: AsyncSession, uid: str | None, caderno_ids: list[int]
+) -> set[int]:
+    """Subconjunto de `caderno_ids` que o usuário salvou (vazio se anônimo)."""
+    ids = [cid for cid in caderno_ids if cid]
+    if not uid or not ids:
+        return set()
+    rows = await db.execute(
+        select(CadernoSalvo.caderno_id).where(
+            CadernoSalvo.usuario_uid == uid,
+            CadernoSalvo.caderno_id.in_(ids),
+        )
+    )
+    return set(rows.scalars().all())
+
+
 @router.get("")
-async def listar_guias(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def listar_guias(
+    user: CurrentUser | None = Depends(get_current_user_opt),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
     """Lista guias importados com progresso agregado (cards estilo TC)."""
     from sqlalchemy import desc
 
@@ -316,6 +343,9 @@ async def listar_guias(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     tc_ids_all = [gc.tc_caderno_id for gc in rows]
     coletado = await _coletado_por_caderno(db, tc_ids_all)
     jobs_all = await _jobs_por_caderno(db, tc_ids_all)
+    salvos = await _salvos_do_usuario(
+        db, user.id if user else None, [gc.caderno_id for gc in rows if gc.caderno_id]
+    )
 
     out = []
     for g in guias:
@@ -323,6 +353,7 @@ async def listar_guias(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
         esperado = sum(c.total_questoes for c in cads)
         col = sum(coletado.get(c.tc_caderno_id, 0) for c in cads)
         materializados = sum(1 for c in cads if c.caderno_id)
+        cadernos_salvos = sum(1 for c in cads if c.caderno_id in salvos)
         # Coleta completa: todo caderno com job 'done' ou já coletado o esperado.
         coleta_completa = bool(cads) and all(
             jobs_all.get(c.tc_caderno_id, {}).get("status") == "done"
@@ -336,6 +367,7 @@ async def listar_guias(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
                 "questoes_esperadas": esperado,
                 "questoes_coletadas": col,
                 "cadernos_materializados": materializados,
+                "cadernos_salvos": cadernos_salvos,
                 "coleta_completa": coleta_completa,
                 "pct": round((col / esperado) * 100, 1) if esperado else 0.0,
             }
@@ -344,7 +376,11 @@ async def listar_guias(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
 
 
 @router.get("/{guia_id}")
-async def detalhe_guia(guia_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def detalhe_guia(
+    guia_id: int,
+    user: CurrentUser | None = Depends(get_current_user_opt),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
     """Detalhe do guia: cadernos + progresso de coleta + materialização."""
     guia = (await db.execute(select(Guia).where(Guia.id == guia_id))).scalar_one_or_none()
     if not guia:
@@ -360,6 +396,9 @@ async def detalhe_guia(guia_id: int, db: AsyncSession = Depends(get_db)) -> dict
     tc_ids = [c.tc_caderno_id for c in cads]
     coletado = await _coletado_por_caderno(db, tc_ids)
     jobs = await _jobs_por_caderno(db, tc_ids)
+    salvos = await _salvos_do_usuario(
+        db, user.id if user else None, [c.caderno_id for c in cads if c.caderno_id]
+    )
 
     cadernos_out = []
     for c in cads:
@@ -376,6 +415,7 @@ async def detalhe_guia(guia_id: int, db: AsyncSession = Depends(get_db)) -> dict
                 "questoes_coletadas": col,
                 "pct": round((col / c.total_questoes) * 100, 1) if c.total_questoes else 0.0,
                 "caderno_id": c.caderno_id,
+                "salvo": c.caderno_id in salvos,
                 "status": _caderno_status(c, col, job),
                 "job_status": job.get("status"),
                 "done_units": job.get("done_units"),
@@ -519,6 +559,82 @@ async def materializar_guia(
         "total": len(materializados),
         "pulados_incompletos": pulados,
     }
+
+
+async def _cadernos_salvaveis(
+    db: AsyncSession, guia_id: int, so_caderno: int | None
+) -> list[int]:
+    """IDs de `CadernoQuestoes` materializados (prontos) do guia — opcionalmente
+    só de uma matéria (`so_caderno` = tc_caderno_id). 404 se a matéria não
+    pertence ao guia."""
+    cads = (
+        await db.execute(select(GuiaCaderno).where(GuiaCaderno.guia_id == guia_id))
+    ).scalars().all()
+    if so_caderno is not None:
+        cads = [c for c in cads if c.tc_caderno_id == so_caderno]
+        if not cads:
+            raise HTTPException(404, "Matéria não pertence a este guia")
+    return [c.caderno_id for c in cads if c.caderno_id]
+
+
+@router.post("/{guia_id}/salvar")
+async def salvar_guia(
+    guia_id: int,
+    req: SalvarReq | None = None,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Salva matérias do guia nas "Minhas Pastas" do usuário (por usuário, sem
+    duplicar questões). Sem `tc_caderno_id` salva todas as matérias prontas;
+    com, salva só aquela. Idempotente. Estudar não exige salvar — o catálogo
+    fica aberto; salvar só adiciona o atalho às pastas do usuário."""
+    guia = (await db.execute(select(Guia).where(Guia.id == guia_id))).scalar_one_or_none()
+    if not guia:
+        raise HTTPException(404, "Guia não encontrado")
+    so_caderno = req.tc_caderno_id if req else None
+    alvo = await _cadernos_salvaveis(db, guia_id, so_caderno)
+    if not alvo:
+        raise HTTPException(409, "Nenhuma matéria pronta para salvar ainda.")
+
+    ja = await _salvos_do_usuario(db, user.id, alvo)
+    novos = 0
+    for cid in alvo:
+        if cid not in ja:
+            db.add(CadernoSalvo(usuario_uid=user.id, caderno_id=cid))
+            novos += 1
+    await db.commit()
+    return {
+        "guia_id": guia_id,
+        "novos": novos,
+        "salvos_agora": len(alvo),
+        "total_salvos_guia": len(ja) + novos,
+    }
+
+
+@router.delete("/{guia_id}/salvar")
+async def remover_salvo_guia(
+    guia_id: int,
+    tc_caderno_id: int | None = None,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Remove matérias do guia das "Minhas Pastas" do usuário (uma ou todas).
+
+    Só desfaz o vínculo do usuário — o caderno do catálogo permanece intacto."""
+    guia = (await db.execute(select(Guia).where(Guia.id == guia_id))).scalar_one_or_none()
+    if not guia:
+        raise HTTPException(404, "Guia não encontrado")
+    alvo = await _cadernos_salvaveis(db, guia_id, tc_caderno_id)
+    if not alvo:
+        return {"guia_id": guia_id, "removidos": 0}
+    res = await db.execute(
+        CadernoSalvo.__table__.delete().where(
+            CadernoSalvo.usuario_uid == user.id,
+            CadernoSalvo.caderno_id.in_(alvo),
+        )
+    )
+    await db.commit()
+    return {"guia_id": guia_id, "removidos": res.rowcount or 0}
 
 
 @router.get("/{guia_id}/auditoria")

@@ -28,6 +28,7 @@ from models import (
     Banca,
     CalculadoraHistorico,
     CadernoQuestoes,
+    CadernoSalvo,
     Cargo,
     GuiaCaderno,
     Materia,
@@ -839,12 +840,21 @@ async def listar_cadernos(
     user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
-    """Minhas Pastas: cadernos do usuário. `?pasta=Nome` filtra, `?pasta=` → sem classificação."""
+    """Minhas Pastas: cadernos do usuário. `?pasta=Nome` filtra, `?pasta=` → sem classificação.
+
+    Inclui cadernos próprios (`owner_uid`) E cadernos do catálogo (de guia) que
+    o usuário salvou (`cadernos_salvos`)."""
     from sqlalchemy import desc, or_
 
+    salvos_subq = select(CadernoSalvo.caderno_id).where(CadernoSalvo.usuario_uid == user.id)
     stmt = (
         select(CadernoQuestoes)
-        .where(CadernoQuestoes.owner_uid == user.id)
+        .where(
+            or_(
+                CadernoQuestoes.owner_uid == user.id,
+                CadernoQuestoes.id.in_(salvos_subq),
+            )
+        )
         .order_by(desc(CadernoQuestoes.created_at))
         .limit(200)
     )
@@ -866,7 +876,12 @@ async def listar_pastas(
     user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
-    """Agrupa os cadernos DO usuário por pasta (estilo TC "Minhas pastas")."""
+    """Agrupa os cadernos DO usuário por pasta (estilo TC "Minhas pastas").
+
+    Considera cadernos próprios E os do catálogo salvos pelo usuário."""
+    from sqlalchemy import or_
+
+    salvos_subq = select(CadernoSalvo.caderno_id).where(CadernoSalvo.usuario_uid == user.id)
     pasta_norm = func.nullif(func.coalesce(CadernoQuestoes.pasta, ""), "")
     rows = (
         await db.execute(
@@ -875,7 +890,12 @@ async def listar_pastas(
                 func.count(CadernoQuestoes.id),
                 func.coalesce(func.sum(CadernoQuestoes.total), 0),
             )
-            .where(CadernoQuestoes.owner_uid == user.id)
+            .where(
+                or_(
+                    CadernoQuestoes.owner_uid == user.id,
+                    CadernoQuestoes.id.in_(salvos_subq),
+                )
+            )
             .group_by(pasta_norm)
             .order_by(pasta_norm.asc().nulls_last())
         )

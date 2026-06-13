@@ -17,6 +17,7 @@ interface CadernoDetalhe {
   questoes_coletadas: number;
   pct: number;
   caderno_id: number | null;
+  salvo: boolean;
   status: string;
   job_status: string | null;
   done_units: number | null;
@@ -72,6 +73,7 @@ export default function GuiaDetalhePage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [salvando, setSalvando] = useState<number | null>(null);
+  const [salvandoMateria, setSalvandoMateria] = useState<number | "todas" | null>(null);
 
   useEffect(() => {
     authClient
@@ -82,6 +84,52 @@ export default function GuiaDetalhePage() {
       })
       .catch(() => setIsAdmin(false));
   }, []);
+
+  // Salvar/dessalvar uma matéria nas "Minhas Pastas" do usuário (por usuário).
+  async function salvarMateria(c: CadernoDetalhe) {
+    setSalvandoMateria(c.tc_caderno_id);
+    setMsg(null);
+    try {
+      const r = c.salvo
+        ? await fetch(`${API}/api/q/guias/${guiaId}/salvar?tc_caderno_id=${c.tc_caderno_id}`, {
+            method: "DELETE",
+            credentials: "include",
+          })
+        : await fetch(`${API}/api/q/guias/${guiaId}/salvar`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tc_caderno_id: c.tc_caderno_id }),
+          });
+      if (!r.ok) throw new Error((await r.json()).detail || `HTTP ${r.status}`);
+      void carregar(true);
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setSalvandoMateria(null);
+    }
+  }
+
+  async function salvarTodasMaterias(remover: boolean) {
+    setSalvandoMateria("todas");
+    setMsg(null);
+    try {
+      const r = remover
+        ? await fetch(`${API}/api/q/guias/${guiaId}/salvar`, { method: "DELETE", credentials: "include" })
+        : await fetch(`${API}/api/q/guias/${guiaId}/salvar`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+      if (!r.ok) throw new Error((await r.json()).detail || `HTTP ${r.status}`);
+      void carregar(true);
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setSalvandoMateria(null);
+    }
+  }
 
   async function salvarCaderno(tcCadernoId: number) {
     setSalvando(tcCadernoId);
@@ -108,7 +156,7 @@ export default function GuiaDetalhePage() {
     async (silent = false) => {
       if (!silent) setCarregando(true);
       try {
-        const r = await fetch(`${API}/api/q/guias/${guiaId}`, { cache: "no-store" });
+        const r = await fetch(`${API}/api/q/guias/${guiaId}`, { cache: "no-store", credentials: "include" });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         setGuia(await r.json());
         setErro(null);
@@ -176,6 +224,10 @@ export default function GuiaDetalhePage() {
   if (!guia) return null;
 
   const prontos = guia.cadernos.filter((c) => c.status === "materialized").length;
+  // Matérias prontas no catálogo (têm caderno) e quantas o usuário já salvou.
+  const materializadas = guia.cadernos.filter((c) => c.caderno_id);
+  const salvas = materializadas.filter((c) => c.salvo).length;
+  const todasSalvas = materializadas.length > 0 && salvas === materializadas.length;
 
   return (
     <div className="min-h-screen bg-bg-dark text-text-dark">
@@ -255,6 +307,39 @@ export default function GuiaDetalhePage() {
           </section>
         )}
 
+        {/* Salvar nas Minhas Pastas — por usuário (todo aluno logado) */}
+        {materializadas.length > 0 && (
+          <section className="rounded-xl border border-border-dark bg-surface-dark p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="text-sm flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-primary text-[18px]">
+                {salvas > 0 ? "bookmark_added" : "bookmark"}
+              </span>
+              <span>
+                <strong className="text-fg-strong">{salvas}</strong>
+                <span className="text-fg-muted"> de {materializadas.length} matérias salvas nas suas pastas</span>
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => void salvarTodasMaterias(false)}
+                disabled={salvandoMateria !== null || todasSalvas}
+                className="text-sm bg-primary hover:bg-primary-600 disabled:bg-surface-2 disabled:text-fg-faint px-4 py-2 rounded font-semibold text-on-primary"
+              >
+                {salvandoMateria === "todas" ? "Salvando…" : todasSalvas ? "Todas salvas ✓" : "Salvar todas as matérias"}
+              </button>
+              {salvas > 0 && (
+                <button
+                  onClick={() => void salvarTodasMaterias(true)}
+                  disabled={salvandoMateria !== null}
+                  className="text-sm bg-surface-2 hover:bg-fg-strong/6 disabled:opacity-60 px-3 py-2 rounded"
+                >
+                  Remover todas
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* Cadernos por matéria */}
         <section>
           <h2 className="text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3">
@@ -310,12 +395,33 @@ export default function GuiaDetalhePage() {
                     </span>
                   )}
                   {c.caderno_id ? (
-                    <Link
-                      href={`/q/caderno/${c.caderno_id}`}
-                      className="text-xs bg-primary hover:bg-primary-600 text-on-primary px-3 py-2 rounded font-semibold whitespace-nowrap"
-                    >
-                      Estudar →
-                    </Link>
+                    <>
+                      <button
+                        onClick={() => void salvarMateria(c)}
+                        disabled={salvandoMateria !== null}
+                        title={c.salvo ? "Remover das Minhas Pastas" : "Salvar nas Minhas Pastas"}
+                        className={`text-xs px-3 py-2 rounded font-semibold whitespace-nowrap inline-flex items-center gap-1 border disabled:opacity-50 ${
+                          c.salvo
+                            ? "bg-success/15 text-success border-success/40 hover:bg-success/20"
+                            : "bg-primary/10 text-primary border-primary/40 hover:bg-primary/20"
+                        }`}
+                      >
+                        <span className={`material-symbols-outlined text-[14px] ${salvandoMateria === c.tc_caderno_id ? "animate-spin" : ""}`}>
+                          {salvandoMateria === c.tc_caderno_id
+                            ? "progress_activity"
+                            : c.salvo
+                              ? "bookmark_added"
+                              : "bookmark_add"}
+                        </span>
+                        {c.salvo ? "Salvo" : "Salvar"}
+                      </button>
+                      <Link
+                        href={`/q/caderno/${c.caderno_id}`}
+                        className="text-xs bg-primary hover:bg-primary-600 text-on-primary px-3 py-2 rounded font-semibold whitespace-nowrap"
+                      >
+                        Estudar →
+                      </Link>
+                    </>
                   ) : isAdmin && (c.status === "collected" || c.job_status === "done") ? (
                     <button
                       onClick={() => void salvarCaderno(c.tc_caderno_id)}
