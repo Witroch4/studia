@@ -117,14 +117,14 @@ ensure_infra() {
 
 run_migrations() {
   log_info "Executando migrações do banco..."
-  dc exec -T backend python migrate.py
+  dc exec -T backend python -m scripts.db_prepare
   log_success "Migrações concluídas!"
 }
 
 # Roda migrações usando uma instância temporária do backend (quando backend não está up)
 run_migrations_standalone() {
   log_info "Executando migrações do banco..."
-  dc run --rm --no-deps -e DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/studia backend python migrate.py
+  dc run --rm --no-deps -e DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/studia backend python -m scripts.db_prepare
   log_success "Migrações concluídas!"
 }
 

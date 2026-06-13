@@ -69,12 +69,21 @@ async def run_alembic() -> None:
     engine = create_async_engine(DATABASE_URL)
     try:
         async with engine.connect() as conn:
-            has_version = (
+            # Checa se a tabela alembic_version existe E tem pelo menos 1 registro.
+            # Tabela existente mas vazia (estado inconsistente) é tratada como legado.
+            alembic_table = (
                 await conn.execute(text("SELECT to_regclass('public.alembic_version')"))
             ).scalar()
-            has_legacy = (
-                await conn.execute(text("SELECT to_regclass('public.questoes')"))
-            ).scalar()
+            if alembic_table:
+                version_count = (
+                    await conn.execute(text("SELECT count(*) FROM alembic_version"))
+                ).scalar()
+            else:
+                version_count = 0
+            has_version = bool(version_count)
+            has_legacy = bool(
+                (await conn.execute(text("SELECT to_regclass('public.questoes')"))).scalar()
+            )
     finally:
         await engine.dispose()
 
