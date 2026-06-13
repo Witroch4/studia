@@ -300,6 +300,26 @@ cmd_migrate() {
   fi
 }
 
+cmd_test() {
+  log_header "Testes (Postgres studia_test)"
+  dc exec -T backend sh -lc '
+    python -c "
+import asyncio
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+async def m():
+    e=create_async_engine(\"postgresql+asyncpg://postgres:postgres@postgres:5432/postgres\", isolation_level=\"AUTOCOMMIT\")
+    async with e.connect() as c:
+        if not (await c.execute(text(\"SELECT 1 FROM pg_database WHERE datname=:n\"),{\"n\":\"studia_test\"})).scalar():
+            await c.execute(text(\"CREATE DATABASE studia_test\"))
+    await e.dispose()
+asyncio.run(m())
+" &&
+    DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/studia_test alembic upgrade head &&
+    python -m pytest '"$@"'
+  '
+}
+
 cmd_clean() {
   log_header "Limpeza completa"
   log_warn "Isso vai PARAR os containers e REMOVER os volumes (dados do banco inclusos)!"
@@ -377,6 +397,7 @@ case "${1:-}" in
   shell)       shift; cmd_shell "$@" ;;
   exec)        shift; cmd_exec "$@" ;;
   migrate)     cmd_migrate ;;
+  test)        shift; cmd_test "$@" ;;
   clean)       cmd_clean ;;
   help|-h|--help) cmd_help ;;
   "")          cmd_up ;;

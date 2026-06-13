@@ -146,7 +146,7 @@ async def test_listar_jobs_coleta_returns_active_job_progress(client, db_session
               failed_units INTEGER NOT NULL DEFAULT 0,
               blocked_units INTEGER NOT NULL DEFAULT 0,
               paused_by_user INTEGER NOT NULL DEFAULT 0,
-              params TEXT,
+              params JSONB,
               updated_at TEXT
             )
             """

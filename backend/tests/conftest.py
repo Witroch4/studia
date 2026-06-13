@@ -1,12 +1,24 @@
+import os
+
+# Hermetic: garante que o SCRAPER_URL do container dev não vaze nos testes.
+# DEVE ficar ANTES de qualquer import de módulo do projeto (q_router lê
+# SCRAPER_URL no import time, via `from main import app`).
+os.environ["SCRAPER_URL"] = "http://scraper:8090"
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from auth import CurrentUser, get_current_user_opt
 from database import get_db
 from main import app
-from models import Base
+
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@postgres:5432/studia_test",
+)
 
 
 def make_user(uid: str, *, role: str = "user", banned: bool = False) -> CurrentUser:
@@ -27,17 +39,32 @@ USER_A = make_user("user-A")
 USER_B = make_user("user-B")
 
 
-@pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as session:
-        yield session
-
+@pytest_asyncio.fixture(scope="session")
+async def _engine():
+    # NullPool: desabilita reutilização de conexões entre testes.
+    # Sem isso, o asyncpg retorna a mesma conexão do pool e o estado
+    # interno (savepoints) do teste anterior vaza, causando
+    # InterfaceError: cannot perform operation: another operation is in progress.
+    engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    yield engine
     await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def db_session(_engine):
+    # Isolamento por teste: transação externa + savepoints internos; rollback no fim.
+    conn = await _engine.connect()
+    trans = await conn.begin()
+    Session = async_sessionmaker(
+        bind=conn, expire_on_commit=False, join_transaction_mode="create_savepoint"
+    )
+    session = Session()
+    try:
+        yield session
+    finally:
+        await session.close()
+        await trans.rollback()
+        await conn.close()
 
 
 @pytest.fixture

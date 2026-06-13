@@ -336,7 +336,7 @@ async def listar_jobs_coleta(
                   j.id AS job_id,
                   CAST(j.external_id AS INTEGER) AS caderno_id,
                   j.status,
-                  COALESCE(j.paused_by_user, false) AS paused,
+                  COALESCE(j.paused_by_user, 0) AS paused,
                   j.expected_total,
                   j.total_units,
                   j.done_units,
