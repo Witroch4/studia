@@ -44,6 +44,7 @@ export default function GuiasPage() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [busca, setBusca] = useState("");
 
   useEffect(() => {
     authClient
@@ -76,6 +77,15 @@ export default function GuiasPage() {
     return () => window.clearInterval(t);
   }, [carregar]);
 
+  const termo = busca.trim().toLowerCase();
+  const guiasFiltrados = termo
+    ? guias.filter(
+        (g) =>
+          g.nome.toLowerCase().includes(termo) ||
+          (g.banca || "").toLowerCase().includes(termo)
+      )
+    : guias;
+
   return (
     <div className="min-h-screen bg-page text-fg">
       <header className="border-b border-border px-6 py-5">
@@ -91,15 +101,29 @@ export default function GuiasPage() {
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
         <section>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h2 className="text-lg font-semibold text-fg-strong">Guias disponíveis</h2>
-            <button
-              onClick={() => void carregar()}
-              disabled={carregando}
-              className="text-xs bg-surface-2 hover:bg-fg-strong/6 disabled:opacity-60 px-3 py-2 rounded"
-            >
-              {carregando ? "Atualizando…" : "Atualizar"}
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 sm:w-72">
+                <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-faint text-[18px] pointer-events-none">
+                  search
+                </span>
+                <input
+                  type="text"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar por guia ou banca…"
+                  className="w-full pl-9 pr-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-primary"
+                />
+              </div>
+              <button
+                onClick={() => void carregar()}
+                disabled={carregando}
+                className="text-xs bg-surface-2 hover:bg-fg-strong/6 disabled:opacity-60 px-3 py-2 rounded whitespace-nowrap"
+              >
+                {carregando ? "Atualizando…" : "Atualizar"}
+              </button>
+            </div>
           </div>
 
           {erro && (
@@ -114,8 +138,14 @@ export default function GuiasPage() {
             </div>
           )}
 
+          {!erro && guias.length > 0 && guiasFiltrados.length === 0 && (
+            <div className="text-sm text-fg-faint border border-dashed border-border rounded-lg p-8 text-center">
+              Nenhum guia encontrado para “{busca.trim()}”.
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {guias.map((g) => {
+            {guiasFiltrados.map((g) => {
               const sit = situacaoGuia(g, isAdmin);
               return (
                 <Link
@@ -123,19 +153,19 @@ export default function GuiasPage() {
                   href={`/q/guias/${g.id}`}
                   className="rounded-xl border border-border bg-surface hover:border-primary transition-colors p-5 flex flex-col gap-3"
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-col gap-2">
+                    <span
+                      className={`text-[10px] uppercase font-semibold px-2 py-1 rounded border whitespace-nowrap self-start ${sit.classe}`}
+                    >
+                      {sit.label}
+                    </span>
                     <div className="min-w-0">
-                      <div className="font-semibold text-fg-strong truncate">{g.nome}</div>
-                      <div className="text-xs text-fg-faint mt-0.5">
+                      <div className="font-semibold text-fg-strong leading-snug">{g.nome}</div>
+                      <div className="text-xs text-fg-faint mt-1">
                         {g.banca ? `Banca: ${g.banca} · ` : ""}
                         {g.cadernos_total} cadernos
                       </div>
                     </div>
-                    <span
-                      className={`text-[10px] uppercase font-semibold px-2 py-1 rounded border whitespace-nowrap ${sit.classe}`}
-                    >
-                      {sit.label}
-                    </span>
                   </div>
 
                   {isAdmin ? (
