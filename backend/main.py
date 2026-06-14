@@ -1,5 +1,6 @@
 import re
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -22,6 +23,9 @@ from minio_client import upload_pdf, get_presigned_url, ensure_bucket
 from auth import require_admin
 from security import CSRF_COOKIE, SESSION_COOKIE
 import concurso_engine as ce
+
+
+_log = logging.getLogger(__name__)
 
 
 # ─── Helpers ─────────────────────────────────────────────
@@ -123,9 +127,8 @@ async def lifespan(app: FastAPI):
     if not broker.is_worker_process:
         try:
             await broker.startup()
-        except Exception:
-            # NATS pode não estar pronto no boot; .kiq falharia visivelmente depois.
-            pass
+        except Exception as exc:
+            _log.warning("NATS broker startup falhou; .kiq vai falhar por request até reconectar: %s", exc)
     try:
         yield
     finally:

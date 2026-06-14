@@ -24,6 +24,8 @@ services:
       # senão o browser descarta o JWT/CSRF do handoff. Em prod (HTTPS via
       # Traefik) o default é Secure=true.
       - STUDIA_COOKIE_SECURE=false
+      - NATS_SERVERS=${NATS_SERVERS:-nats://platform-nats:4222}
+      - TASKIQ_RESULT_REDIS_URL=redis://redis:6379/2
     networks:
       - shared
       - studia-net
@@ -39,7 +41,6 @@ services:
     command: taskiq worker worker:broker
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/studia
-      - REDIS_URL=redis://redis:6379/1
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=witalo
       - MINIO_SECRET_KEY=g3IoVa0N51NjPGaMnbYsMhNdcrUX7UxUegOmCCre

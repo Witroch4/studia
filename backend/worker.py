@@ -131,10 +131,16 @@ async def processar_aula(aula_id: int, modelo: str = "gemini-3-flash-preview"):
             if not aula:
                 return {"error": f"Aula {aula_id} não encontrada"}
 
-            # Idempotência: se já concluída, não reprocessa (evita duplicar em
-            # caso de redelivery do JetStream após ack_wait).
-            if aula.status == StatusProcessamento.CONCLUIDO.value:
-                return {"status": "skip", "motivo": "aula já concluída", "aula_id": aula_id}
+            # Idempotência: pula aulas já CONCLUIDO ou em PROCESSANDO — evita
+            # dupla-inserção se o JetStream reentregar (redelivery) após ack_wait
+            # enquanto um job longo ainda roda. ERRO fica fora do guard (continua
+            # retryable). Tradeoff: uma aula travada em PROCESSANDO (crash do
+            # worker antes de marcar ERRO) não retenta sozinha — reprocessar à mão.
+            if aula.status in (
+                StatusProcessamento.CONCLUIDO.value,
+                StatusProcessamento.PROCESSANDO.value,
+            ):
+                return {"status": "skip", "motivo": f"aula em status {aula.status}", "aula_id": aula_id}
 
             # 2. Atualizar status
             aula.status = StatusProcessamento.PROCESSANDO.value

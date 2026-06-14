@@ -3,8 +3,6 @@
 build_broker() só constrói o objeto (a conexão acontece em startup()),
 então estes testes rodam sem um NATS de verdade.
 """
-import importlib
-
 import pytest
 from taskiq_nats import PullBasedJetStreamBroker
 from taskiq_redis import RedisAsyncResultBackend
