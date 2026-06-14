@@ -1,27 +1,75 @@
 import io
 import json
 import asyncio
+import os
+import re
 import traceback
+from dataclasses import dataclass
 
 import httpx
 import pymupdf
-from taskiq import TaskiqDepends
-from taskiq_redis import RedisAsyncResultBackend, ListQueueBroker
+from nats.js.api import ConsumerConfig, StreamConfig
+from taskiq_nats import PullBasedJetStreamBroker
+from taskiq_redis import RedisAsyncResultBackend
 
 from database import async_session
 from models import Aula, BlocoConteudo, Flashcard, Deck, StatusProcessamento
 from minio_client import download_pdf
 from gemini_service import process_pdf_chunks
 
-import os
-import re
-
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/1")
 SCRAPER_URL = os.getenv("SCRAPER_URL", "http://scraper:8090")
 
-broker = ListQueueBroker(url=REDIS_URL).with_result_backend(
-    RedisAsyncResultBackend(redis_url=REDIS_URL)
-)
+
+@dataclass(frozen=True)
+class BrokerConfig:
+    nats_servers: list[str]
+    result_redis_url: str
+    stream: str
+    subject: str
+    durable: str
+    pull_batch: int
+    max_ack_pending: int
+    ack_wait_seconds: int
+    max_deliver: int
+
+
+def load_broker_config() -> BrokerConfig:
+    """Config do broker NATS do worker do backend, 100% via env (defaults seguros)."""
+    servers = os.getenv("NATS_SERVERS", "nats://nats:4222")
+    return BrokerConfig(
+        nats_servers=[s.strip() for s in servers.split(",") if s.strip()],
+        result_redis_url=os.getenv("TASKIQ_RESULT_REDIS_URL", "redis://redis:6379/2"),
+        stream=os.getenv("TASKIQ_STUDIA_BACKEND_STREAM", "TASKIQ_STUDIA_BACKEND"),
+        subject=os.getenv("TASKIQ_STUDIA_BACKEND_SUBJECT", "taskiq.studia.backend"),
+        durable=os.getenv("TASKIQ_STUDIA_BACKEND_DURABLE", "studia-backend-workers"),
+        pull_batch=int(os.getenv("TASKIQ_STUDIA_BACKEND_PULL_BATCH", "1")),
+        max_ack_pending=int(os.getenv("TASKIQ_STUDIA_BACKEND_MAX_ACK_PENDING", "1")),
+        ack_wait_seconds=int(os.getenv("TASKIQ_STUDIA_BACKEND_ACK_WAIT_SECONDS", "3600")),
+        max_deliver=int(os.getenv("TASKIQ_STUDIA_BACKEND_MAX_DELIVER", "3")),
+    )
+
+
+def build_broker(cfg: BrokerConfig | None = None) -> PullBasedJetStreamBroker:
+    """Constrói o broker NATS JetStream (não conecta — conexão é no startup())."""
+    cfg = cfg or load_broker_config()
+    return PullBasedJetStreamBroker(
+        servers=cfg.nats_servers,
+        subject=cfg.subject,
+        stream_name=cfg.stream,
+        durable=cfg.durable,
+        pull_consume_batch=cfg.pull_batch,
+        stream_config=StreamConfig(name=cfg.stream, subjects=[cfg.subject]),
+        consumer_config=ConsumerConfig(
+            durable_name=cfg.durable,
+            filter_subject=cfg.subject,
+            ack_wait=cfg.ack_wait_seconds,
+            max_deliver=cfg.max_deliver,
+            max_ack_pending=cfg.max_ack_pending,
+        ),
+    ).with_result_backend(RedisAsyncResultBackend(redis_url=cfg.result_redis_url))
+
+
+broker = build_broker()
 
 
 def slugify(text: str) -> str:
@@ -82,6 +130,11 @@ async def processar_aula(aula_id: int, modelo: str = "gemini-3-flash-preview"):
             aula = result.scalar_one_or_none()
             if not aula:
                 return {"error": f"Aula {aula_id} não encontrada"}
+
+            # Idempotência: se já concluída, não reprocessa (evita duplicar em
+            # caso de redelivery do JetStream após ack_wait).
+            if aula.status == StatusProcessamento.CONCLUIDO.value:
+                return {"status": "skip", "motivo": "aula já concluída", "aula_id": aula_id}
 
             # 2. Atualizar status
             aula.status = StatusProcessamento.PROCESSANDO.value
