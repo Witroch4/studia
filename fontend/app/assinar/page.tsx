@@ -1,8 +1,10 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiJson, apiPost, ApiError } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { qk } from "@/lib/queryKeys";
 
 type BillingStatus = {
   plano: "free" | "pro";
@@ -37,37 +39,25 @@ function AssinarInner() {
   const params = useSearchParams();
   const statusParam = params.get("status"); // sucesso | cancelado
 
-  const [status, setStatus] = useState<BillingStatus | null>(null);
-  const [loading, setLoading] = useState(true);
   const [checkingOut, setCheckingOut] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const carregar = useCallback(async () => {
-    try {
-      const data = await apiJson<BillingStatus>("/api/billing/status");
-      setStatus(data);
-    } catch (e) {
-      setErro(e instanceof ApiError ? e.message : "Falha ao carregar status da assinatura.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    carregar();
-  }, [carregar]);
-
-  // Após voltar do checkout (sucesso), o webhook pode demorar 1-2s — repolla.
-  useEffect(() => {
-    if (statusParam !== "sucesso") return;
-    let tentativas = 0;
-    const t = setInterval(() => {
-      tentativas += 1;
-      carregar();
-      if (tentativas >= 5) clearInterval(t);
-    }, 2000);
-    return () => clearInterval(t);
-  }, [statusParam, carregar]);
+  // Após voltar do checkout (sucesso), o webhook pode demorar 1-2s — repolla
+  // até plano virar "pro" (máx ~20s com intervalo de 4s), então para.
+  const {
+    data: status,
+    isPending: loading,
+  } = useQuery<BillingStatus>({
+    queryKey: qk.billing(),
+    queryFn: () => apiJson<BillingStatus>("/api/billing/status"),
+    refetchInterval: (q) => {
+      // Se veio do checkout de sucesso e ainda não é pro/ilimitado, continua polling.
+      if (statusParam !== "sucesso") return false;
+      const data = q.state.data;
+      if (!data) return 4000; // ainda carregando — tenta logo
+      return data.ilimitado ? false : 4000;
+    },
+  });
 
   async function assinar() {
     setErro(null);

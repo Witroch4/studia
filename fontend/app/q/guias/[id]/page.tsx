@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiJson } from "@/lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/queryKeys";
 
 interface CadernoDetalhe {
   id: number;
@@ -64,10 +66,8 @@ function statusChip(status: string): string {
 export default function GuiaDetalhePage() {
   const params = useParams();
   const guiaId = params.id as string;
+  const queryClient = useQueryClient();
 
-  const [guia, setGuia] = useState<GuiaDetalhe | null>(null);
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
   const [acao, setAcao] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -84,6 +84,27 @@ export default function GuiaDetalhePage() {
       .catch(() => setIsAdmin(false));
   }, []);
 
+  // Poll while collection or materialization is still active.
+  const {
+    data: guia,
+    isPending: carregando,
+    error,
+    refetch,
+  } = useQuery<GuiaDetalhe>({
+    queryKey: qk.guia(guiaId),
+    queryFn: () => apiJson<GuiaDetalhe>(`/api/q/guias/${guiaId}`),
+    refetchInterval: (q) => {
+      const g = q.state.data;
+      if (!g) return false;
+      // Poll while collection is incomplete or any caderno is still collecting/blocked.
+      const hasActiveCollection = !g.coleta_completa ||
+        g.cadernos.some((c) => c.status === "collecting" || c.status === "blocked" || c.status === "pending");
+      return hasActiveCollection ? 15000 : false;
+    },
+  });
+
+  const erro = error ? (error as Error).message : null;
+
   // Salvar/dessalvar uma matéria nas "Minhas Pastas" do usuário (por usuário).
   async function salvarMateria(c: CadernoDetalhe) {
     setSalvandoMateria(c.tc_caderno_id);
@@ -99,7 +120,7 @@ export default function GuiaDetalhePage() {
             body: JSON.stringify({ tc_caderno_id: c.tc_caderno_id }),
           });
       if (!r.ok) throw new Error((await r.json()).detail || `HTTP ${r.status}`);
-      void carregar(true);
+      await queryClient.invalidateQueries({ queryKey: qk.guia(guiaId) });
     } catch (e) {
       setMsg((e as Error).message);
     } finally {
@@ -119,7 +140,7 @@ export default function GuiaDetalhePage() {
             body: JSON.stringify({}),
           });
       if (!r.ok) throw new Error((await r.json()).detail || `HTTP ${r.status}`);
-      void carregar(true);
+      await queryClient.invalidateQueries({ queryKey: qk.guia(guiaId) });
     } catch (e) {
       setMsg((e as Error).message);
     } finally {
@@ -139,36 +160,13 @@ export default function GuiaDetalhePage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
       if (!data.total) throw new Error("Caderno ainda não terminou de coletar.");
-      void carregar(true);
+      await queryClient.invalidateQueries({ queryKey: qk.guia(guiaId) });
     } catch (e) {
       setMsg((e as Error).message);
     } finally {
       setSalvando(null);
     }
   }
-
-  const carregar = useCallback(
-    async (silent = false) => {
-      if (!silent) setCarregando(true);
-      try {
-        const r = await apiFetch(`/api/q/guias/${guiaId}`, { cache: "no-store" });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        setGuia(await r.json());
-        setErro(null);
-      } catch (e) {
-        setErro((e as Error).message);
-      } finally {
-        if (!silent) setCarregando(false);
-      }
-    },
-    [guiaId]
-  );
-
-  useEffect(() => {
-    void carregar();
-    const t = window.setInterval(() => void carregar(true), 15_000);
-    return () => window.clearInterval(t);
-  }, [carregar]);
 
   async function materializar() {
     setAcao("materializar");
@@ -185,7 +183,8 @@ export default function GuiaDetalhePage() {
         ? ` (${data.pulados_incompletos} incompletos ainda coletando)`
         : "";
       setMsg(`${data.total} caderno(s) materializado(s) para estudo${pulados}.`);
-      void carregar(true);
+      await queryClient.invalidateQueries({ queryKey: qk.guia(guiaId) });
+      await queryClient.invalidateQueries({ queryKey: qk.guias() });
     } catch (e) {
       setMsg((e as Error).message);
     } finally {
@@ -201,7 +200,7 @@ export default function GuiaDetalhePage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
       setMsg(`${data.enqueued} caderno(s) reenfileirados para coleta.`);
-      void carregar(true);
+      await queryClient.invalidateQueries({ queryKey: qk.guia(guiaId) });
     } catch (e) {
       setMsg((e as Error).message);
     } finally {
@@ -291,7 +290,7 @@ export default function GuiaDetalhePage() {
                 {acao === "coletar" ? "Reenfileirando…" : "Retomar coleta"}
               </button>
               <button
-                onClick={() => void carregar()}
+                onClick={() => void refetch()}
                 className="text-sm bg-surface-2 hover:bg-fg-strong/6 px-4 py-2 rounded"
               >
                 Atualizar

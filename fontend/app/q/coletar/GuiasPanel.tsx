@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiJson } from "@/lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/queryKeys";
 
 interface GuiaCard {
   id: number;
@@ -25,6 +27,10 @@ interface BuscaGuia {
   banca: string | null;
   data_prova: string | null;
   guia_id: number | null;
+}
+
+interface GuiasResponse {
+  guias: GuiaCard[];
 }
 
 // Estado de exibição derivado: a coluna `status` do banco só vira "done" depois
@@ -64,9 +70,7 @@ function estadoBadge(e: EstadoGuia): string {
  * caderno do guia reusa a mesma fila TaskIQ exibida abaixo em "Jobs ativos".
  */
 export default function GuiasPanel() {
-  const [guias, setGuias] = useState<GuiaCard[]>([]);
-  const [erro, setErro] = useState<string | null>(null);
-
+  const queryClient = useQueryClient();
   const [url, setUrl] = useState("");
   const [iniciarColeta, setIniciarColeta] = useState(true);
   const [importando, setImportando] = useState(false);
@@ -79,6 +83,21 @@ export default function GuiasPanel() {
 
   const [montandoId, setMontandoId] = useState<number | null>(null);
 
+  // Poll while any guia is still being collected (not yet coleta_completa).
+  const { data: guiasData, error: guiasError } = useQuery<GuiasResponse>({
+    queryKey: qk.guias(),
+    queryFn: () => apiJson<GuiasResponse>("/api/q/guias"),
+    refetchInterval: (q) => {
+      const guias = q.state.data?.guias ?? [];
+      const hasActive = guias.some((g) => !g.coleta_completa && g.status !== "done" && g.status !== "error");
+      return hasActive ? 15000 : false;
+    },
+  });
+
+  const erroGuias = guiasError ? (guiasError as Error).message : null;
+
+  const guias: GuiaCard[] = guiasData?.guias ?? [];
+
   async function montarGuia(guiaId: number) {
     setMontandoId(guiaId);
     setMsg(null);
@@ -90,7 +109,7 @@ export default function GuiasPanel() {
       if (!r.ok) setMsg(data?.detail || `Falha ao salvar (HTTP ${r.status})`);
       else {
         setMsg(`✓ ${data?.total ?? 0} caderno(s) salvos para estudo.`);
-        void carregar();
+        await queryClient.invalidateQueries({ queryKey: qk.guias() });
       }
     } catch (e) {
       setMsg((e as Error).message);
@@ -98,24 +117,6 @@ export default function GuiasPanel() {
       setMontandoId(null);
     }
   }
-
-  const carregar = useCallback(async () => {
-    try {
-      const r = await apiFetch("/api/q/guias", { cache: "no-store" });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json();
-      setGuias(Array.isArray(data.guias) ? data.guias : []);
-      setErro(null);
-    } catch (e) {
-      setErro((e as Error).message);
-    }
-  }, []);
-
-  useEffect(() => {
-    void carregar();
-    const t = window.setInterval(() => void carregar(), 15_000);
-    return () => window.clearInterval(t);
-  }, [carregar]);
 
   async function importar(targetUrl: string, slug?: string) {
     if (!targetUrl.trim()) {
@@ -136,7 +137,7 @@ export default function GuiasPanel() {
       else {
         setMsg(`✓ ${data.nome} — ${data.cadernos} cadernos${iniciarColeta ? `, ${data.enqueued} enfileirados` : ""}.`);
         if (!slug) setUrl("");
-        void carregar();
+        await queryClient.invalidateQueries({ queryKey: qk.guias() });
         if (termo) void buscar();
       }
     } catch (e) {
@@ -147,6 +148,7 @@ export default function GuiasPanel() {
     }
   }
 
+  // buscar-tc é uma ação de pesquisa pontual (não polling) — mantém como fetch manual.
   async function buscar() {
     if (!termo.trim()) return;
     setBuscando(true);
@@ -249,7 +251,7 @@ export default function GuiasPanel() {
       )}
 
       {msg && <div className="text-xs text-primary">{msg}</div>}
-      {erro && <div className="text-xs text-error">Falha ao listar guias: {erro}</div>}
+      {erroGuias && <div className="text-xs text-error">Falha ao listar guias: {erroGuias}</div>}
 
       {/* Guias importados */}
       {guias.length > 0 && (

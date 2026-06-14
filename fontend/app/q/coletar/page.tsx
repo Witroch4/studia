@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import GuiasPanel from "./GuiasPanel";
 import { apiFetch } from "@/lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/queryKeys";
+import { useEffect } from "react";
 
 const KNOWN_TOTALS: Record<string, number> = {
   "95872872": 29774,
@@ -55,6 +58,10 @@ interface JobAtivo {
   blocked_ranges: FaixaAtiva[];
   running_ranges: FaixaAtiva[];
   queued_ranges: FaixaAtiva[];
+}
+
+interface ColetarJobsResponse {
+  jobs: JobAtivo[];
 }
 
 function statusTexto(status: string): string {
@@ -112,15 +119,14 @@ export default function ColetarPage() {
   const [expectedTotalText, setExpectedTotalText] = useState("");
   const [relogin, setRelogin] = useState(false);
   const [carregando, setCarregando] = useState(false);
-  const [carregandoJobs, setCarregandoJobs] = useState(true);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [erroJobs, setErroJobs] = useState<string | null>(null);
-  const [jobs, setJobs] = useState<JobAtivo[]>([]);
   const [pausando, setPausando] = useState<number | null>(null);
   const [montando, setMontando] = useState<number | null>(null);
   // Coleta TC é área de administração. Só admin vê os termos/ações de coleta.
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     authClient
@@ -131,9 +137,41 @@ export default function ColetarPage() {
       })
       .catch(() => setIsAdmin(false));
   }, []);
+
   const [nomesEdit, setNomesEdit] = useState<Record<number, string>>({});
   const [montados, setMontados] = useState<Record<number, { id: number; nome: string; total: number }>>({});
   const [recoletando, setRecoletando] = useState<number | null>(null);
+
+  // Polling dos jobs ativos — refetch enquanto houver algum running/queued/pending.
+  const {
+    data: jobsData,
+    isPending: carregandoJobs,
+    refetch: refetchJobs,
+  } = useQuery<ColetarJobsResponse>({
+    queryKey: qk.coletarJobs(),
+    queryFn: async () => {
+      const r = await apiFetch("/api/q/coletar/jobs", { cache: "no-store" });
+      const text = await r.text();
+      let data: ColetarJobsResponse = { jobs: [] };
+      try {
+        data = text ? JSON.parse(text) : { jobs: [] };
+      } catch {
+        throw new Error(`HTTP ${r.status}: resposta nao-JSON`);
+      }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return data;
+    },
+    enabled: isAdmin === true,
+    refetchInterval: (q) => {
+      const jobs = q.state.data?.jobs ?? [];
+      const hasActive = jobs.some(
+        (j) => j.status === "running" || j.status === "queued" || j.pending_units > 0 || j.running_units > 0
+      );
+      return hasActive ? 15000 : false;
+    },
+  });
+
+  const jobs: JobAtivo[] = jobsData?.jobs ?? [];
 
   async function recoletarCaderno(job: JobAtivo) {
     if (
@@ -151,7 +189,7 @@ export default function ColetarPage() {
       });
       const d = await r.json().catch(() => null);
       if (!r.ok) setErroJobs(d?.detail || `Falha ao re-coletar (HTTP ${r.status})`);
-      else void carregarJobs(true);
+      else await queryClient.invalidateQueries({ queryKey: qk.coletarJobs() });
     } catch (e) {
       setErroJobs((e as Error).message);
     } finally {
@@ -174,7 +212,7 @@ export default function ColetarPage() {
         setErroJobs(d?.detail || `Falha ao montar (HTTP ${r.status})`);
       } else {
         setMontados((prev) => ({ ...prev, [job.caderno_id]: { id: d.id, nome: d.nome, total: d.total } }));
-        void carregarJobs(true);
+        await queryClient.invalidateQueries({ queryKey: qk.coletarJobs() });
       }
     } catch (e) {
       setErroJobs((e as Error).message);
@@ -194,11 +232,17 @@ export default function ColetarPage() {
         const d = await r.json().catch(() => null);
         setErroJobs(d?.detail || `Falha ao ${acao} (HTTP ${r.status})`);
       } else {
-        // Atualização otimista + refresh real.
-        setJobs((prev) =>
-          prev.map((j) => (j.job_id === job.job_id ? { ...j, paused: !j.paused } : j))
-        );
-        void carregarJobs(true);
+        // Atualização otimista + invalidação real.
+        queryClient.setQueryData<ColetarJobsResponse>(qk.coletarJobs(), (prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            jobs: prev.jobs.map((j) =>
+              j.job_id === job.job_id ? { ...j, paused: !j.paused } : j
+            ),
+          };
+        });
+        await queryClient.invalidateQueries({ queryKey: qk.coletarJobs() });
       }
     } catch (e) {
       setErroJobs((e as Error).message);
@@ -220,42 +264,6 @@ export default function ColetarPage() {
     ? Number(expectedTotalText)
     : knownTotal;
   const jobAtual = id ? jobs.find((job) => String(job.caderno_id) === id) : null;
-
-  async function carregarJobs(silent = false) {
-    if (!silent) {
-      setCarregandoJobs(true);
-    }
-    try {
-      const r = await apiFetch("/api/q/coletar/jobs", { cache: "no-store" });
-      const text = await r.text();
-      let data: { jobs?: JobAtivo[] } = {};
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        throw new Error(`HTTP ${r.status}: resposta nao-JSON`);
-      }
-      if (!r.ok) {
-        throw new Error(`HTTP ${r.status}`);
-      }
-      setJobs(Array.isArray(data.jobs) ? data.jobs : []);
-      setErroJobs(null);
-    } catch (e: unknown) {
-      const err = e as Error;
-      setErroJobs(err.message || "Falha carregando jobs ativos.");
-    } finally {
-      if (!silent) {
-        setCarregandoJobs(false);
-      }
-    }
-  }
-
-  useEffect(() => {
-    void carregarJobs();
-    const timer = window.setInterval(() => {
-      void carregarJobs(true);
-    }, 15_000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   async function coletar() {
     if (!id) {
@@ -289,7 +297,7 @@ export default function ColetarPage() {
         setErro(data.detail || data.message || `HTTP ${r.status}`);
       } else {
         setResultado(data as Resultado);
-        void carregarJobs(true);
+        await queryClient.invalidateQueries({ queryKey: qk.coletarJobs() });
       }
     } catch (e: unknown) {
       const err = e as Error;
@@ -381,11 +389,11 @@ export default function ColetarPage() {
                 Jobs ativos na fila TaskIQ
               </h2>
               <p className="text-xs text-fg-faint mt-1">
-                Atualizacao automatica a cada 15s. Aqui voce ve o que ja esta rodando ou bloqueado.
+                Atualizacao automatica enquanto ha jobs ativos. Aqui voce ve o que ja esta rodando ou bloqueado.
               </p>
             </div>
             <button
-              onClick={() => void carregarJobs()}
+              onClick={() => void refetchJobs()}
               disabled={carregandoJobs}
               className="text-xs bg-surface-2 hover:bg-fg-strong/6 disabled:opacity-60 px-3 py-2 rounded"
             >
@@ -457,7 +465,7 @@ export default function ColetarPage() {
                               Re-coletar (registrar ordem)
                             </button>
                             <span className="text-[11px] text-fg-faint">
-                              Coletado antes do registro de ordem — reprocessar habilita “Montar na pasta”.
+                              Coletado antes do registro de ordem — reprocessar habilita &quot;Montar na pasta&quot;.
                             </span>
                           </div>
                         ) : job.status === "done" ? (
@@ -466,7 +474,7 @@ export default function ColetarPage() {
                               <span className="material-symbols-outlined text-[14px] align-middle">check_circle</span>{" "}
                               Montado em <strong>Importados do TC</strong> ·{" "}
                               <a href={`/q/caderno/${montados[job.caderno_id].id}`} className="underline hover:text-success">
-                                abrir “{montados[job.caderno_id].nome}” ({montados[job.caderno_id].total} questões)
+                                abrir &quot;{montados[job.caderno_id].nome}&quot; ({montados[job.caderno_id].total} questões)
                               </a>
                             </div>
                           ) : (

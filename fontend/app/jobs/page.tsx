@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiJson } from "@/lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/queryKeys";
+import { useEffect } from "react";
 
 type Job = {
   id: number;
@@ -52,13 +55,12 @@ function timeAgo(dateStr: string | null): string {
 }
 
 export default function JobsPage() {
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [batchJobs, setBatchJobs] = useState<BatchJob[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showBatch, setShowBatch] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
   // Painel de Jobs IA é área de administração (processamento Gemini Batch).
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     authClient
       .getSession()
@@ -69,6 +71,32 @@ export default function JobsPage() {
       .catch(() => setIsAdmin(false));
   }, []);
 
+  const { data: jobs = [], isPending: jobsPending } = useQuery<Job[]>({
+    queryKey: qk.jobs(),
+    queryFn: () => apiJson<Job[]>("/api/jobs"),
+    enabled: isAdmin === true,
+    refetchInterval: (q) => {
+      const data = q.state.data ?? [];
+      const hasActive = data.some(
+        (j) => j.status === "PROCESSANDO" || j.status === "PENDENTE"
+      );
+      return hasActive ? 10000 : 30000;
+    },
+  });
+
+  const { data: batchJobs = [], refetch: refetchBatchJobs } = useQuery<BatchJob[]>({
+    queryKey: qk.batchJobs(),
+    queryFn: () => apiJson<BatchJob[]>("/api/batch-jobs"),
+    enabled: isAdmin === true && showBatch,
+    refetchInterval: (q) => {
+      const data = q.state.data ?? [];
+      const hasActive = data.some(
+        (b) => b.state === "JOB_STATE_RUNNING" || b.state === "JOB_STATE_PENDING"
+      );
+      return hasActive ? 10000 : false;
+    },
+  });
+
   const activeJobs = useMemo(
     () => jobs.filter((j) => j.status === "PROCESSANDO" || j.status === "PENDENTE"),
     [jobs]
@@ -76,51 +104,25 @@ export default function JobsPage() {
   const completedJobs = useMemo(() => jobs.filter((j) => j.status === "CONCLUIDO"), [jobs]);
   const errorJobs = useMemo(() => jobs.filter((j) => j.status === "ERRO"), [jobs]);
 
-  const fetchJobs = useCallback(() => {
-    apiFetch("/api/jobs")
-      .then((r) => r.json())
-      .then((data) => setJobs(Array.isArray(data) ? data : []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
-  const fetchBatchJobs = useCallback(() => {
-    apiFetch("/api/batch-jobs")
-      .then((r) => r.json())
-      .then((data) => setBatchJobs(Array.isArray(data) ? data : []))
-      .catch(console.error);
-  }, []);
-
-  useEffect(() => {
-    if (!isAdmin) return; // só admin consulta jobs (backend também exige admin)
-    fetchJobs();
-    // Polling adaptativo: 10s se há jobs ativos, 30s se não
-    const interval = setInterval(fetchJobs, activeJobs.length > 0 ? 10000 : 30000);
-    return () => clearInterval(interval);
-  }, [isAdmin, activeJobs.length, fetchJobs]);
-
-  useEffect(() => {
-    if (showBatch && isAdmin) fetchBatchJobs();
-  }, [showBatch, isAdmin, fetchBatchJobs]);
-
-  const handleCancel = async (jobName: string) => {
+  const handleCancel = useCallback(async (jobName: string) => {
     setCancelling(jobName);
     try {
       const res = await apiFetch(`/api/batch-jobs/${jobName}/cancel`, { method: "POST" });
       if (res.ok) {
-        fetchBatchJobs();
-        fetchJobs();
+        await queryClient.invalidateQueries({ queryKey: qk.batchJobs() });
+        await queryClient.invalidateQueries({ queryKey: qk.jobs() });
       }
     } catch (e) {
       console.error(e);
     } finally {
       setCancelling(null);
     }
-  };
+  }, [queryClient]);
 
   const hasActiveBatch = batchJobs.some(
     (b) => b.state === "JOB_STATE_RUNNING" || b.state === "JOB_STATE_PENDING"
   );
+  void hasActiveBatch; // derived from data; kept for future use
 
   // Guard de admin: não-admin não acessa o painel de jobs (nem por URL direta).
   if (isAdmin === null) {
@@ -144,6 +146,8 @@ export default function JobsPage() {
       </div>
     );
   }
+
+  const loading = jobsPending;
 
   return (
     <>
@@ -189,7 +193,7 @@ export default function JobsPage() {
                 Batch Jobs na API Gemini
               </h2>
               <button
-                onClick={fetchBatchJobs}
+                onClick={() => void refetchBatchJobs()}
                 className="text-xs text-fg-muted hover:text-fg-strong flex items-center gap-1 transition-colors"
               >
                 <span className="material-symbols-outlined text-[14px]">refresh</span>

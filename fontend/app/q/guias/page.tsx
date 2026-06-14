@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
-import { apiFetch } from "@/lib/api";
+import { apiJson } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { qk } from "@/lib/queryKeys";
 
 interface GuiaCard {
   id: number;
@@ -19,6 +21,10 @@ interface GuiaCard {
   cadernos_salvos: number;
   coleta_completa: boolean;
   pct: number;
+}
+
+interface GuiasResponse {
+  guias: GuiaCard[];
 }
 
 type Situacao = { label: string; classe: string };
@@ -40,9 +46,6 @@ function situacaoGuia(g: GuiaCard, isAdmin: boolean): Situacao {
 }
 
 export default function GuiasPage() {
-  const [guias, setGuias] = useState<GuiaCard[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [busca, setBusca] = useState("");
 
@@ -56,26 +59,24 @@ export default function GuiasPage() {
       .catch(() => setIsAdmin(false));
   }, []);
 
-  const carregar = useCallback(async (silent = false) => {
-    if (!silent) setCarregando(true);
-    try {
-      const r = await apiFetch("/api/q/guias", { cache: "no-store" });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json();
-      setGuias(Array.isArray(data.guias) ? data.guias : []);
-      setErro(null);
-    } catch (e) {
-      setErro((e as Error).message || "Falha ao carregar guias.");
-    } finally {
-      setCarregando(false);
-    }
-  }, []);
+  // Poll while any guia is still being collected or not yet fully materialized.
+  const {
+    data,
+    isPending: carregando,
+    error,
+    refetch,
+  } = useQuery<GuiasResponse>({
+    queryKey: qk.guias(),
+    queryFn: () => apiJson<GuiasResponse>("/api/q/guias"),
+    refetchInterval: (q) => {
+      const guias = q.state.data?.guias ?? [];
+      const hasActive = guias.some((g) => !g.coleta_completa && g.status !== "done" && g.status !== "error");
+      return hasActive ? 15000 : false;
+    },
+  });
 
-  useEffect(() => {
-    void carregar();
-    const t = window.setInterval(() => void carregar(true), 15_000);
-    return () => window.clearInterval(t);
-  }, [carregar]);
+  const guias: GuiaCard[] = data?.guias ?? [];
+  const erro = error ? (error as Error).message || "Falha ao carregar guias." : null;
 
   const termo = busca.trim().toLowerCase();
   const guiasFiltrados = termo
@@ -117,7 +118,7 @@ export default function GuiasPage() {
                 />
               </div>
               <button
-                onClick={() => void carregar()}
+                onClick={() => void refetch()}
                 disabled={carregando}
                 className="text-xs bg-surface-2 hover:bg-fg-strong/6 disabled:opacity-60 px-3 py-2 rounded whitespace-nowrap"
               >
@@ -140,7 +141,7 @@ export default function GuiasPage() {
 
           {!erro && guias.length > 0 && guiasFiltrados.length === 0 && (
             <div className="text-sm text-fg-faint border border-dashed border-border rounded-lg p-8 text-center">
-              Nenhum guia encontrado para “{busca.trim()}”.
+              Nenhum guia encontrado para &quot;{busca.trim()}&quot;.
             </div>
           )}
 
