@@ -52,6 +52,10 @@ services:
       # senão o browser descarta o JWT/CSRF do handoff. Em prod (HTTPS via
       # Traefik) o default é Secure=true.
       - STUDIA_COOKIE_SECURE=false
+      - NATS_SERVERS=${NATS_SERVERS:-nats://platform-nats:4222}
+      - TASKIQ_RESULT_REDIS_URL=redis://redis:6379/2
+      - TASKIQ_STUDIA_BACKEND_MAX_ACK_PENDING=1
+      - TASKIQ_STUDIA_BACKEND_ACK_WAIT_SECONDS=3600
     networks:
       - shared
       - studia-net
