@@ -78,7 +78,15 @@ services:
       SCRAPER_URL: http://studia-scraper:8090
       PYTHONDONTWRITEBYTECODE: "1"
       TZ: America/Fortaleza
+      NATS_SERVERS: nats://nats:4222
+      TASKIQ_RESULT_REDIS_URL: redis://redis:6379/2
+      TASKIQ_STUDIA_BACKEND_MAX_ACK_PENDING: "1"
+      TASKIQ_STUDIA_BACKEND_ACK_WAIT_SECONDS: "3600"
     command: taskiq worker worker:broker
+    # O worker não serve HTTP; desabilita o HEALTHCHECK HTTP herdado da imagem
+    # (Dockerfile estágio production) que causava unhealthy → crash-loop (0/1).
+    healthcheck:
+      test: ["NONE"]
     networks:
       - minha_rede
     deploy:
