@@ -1,6 +1,6 @@
 """Validação da sessão do studIA via JWT de sessão (zero I/O no banco).
 
-O Better Auth (Next.js) emite a sessão; o handoff (`/api/auth/handoff`) lê a
+O Better Auth (Next.js) emite a sessão; o handoff (`/api/session/handoff`) lê a
 sessão do banco UMA vez e emite um JWT interno (`studia_session`). A partir daí,
 cada request é autenticado apenas decodificando o JWT — zero hits no banco.
 

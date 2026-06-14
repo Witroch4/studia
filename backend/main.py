@@ -143,7 +143,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_CSRF_EXEMPT = {"/api/auth/handoff", "/api/auth/logout"}
+_CSRF_EXEMPT = {"/api/session/handoff", "/api/session/logout"}
 _MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
 
 

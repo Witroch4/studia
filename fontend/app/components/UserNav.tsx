@@ -58,7 +58,7 @@ export default function UserNav({ variant = "desktop" }: { variant?: "desktop" |
     setLoggingOut(true);
     // Limpa os cookies JWT do backend (studia_session + studia_csrf) antes do signOut.
     // best-effort: falha silenciosa para não bloquear o logout.
-    await apiFetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    await apiFetch("/api/session/logout", { method: "POST" }).catch(() => {});
     await authClient.signOut();
     router.push("/login");
     router.refresh();

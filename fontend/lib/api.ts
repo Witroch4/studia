@@ -44,7 +44,7 @@ let handoffInFlight: Promise<void> | null = null;
 
 export async function ensureHandoff(): Promise<void> {
   if (!handoffInFlight) {
-    handoffInFlight = fetch(apiUrl("/api/auth/handoff"), {
+    handoffInFlight = fetch(apiUrl("/api/session/handoff"), {
       method: "POST",
       credentials: "include",
     })

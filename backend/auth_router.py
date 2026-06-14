@@ -14,7 +14,12 @@ from security import (
     set_session_cookies,
 )
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+# Prefixo /api/session (NÃO /api/auth): em prod o Traefik roteia /api/auth/* para
+# o frontend (Better Auth, router priority 100), então um handoff em /api/auth
+# ficaria inalcançável no backend. /api/session cai na regra /api (priority 50) →
+# backend. (PathPrefix(/api/auth) também pegaria /api/auth-*, por isso saímos do
+# prefixo inteiro.)
+router = APIRouter(prefix="/api/session", tags=["auth"])
 
 
 @router.post("/handoff")
