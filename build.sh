@@ -147,6 +147,15 @@ if [ -f "$ENV_FILE" ]; then
   [ -n "$existing_meili" ] && MEILI_KEY="$existing_meili"
 fi
 
+# Segredo de assinatura do JWT de sessão (auth cookie-JWT). Gera uma vez no
+# servidor e PRESERVA o existente — rotacionar invalidaria as sessões vivas
+# (o front re-handoffa no 401, mas evitamos o churn). Nunca transita localmente.
+STUDIA_JWT_SECRET=""
+if [ -f "$ENV_FILE" ]; then
+  STUDIA_JWT_SECRET=$(grep -E '^STUDIA_JWT_SECRET=' "$ENV_FILE" | head -1 | cut -d= -f2-)
+fi
+[ -n "$STUDIA_JWT_SECRET" ] || STUDIA_JWT_SECRET=$(openssl rand -hex 32)
+
 pg_pass_url=$(PG_PASS="$PG_PASS_RAW" python3 -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["PG_PASS"],safe=""))')
 
 mn_cid=$(docker ps --filter label=com.docker.swarm.service.name=minio_minio -q | head -1)
@@ -180,6 +189,7 @@ umask 077
   echo "SCRAPER_URL=http://studia-scraper:8090"
   printf 'GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY"
   printf 'BETTER_AUTH_SECRET=%s\n' "$BETTER_AUTH_SECRET"
+  printf 'STUDIA_JWT_SECRET=%s\n' "$STUDIA_JWT_SECRET"
   [ -n "${STRIPE_PUBLISHABLE_KEY:-}" ] && printf 'STRIPE_PUBLISHABLE_KEY=%s\n' "$STRIPE_PUBLISHABLE_KEY"
   [ -n "${STRIPE_SECRET_KEY:-}" ] && printf 'STRIPE_SECRET_KEY=%s\n' "$STRIPE_SECRET_KEY"
   [ -n "${STRIPE_WEBHOOK_SECRET:-}" ] && printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$STRIPE_WEBHOOK_SECRET"
@@ -201,7 +211,7 @@ umask 077
 chmod 600 "$ENV_FILE"
 echo "  ✓ .env escrito ($(wc -l < "$ENV_FILE") linhas)"
 REMOTE
-  log_ok ".env produtivo pronto (MEILI_MASTER_KEY gerado)"
+  log_ok ".env produtivo pronto (MEILI_MASTER_KEY + STUDIA_JWT_SECRET preservados/gerados)"
 }
 
 run_db_prepare() {
