@@ -4,6 +4,7 @@ import tempfile
 import time
 import base64
 import pathlib
+from dataclasses import dataclass
 from typing import AsyncIterator
 
 from google import genai
@@ -11,6 +12,28 @@ from google.genai import types
 
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+LITELLM_BASE_URL_DEFAULT = "http://platform-litellm:4000"
+
+
+@dataclass(frozen=True)
+class ClientConfig:
+    api_key: str
+    base_url: str | None  # None = Gemini direto; senão = passthrough /gemini do proxy
+    via_proxy: bool
+
+
+def _client_config() -> ClientConfig:
+    """Decide o transporte da IA: LiteLLM passthrough (consolidado) vs Gemini direto.
+
+    Em prod `LITELLM_API_KEY` está setado → roteia TUDO (chat + Batch) pelo proxy
+    interno (`<base>/gemini`), por rede docker. Sem ela (dev sem proxy / contingência)
+    cai no Gemini direto com `GEMINI_API_KEY` — comportamento original preservado.
+    """
+    litellm_key = os.getenv("LITELLM_API_KEY", "")
+    if litellm_key:
+        base = os.getenv("LITELLM_BASE_URL", LITELLM_BASE_URL_DEFAULT).rstrip("/")
+        return ClientConfig(api_key=litellm_key, base_url=f"{base}/gemini", via_proxy=True)
+    return ClientConfig(api_key=os.getenv("GEMINI_API_KEY", ""), base_url=None, via_proxy=False)
 
 # Limite para inline requests (doc: < 20MB)
 INLINE_MAX_BYTES = 20 * 1024 * 1024  # 20MB
@@ -72,7 +95,13 @@ O conteúdo completo da aula está abaixo para referência:
 
 
 def _get_client() -> genai.Client:
-    return genai.Client(api_key=GEMINI_API_KEY)
+    cfg = _client_config()
+    if cfg.base_url:
+        return genai.Client(
+            api_key=cfg.api_key,
+            http_options=types.HttpOptions(base_url=cfg.base_url),
+        )
+    return genai.Client(api_key=cfg.api_key)
 
 
 def _build_inline_request(paginas_label: str, pdf_bytes: bytes) -> dict:
