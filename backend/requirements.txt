@@ -51,6 +51,8 @@ pymupdf
 minio
 taskiq[redis,reload]
 taskiq-redis
+taskiq-nats==0.6.0
+nats-py==2.15.0
 sse-starlette
 # witdev-tec-master: busca facetada + embeddings
 meilisearch-python-sdk>=4.0.0
