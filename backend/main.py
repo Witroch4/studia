@@ -116,7 +116,24 @@ async def lifespan(app: FastAPI):
         await asyncio.to_thread(ensure_bucket)
     except Exception:
         pass  # MinIO pode não estar pronto ainda
-    yield
+
+    # Produtor do NATS JetStream: precisa de startup() p/ criar/garantir o
+    # stream e poder publicar (.kiq). Diferente do Redis, não conecta lazy.
+    from worker import broker
+    if not broker.is_worker_process:
+        try:
+            await broker.startup()
+        except Exception:
+            # NATS pode não estar pronto no boot; .kiq falharia visivelmente depois.
+            pass
+    try:
+        yield
+    finally:
+        if not broker.is_worker_process:
+            try:
+                await broker.shutdown()
+            except Exception:
+                pass
 
 
 app = FastAPI(title="studIA API", version="0.2.0", lifespan=lifespan)
