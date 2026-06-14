@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
+import { apiFetch } from "@/lib/api";
 
 interface GuiaCard {
   id: number;
@@ -60,7 +59,7 @@ export default function GuiasPage() {
   const carregar = useCallback(async (silent = false) => {
     if (!silent) setCarregando(true);
     try {
-      const r = await fetch(`${API}/api/q/guias`, { cache: "no-store", credentials: "include" });
+      const r = await apiFetch("/api/q/guias", { cache: "no-store" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       setGuias(Array.isArray(data.guias) ? data.guias : []);

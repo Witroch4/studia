@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ConcursoUploader from "../components/ConcursoUploader";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+import { apiFetch } from "@/lib/api";
 
 // ─── Identidade por modalidade ───────────────────────────
 type Mod = "AC" | "PN" | "PI" | "PQ" | "PCD";
@@ -71,7 +70,7 @@ export default function ConcorrenciaPage() {
 
   const fetchList = useCallback(() => {
     setLoadingList(true);
-    fetch(`${API_URL}/api/concursos`)
+    apiFetch("/api/concursos")
       .then((r) => r.json())
       .then(setConcursos)
       .catch(console.error)
@@ -81,7 +80,7 @@ export default function ConcorrenciaPage() {
   useEffect(() => { fetchList(); }, [fetchList]);
 
   const openConcurso = useCallback((id: number) => {
-    fetch(`${API_URL}/api/concursos/${id}`)
+    apiFetch(`/api/concursos/${id}`)
       .then((r) => r.json())
       .then((m: ConcursoMeta) => {
         setMeta(m);
@@ -98,7 +97,7 @@ export default function ConcorrenciaPage() {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("nome", nome);
-      const res = await fetch(`${API_URL}/api/concursos/import`, { method: "POST", body: fd });
+      const res = await apiFetch("/api/concursos/import", { method: "POST", body: fd });
       if (!res.ok) { alert((await res.json()).detail || "Erro ao importar"); return; }
       const data = await res.json();
       fetchList();
@@ -122,7 +121,7 @@ export default function ConcorrenciaPage() {
       minha_pontuacao: minhaPont ? parseFloat(minhaPont) : null,
       minhas_categorias: minhasCats,
     };
-    fetch(`${API_URL}/api/concursos/${meta.id}/simular`, {
+    apiFetch(`/api/concursos/${meta.id}/simular`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     })
       .then(async (r) => { if (!r.ok) throw new Error((await r.json()).detail); return r.json(); })
@@ -191,7 +190,7 @@ export default function ConcorrenciaPage() {
                     </div>
                   </button>
                   <button
-                    onClick={async () => { if (confirm(`Excluir "${c.nome}"?`)) { await fetch(`${API_URL}/api/concursos/${c.id}`, { method: "DELETE" }); fetchList(); } }}
+                    onClick={async () => { if (confirm(`Excluir "${c.nome}"?`)) { await apiFetch(`/api/concursos/${c.id}`, { method: "DELETE" }); fetchList(); } }}
                     className="text-fg-faint hover:text-accent-error transition-colors p-2"
                   >
                     <span className="material-symbols-outlined text-[20px]">delete</span>

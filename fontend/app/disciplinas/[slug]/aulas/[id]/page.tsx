@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, use } from "react";
 import MarkdownRenderer from "../../../../components/MarkdownRenderer";
 import AulaChat from "../../../../components/AulaChat";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiFetch, apiUrl } from "@/lib/api";
 
 type Formula = {
   latex: string;
@@ -56,7 +55,7 @@ export default function AulaStudyPage({
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/aulas/${aulaId}`)
+    apiFetch(`/api/aulas/${aulaId}`)
       .then((r) => r.json())
       .then((d) => setData(d))
       .catch(console.error)
@@ -110,7 +109,7 @@ export default function AulaStudyPage({
         </div>
         <div className="flex items-center gap-3">
           <a
-            href={`${API_URL}/api/aulas/${aulaId}/pdf`}
+            href={apiUrl(`/api/aulas/${aulaId}/pdf`)}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 px-3 py-2 bg-surface-dark border border-border-dark rounded-lg text-sm text-fg hover:text-fg-strong hover:border-primary/50 transition-colors"

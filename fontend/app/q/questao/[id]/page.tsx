@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useHotkeys, ATALHOS_TC } from "../../../hooks/useHotkeys";
 import QuestionHtml from "../../../components/QuestionHtml";
+import { apiFetch } from "@/lib/api";
 
 /**
  * /q/questao/[id] — Resolver questão única.
@@ -11,8 +12,6 @@ import QuestionHtml from "../../../components/QuestionHtml";
  * Atalhos integrais do TC (25 teclas), ver /docs/witdev-tec-master-ux.md §2.3
  * e `app/hooks/useHotkeys.ts`.
  */
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
 
 interface Alternativa {
   id: number;
@@ -50,7 +49,7 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
   const [showAtalhos, setShowAtalhos] = useState(false);
 
   useEffect(() => {
-    fetch(`${API}/api/q/${id}`)
+    apiFetch(`/api/q/${id}`)
       .then((r) => r.json())
       .then(setQ)
       .catch(console.error);

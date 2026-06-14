@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 
 /**
  * /q/cadernos — "Minhas pastas", hierarquia estilo TecConcursos:
@@ -12,8 +13,6 @@ import { useRouter, useSearchParams } from "next/navigation";
  * Pasta vem por query string (não rota dinâmica) porque nomes de pasta
  * contêm "/" (ex: "Guia OAB / 2026 …"). `?pasta=` (vazio) = sem classificação.
  */
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
 
 const SEM_CLASSIFICACAO = "Sem classificação";
 
@@ -83,7 +82,7 @@ function CadernosView({ pasta }: { pasta: string }) {
   const [desempenho, setDesempenho] = useState<Record<number, Desempenho | "loading">>({});
 
   useEffect(() => {
-    fetch(`${API}/api/q/cadernos?pasta=${encodeURIComponent(pasta)}`, { credentials: "include" })
+    apiFetch(`/api/q/cadernos?pasta=${encodeURIComponent(pasta)}`)
       .then((r) => r.json())
       .then(setCadernos)
       .catch(console.error);
@@ -92,7 +91,7 @@ function CadernosView({ pasta }: { pasta: string }) {
   async function carregarDesempenho(id: number) {
     setDesempenho((d) => ({ ...d, [id]: "loading" }));
     try {
-      const r = await fetch(`${API}/api/q/cadernos/${id}/estatisticas`, { credentials: "include" });
+      const r = await apiFetch(`/api/q/cadernos/${id}/estatisticas`);
       const data = await r.json();
       setDesempenho((d) => ({ ...d, [id]: { resolvidas: data.resolvidas, acertos: data.acertos, erros: data.erros } }));
     } catch (e) {
@@ -154,7 +153,7 @@ function MinhasPastasInner() {
   const [pastas, setPastas] = useState<PastaRow[]>([]);
 
   useEffect(() => {
-    fetch(`${API}/api/q/pastas`, { credentials: "include" })
+    apiFetch("/api/q/pastas")
       .then((r) => r.json())
       .then(setPastas)
       .catch(console.error);

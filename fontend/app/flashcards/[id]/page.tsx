@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { use, useState, useEffect, useCallback } from "react";
 import MarkdownRenderer from "../../components/MarkdownRenderer";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiFetch } from "@/lib/api";
 
 type CardData = {
   id: number;
@@ -26,7 +25,7 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
 
   // Fetch cards from backend
   useEffect(() => {
-    fetch(`${API_URL}/api/flashcards/${id}`)
+    apiFetch(`/api/flashcards/${id}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.cards && data.cards.length > 0) {

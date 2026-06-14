@@ -10,8 +10,7 @@ import { QuestionCanvasOverlay } from "./components/QuestionCanvasOverlay";
 import { ScientificCalculator } from "./components/ScientificCalculator";
 import { StrikableAlternative } from "./components/StrikableAlternative";
 import QuestionHtml from "../../../components/QuestionHtml";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
+import { apiFetch } from "@/lib/api";
 
 interface Alternativa {
   id: number;
@@ -102,14 +101,14 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
 
   // Contador do cabeçalho = acumulado do CADERNO (não da questão isolada).
   const carregarStatsCaderno = useCallback(() => {
-    fetch(`${API}/api/q/cadernos/${id}/estatisticas`, { credentials: "include" })
+    apiFetch(`/api/q/cadernos/${id}/estatisticas`)
       .then((r) => r.json())
       .then((s) => setStats({ resolvidas: s.resolvidas, acertos: s.acertos, erros: s.erros }))
       .catch(console.error);
   }, [id]);
 
   useEffect(() => {
-    fetch(`${API}/api/q/cadernos/${id}`, { credentials: "include" })
+    apiFetch(`/api/q/cadernos/${id}`)
       .then((r) => r.json())
       .then(setCaderno)
       .catch(console.error);
@@ -118,7 +117,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
 
   // Limite diário de questões (plano grátis) — alimenta o contador "X/10 hoje".
   const carregarLimite = useCallback(() => {
-    fetch(`${API}/api/q/limite`, { credentials: "include" })
+    apiFetch("/api/q/limite")
       .then((r) => (r.ok ? r.json() : null))
       .then((l) => l && setLimite(l))
       .catch(() => {});
@@ -128,7 +127,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   // Favoritas persistidas — carrega os IDs uma vez, sincroniza a estrela por questão
   const [favIds, setFavIds] = useState<Set<number>>(new Set());
   useEffect(() => {
-    fetch(`${API}/api/q/favoritas`, { credentials: "include" })
+    apiFetch("/api/q/favoritas")
       .then((r) => r.json())
       .then((d) => setFavIds(new Set<number>(d.ids || [])))
       .catch(console.error);
@@ -145,7 +144,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       return n;
     };
     setFavIds(alternar); // otimista; o POST confirma (ou reverte) abaixo
-    fetch(`${API}/api/q/${currentQid}/favoritar`, { method: "POST", credentials: "include" })
+    apiFetch(`/api/q/${currentQid}/favoritar`, { method: "POST" })
       .then((r) => r.json())
       .then((d) => {
         setFavIds((s) => {
@@ -165,7 +164,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     if (!currentQid) return;
     let cancelled = false;
     startedAt.current = Date.now();
-    fetch(`${API}/api/q/${currentQid}`)
+    apiFetch(`/api/q/${currentQid}`)
       .then((r) => r.json())
       .then((q) => {
         if (cancelled) return;
@@ -183,9 +182,8 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     const tempo_segundos = Math.round((Date.now() - startedAt.current) / 1000);
     setResolvida(true);
     try {
-      const r = await fetch(`${API}/api/q/${questao.id}/responder`, {
+      const r = await apiFetch(`/api/q/${questao.id}/responder`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ resposta: selecionada, tempo_segundos, caderno_id: caderno.id }),
       });
@@ -707,7 +705,7 @@ function EstatisticasTab({ cadernoId }: { cadernoId: number }) {
   const [data, setData] = useState<StatsDetalhe | null>(null);
 
   useEffect(() => {
-    fetch(`${API}/api/q/cadernos/${cadernoId}/stats-detalhe`, { credentials: "include" })
+    apiFetch(`/api/q/cadernos/${cadernoId}/stats-detalhe`)
       .then((r) => r.json())
       .then(setData)
       .catch(console.error);
@@ -873,7 +871,7 @@ function IndiceTab({ cadernoId, onAbrir, idxAtual }: {
   const [filtro, setFiltro] = useState("");
 
   useEffect(() => {
-    fetch(`${API}/api/q/cadernos/${cadernoId}/indice`, { credentials: "include" })
+    apiFetch(`/api/q/cadernos/${cadernoId}/indice`)
       .then((r) => r.json())
       .then((d) => setItems(d.items || []))
       .catch(console.error);
@@ -950,7 +948,7 @@ function GabaritoTab({ cadernoId }: { cadernoId: number }) {
   const [items, setItems] = useState<GabaritoItem[]>([]);
 
   useEffect(() => {
-    fetch(`${API}/api/q/cadernos/${cadernoId}/gabarito`, { credentials: "include" })
+    apiFetch(`/api/q/cadernos/${cadernoId}/gabarito`)
       .then((r) => r.json())
       .then((d) => setItems(d.items || []))
       .catch(console.error);

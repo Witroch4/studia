@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiFetch } from "@/lib/api";
 
 const DISC_COLORS = [
   { iconBg: "bg-cyan-500/10", iconColor: "text-cyan-500" },
@@ -33,7 +32,7 @@ export default function DisciplinasPage() {
   const [creating, setCreating] = useState(false);
 
   const fetchDisciplinas = () => {
-    fetch(`${API_URL}/api/disciplinas`)
+    apiFetch("/api/disciplinas")
       .then((r) => r.json())
       .then((data) => setDisciplinas(data))
       .catch(console.error)
@@ -46,7 +45,7 @@ export default function DisciplinasPage() {
     if (!nome.trim() || creating) return;
     setCreating(true);
     try {
-      const res = await fetch(`${API_URL}/api/disciplinas`, {
+      const res = await apiFetch("/api/disciplinas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nome: nome.trim(), descricao: descricao.trim() || null }),

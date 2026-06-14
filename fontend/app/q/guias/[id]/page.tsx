@@ -4,8 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
+import { apiFetch } from "@/lib/api";
 
 interface CadernoDetalhe {
   id: number;
@@ -91,13 +90,11 @@ export default function GuiaDetalhePage() {
     setMsg(null);
     try {
       const r = c.salvo
-        ? await fetch(`${API}/api/q/guias/${guiaId}/salvar?tc_caderno_id=${c.tc_caderno_id}`, {
+        ? await apiFetch(`/api/q/guias/${guiaId}/salvar?tc_caderno_id=${c.tc_caderno_id}`, {
             method: "DELETE",
-            credentials: "include",
           })
-        : await fetch(`${API}/api/q/guias/${guiaId}/salvar`, {
+        : await apiFetch(`/api/q/guias/${guiaId}/salvar`, {
             method: "POST",
-            credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ tc_caderno_id: c.tc_caderno_id }),
           });
@@ -115,10 +112,9 @@ export default function GuiaDetalhePage() {
     setMsg(null);
     try {
       const r = remover
-        ? await fetch(`${API}/api/q/guias/${guiaId}/salvar`, { method: "DELETE", credentials: "include" })
-        : await fetch(`${API}/api/q/guias/${guiaId}/salvar`, {
+        ? await apiFetch(`/api/q/guias/${guiaId}/salvar`, { method: "DELETE" })
+        : await apiFetch(`/api/q/guias/${guiaId}/salvar`, {
             method: "POST",
-            credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({}),
           });
@@ -135,9 +131,8 @@ export default function GuiaDetalhePage() {
     setSalvando(tcCadernoId);
     setMsg(null);
     try {
-      const r = await fetch(`${API}/api/q/guias/${guiaId}/materializar`, {
+      const r = await apiFetch(`/api/q/guias/${guiaId}/materializar`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tc_caderno_id: tcCadernoId }),
       });
@@ -156,7 +151,7 @@ export default function GuiaDetalhePage() {
     async (silent = false) => {
       if (!silent) setCarregando(true);
       try {
-        const r = await fetch(`${API}/api/q/guias/${guiaId}`, { cache: "no-store", credentials: "include" });
+        const r = await apiFetch(`/api/q/guias/${guiaId}`, { cache: "no-store" });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         setGuia(await r.json());
         setErro(null);
@@ -179,9 +174,8 @@ export default function GuiaDetalhePage() {
     setAcao("materializar");
     setMsg(null);
     try {
-      const r = await fetch(`${API}/api/q/guias/${guiaId}/materializar`, {
+      const r = await apiFetch(`/api/q/guias/${guiaId}/materializar`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
@@ -203,7 +197,7 @@ export default function GuiaDetalhePage() {
     setAcao("coletar");
     setMsg(null);
     try {
-      const r = await fetch(`${API}/api/q/guias/${guiaId}/coletar`, { method: "POST", credentials: "include" });
+      const r = await apiFetch(`/api/q/guias/${guiaId}/coletar`, { method: "POST" });
       const data = await r.json();
       if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
       setMsg(`${data.enqueued} caderno(s) reenfileirados para coleta.`);

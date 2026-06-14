@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { StatCard } from "@/app/components/ds";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
+import { apiFetch } from "@/lib/api";
 
 interface Disciplina {
   nome: string;
@@ -60,7 +59,7 @@ export default function PainelClient() {
 
   useEffect(() => {
     let cancel = false;
-    fetch(`${API}/api/q/dashboard`, { credentials: "include", cache: "no-store" })
+    apiFetch("/api/q/dashboard", { cache: "no-store" })
       .then((r) => {
         if (r.status === 401) {
           if (!cancel) setEstado("deslogado");

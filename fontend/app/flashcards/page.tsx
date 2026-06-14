@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Input } from "../components/ds";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiFetch } from "@/lib/api";
 
 // Cores por índice para dar variedade visual aos decks
 const DECK_COLORS = [
@@ -31,7 +30,7 @@ export default function FlashcardsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/decks`)
+    apiFetch("/api/decks")
       .then((r) => r.json())
       .then((data) => setDecks(data))
       .catch(console.error)
@@ -242,7 +241,7 @@ function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: numb
                     setMenuOpen(false);
                     if (!confirm(`Excluir "${deck.nome}" e todos os seus cartões?`)) return;
                     try {
-                      const res = await fetch(`${API_URL}/api/decks/${deck.id}`, { method: "DELETE" });
+                      const res = await apiFetch(`/api/decks/${deck.id}`, { method: "DELETE" });
                       if (res.ok) onDelete(deck.id);
                     } catch (e) { console.error(e); }
                   }}

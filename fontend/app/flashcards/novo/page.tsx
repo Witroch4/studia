@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useState, useRef } from "react";
 import MarkdownRenderer from "../../components/MarkdownRenderer";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiFetch } from "@/lib/api";
 
 type ParsedCard = {
   id: number;
@@ -87,7 +86,7 @@ function IndividualForm() {
     if (!tema || !frente || !verso) return;
     setSaving(true);
     try {
-      await fetch(`${API_URL}/api/flashcards`, {
+      await apiFetch("/api/flashcards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tema, assunto: assunto || tema, frente, verso }),
@@ -242,7 +241,7 @@ function ImportForm() {
       const formData = new FormData();
       formData.append("file", blob, "flashcards.md");
 
-      const res = await fetch(`${API_URL}/api/flashcards/import`, {
+      const res = await apiFetch("/api/flashcards/import", {
         method: "POST",
         body: formData,
       });

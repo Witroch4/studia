@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { apiFetch } from "@/lib/api";
 
 /**
  * /q/filtrar — Filtro facetado tipo TecConcursos.
@@ -13,8 +14,6 @@ import Link from "next/link";
  *   - Painel direito "Opções": chips dos filtros ativos + atalhos
  *   - Bottom: contagem + nome/pasta + "Gerar Caderno"
  */
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
 
 type Categoria = "Matéria e assunto" | "Banca" | "Órgão e cargo" | "Ano" | "Área (Carreira)"
   | "Escolaridade" | "Formação" | "Região" | "Favoritas" | "Enunciados" | "Opções";
@@ -113,15 +112,15 @@ export default function FiltrarPage() {
 
   // Carrega árvore matéria→assunto, contagem de favoritas e pastas existentes
   useEffect(() => {
-    fetch(`${API}/api/q/categorias-arvore`)
+    apiFetch("/api/q/categorias-arvore")
       .then((r) => r.json())
       .then(setArvore)
       .catch(console.error);
-    fetch(`${API}/api/q/favoritas`, { credentials: "include" })
+    apiFetch("/api/q/favoritas")
       .then((r) => r.json())
       .then((d) => setFavTotal(d.total ?? 0))
       .catch(console.error);
-    fetch(`${API}/api/q/pastas`, { credentials: "include" })
+    apiFetch("/api/q/pastas")
       .then((r) => r.json())
       .then((rows: { pasta: string | null }[]) => setPastas(rows.map((p) => p.pasta).filter(Boolean) as string[]))
       .catch(console.error);
@@ -130,9 +129,8 @@ export default function FiltrarPage() {
   // Carrega contagem + facetas sempre que filtros mudam (debounce 250ms — padrão TC)
   useEffect(() => {
     const t = setTimeout(() => {
-      fetch(`${API}/api/q/count`, {
+      apiFetch("/api/q/count", {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filtros: filtrosEnvio, q: qEnunciado, favoritas }),
       })
@@ -212,9 +210,8 @@ export default function FiltrarPage() {
     setErroGerar(null);
     setGerando(true);
     try {
-      const r = await fetch(`${API}/api/q/cadernos`, {
+      const r = await apiFetch("/api/q/cadernos", {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nome: nomeCaderno || "Caderno de Estudo",

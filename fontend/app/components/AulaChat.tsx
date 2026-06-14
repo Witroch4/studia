@@ -4,8 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import MarkdownRenderer from "./MarkdownRenderer";
 import ModelSelector from "./ModelSelector";
 import { ChatBubble } from "./ds";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiFetch } from "@/lib/api";
 
 type Message = {
   role: "user" | "model";
@@ -42,7 +41,7 @@ export default function AulaChat({ aulaId, disabled = false }: AulaChatProps) {
     setMessages((prev) => [...prev, assistantMsg]);
 
     try {
-      const response = await fetch(`${API_URL}/api/aulas/${aulaId}/chat`, {
+      const response = await apiFetch(`/api/aulas/${aulaId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

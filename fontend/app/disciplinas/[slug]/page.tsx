@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect, use } from "react";
 import PdfUploader from "../../components/PdfUploader";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiFetch } from "@/lib/api";
 
 type AulaData = {
   id: number;
@@ -41,7 +40,7 @@ export default function DisciplinaPage({ params }: { params: Promise<{ slug: str
   const [uploading, setUploading] = useState(false);
 
   const fetchData = () => {
-    fetch(`${API_URL}/api/disciplinas/${slug}`)
+    apiFetch(`/api/disciplinas/${slug}`)
       .then((r) => r.json())
       .then((d) => setData(d))
       .catch(console.error)
@@ -64,7 +63,7 @@ export default function DisciplinaPage({ params }: { params: Promise<{ slug: str
       formData.append("file", file);
       formData.append("modelo", modelo);
 
-      const res = await fetch(`${API_URL}/api/disciplinas/${slug}/aulas`, {
+      const res = await apiFetch(`/api/disciplinas/${slug}/aulas`, {
         method: "POST",
         body: formData,
       });

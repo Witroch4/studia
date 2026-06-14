@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
+import { apiFetch } from "@/lib/api";
 
 interface GuiaCard {
   id: number;
@@ -84,9 +83,8 @@ export default function GuiasPanel() {
     setMontandoId(guiaId);
     setMsg(null);
     try {
-      const r = await fetch(`${API}/api/q/guias/${guiaId}/materializar`, {
+      const r = await apiFetch(`/api/q/guias/${guiaId}/materializar`, {
         method: "POST",
-        credentials: "include",
       });
       const data = await r.json().catch(() => null);
       if (!r.ok) setMsg(data?.detail || `Falha ao salvar (HTTP ${r.status})`);
@@ -103,7 +101,7 @@ export default function GuiasPanel() {
 
   const carregar = useCallback(async () => {
     try {
-      const r = await fetch(`${API}/api/q/guias`, { cache: "no-store", credentials: "include" });
+      const r = await apiFetch("/api/q/guias", { cache: "no-store" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       setGuias(Array.isArray(data.guias) ? data.guias : []);
@@ -128,9 +126,8 @@ export default function GuiasPanel() {
     else setImportando(true);
     setMsg(null);
     try {
-      const r = await fetch(`${API}/api/q/guias/importar`, {
+      const r = await apiFetch("/api/q/guias/importar", {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: targetUrl.trim(), iniciar_coleta: iniciarColeta }),
       });
@@ -154,9 +151,8 @@ export default function GuiasPanel() {
     if (!termo.trim()) return;
     setBuscando(true);
     try {
-      const r = await fetch(`${API}/api/q/guias/buscar-tc?termo=${encodeURIComponent(termo.trim())}`, {
+      const r = await apiFetch(`/api/q/guias/buscar-tc?termo=${encodeURIComponent(termo.trim())}`, {
         cache: "no-store",
-        credentials: "include",
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();

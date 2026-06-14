@@ -3,8 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiFetch } from "@/lib/api";
 
 type Job = {
   id: number;
@@ -78,7 +77,7 @@ export default function JobsPage() {
   const errorJobs = useMemo(() => jobs.filter((j) => j.status === "ERRO"), [jobs]);
 
   const fetchJobs = useCallback(() => {
-    fetch(`${API_URL}/api/jobs`, { credentials: "include" })
+    apiFetch("/api/jobs")
       .then((r) => r.json())
       .then((data) => setJobs(Array.isArray(data) ? data : []))
       .catch(console.error)
@@ -86,7 +85,7 @@ export default function JobsPage() {
   }, []);
 
   const fetchBatchJobs = useCallback(() => {
-    fetch(`${API_URL}/api/batch-jobs`, { credentials: "include" })
+    apiFetch("/api/batch-jobs")
       .then((r) => r.json())
       .then((data) => setBatchJobs(Array.isArray(data) ? data : []))
       .catch(console.error);
@@ -107,7 +106,7 @@ export default function JobsPage() {
   const handleCancel = async (jobName: string) => {
     setCancelling(jobName);
     try {
-      const res = await fetch(`${API_URL}/api/batch-jobs/${jobName}/cancel`, { method: "POST", credentials: "include" });
+      const res = await apiFetch(`/api/batch-jobs/${jobName}/cancel`, { method: "POST" });
       if (res.ok) {
         fetchBatchJobs();
         fetchJobs();

@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import GuiasPanel from "./GuiasPanel";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8011";
+import { apiFetch } from "@/lib/api";
 
 const KNOWN_TOTALS: Record<string, number> = {
   "95872872": 29774,
@@ -147,9 +146,8 @@ export default function ColetarPage() {
     setRecoletando(job.caderno_id);
     setErroJobs(null);
     try {
-      const r = await fetch(`${API}/api/q/coletar/${job.caderno_id}/recoletar`, {
+      const r = await apiFetch(`/api/q/coletar/${job.caderno_id}/recoletar`, {
         method: "POST",
-        credentials: "include",
       });
       const d = await r.json().catch(() => null);
       if (!r.ok) setErroJobs(d?.detail || `Falha ao re-coletar (HTTP ${r.status})`);
@@ -166,9 +164,8 @@ export default function ColetarPage() {
     setErroJobs(null);
     const nome = (nomesEdit[job.caderno_id] ?? job.caderno_nome ?? "").trim();
     try {
-      const r = await fetch(`${API}/api/q/coletar/${job.caderno_id}/materializar`, {
+      const r = await apiFetch(`/api/q/coletar/${job.caderno_id}/materializar`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nome ? { nome } : {}),
       });
@@ -190,9 +187,8 @@ export default function ColetarPage() {
     setPausando(job.job_id);
     const acao = job.paused ? "retomar" : "pausar";
     try {
-      const r = await fetch(`${API}/api/q/coletar/jobs/${job.job_id}/${acao}`, {
+      const r = await apiFetch(`/api/q/coletar/jobs/${job.job_id}/${acao}`, {
         method: "POST",
-        credentials: "include",
       });
       if (!r.ok) {
         const d = await r.json().catch(() => null);
@@ -230,7 +226,7 @@ export default function ColetarPage() {
       setCarregandoJobs(true);
     }
     try {
-      const r = await fetch(`${API}/api/q/coletar/jobs`, { cache: "no-store", credentials: "include" });
+      const r = await apiFetch("/api/q/coletar/jobs", { cache: "no-store" });
       const text = await r.text();
       let data: { jobs?: JobAtivo[] } = {};
       try {
@@ -276,9 +272,8 @@ export default function ColetarPage() {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 15_000);
     try {
-      const r = await fetch(`${API}/api/q/coletar`, {
+      const r = await apiFetch("/api/q/coletar", {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, relogin, expected_total: expectedTotal }),
         signal: controller.signal,
