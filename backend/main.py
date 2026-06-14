@@ -20,6 +20,7 @@ from models import (
 from parser import parse_markdown
 from minio_client import upload_pdf, get_presigned_url, ensure_bucket
 from auth import require_admin
+from security import CSRF_COOKIE, SESSION_COOKIE
 import concurso_engine as ce
 
 
@@ -141,6 +142,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_CSRF_EXEMPT = {"/api/auth/handoff", "/api/auth/logout"}
+_MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def csrf_protect(request, call_next):
+    if (
+        request.method in _MUTATING
+        and request.url.path not in _CSRF_EXEMPT
+        and request.cookies.get(SESSION_COOKIE)  # só exige CSRF p/ sessão JWT
+    ):
+        header = request.headers.get("x-csrf-token")
+        cookie = request.cookies.get(CSRF_COOKIE)
+        if not header or not cookie or header != cookie:
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"detail": "csrf inválido"}, status_code=403)
+    return await call_next(request)
+
 
 # Guias de estudo importados do TC (cascata guia → pasta → cadernos → questões).
 # Registrado ANTES de q_router para que `/api/q/guias` não caia no catch-all

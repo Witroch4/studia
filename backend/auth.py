@@ -1,9 +1,8 @@
-"""Validação da sessão do Better Auth dentro do backend FastAPI.
+"""Validação da sessão do studIA via JWT de sessão (zero I/O no banco).
 
-O Better Auth (no Next.js) grava as sessões na tabela `session` do MESMO
-Postgres que este backend usa. O cookie `better-auth.session_token` carrega
-`<token>.<assinatura>`; o `<token>` (32 chars, sem ".") é a chave em
-`session.token`. Validamos lendo a sessão direto do banco — sem chamar o Node.
+O Better Auth (Next.js) emite a sessão; o handoff (`/api/auth/handoff`) lê a
+sessão do banco UMA vez e emite um JWT interno (`studia_session`). A partir daí,
+cada request é autenticado apenas decodificando o JWT — zero hits no banco.
 
 Topologia:
 - Produção: Traefik serve front e back no mesmo domínio (`/api/*` → backend),
@@ -24,6 +23,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
+from security import SESSION_COOKIE, decode_session_jwt
 
 # Better Auth nomeia o cookie assim; em HTTPS ganha o prefixo __Secure-.
 _COOKIE_NAMES = (
@@ -85,14 +85,21 @@ async def _carregar_usuario(token: str, db: AsyncSession) -> Optional[CurrentUse
     )
 
 
-async def get_current_user_opt(
-    request: Request, db: AsyncSession = Depends(get_db)
-) -> Optional[CurrentUser]:
-    """Usuário atual ou None (não levanta erro) — para endpoints públicos/opcionais."""
-    token = _extrair_token(request)
-    if not token:
+async def get_current_user_opt(request: Request) -> Optional[CurrentUser]:
+    """Usuário atual a partir do JWT de sessão (zero I/O no banco). None se ausente/inválido."""
+    raw = request.cookies.get(SESSION_COOKIE)
+    if not raw:
         return None
-    return await _carregar_usuario(token, db)
+    claims = decode_session_jwt(raw)
+    if not claims:
+        return None
+    return CurrentUser(
+        id=claims["sub"],
+        email=claims.get("email", ""),
+        name=claims.get("name", ""),
+        role=claims.get("role", "user"),
+        banned=False,  # banimento é checado no handoff (na emissão do JWT)
+    )
 
 
 async def require_user(
