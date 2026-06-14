@@ -35,9 +35,10 @@ def strip_html(s: str | None) -> str:
 
 
 async def gerar(limit: int | None) -> None:
-    if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY não definido")
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    from gemini_service import _get_client, _client_config
+    if not _client_config().api_key:
+        raise RuntimeError("Nem LITELLM_API_KEY nem GEMINI_API_KEY definidos")
+    client = _get_client()
 
     async with async_session() as db:
         stmt = (
