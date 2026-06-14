@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient, useSession } from "@/lib/auth-client";
-import { apiJson } from "@/lib/api";
+import { apiFetch, apiJson } from "@/lib/api";
 
 function initialsOf(name?: string | null, email?: string | null) {
   const base = (name || email || "").trim();
@@ -56,6 +56,9 @@ export default function UserNav({ variant = "desktop" }: { variant?: "desktop" |
 
   async function handleLogout() {
     setLoggingOut(true);
+    // Limpa os cookies JWT do backend (studia_session + studia_csrf) antes do signOut.
+    // best-effort: falha silenciosa para não bloquear o logout.
+    await apiFetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     await authClient.signOut();
     router.push("/login");
     router.refresh();
