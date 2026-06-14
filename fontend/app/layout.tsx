@@ -3,6 +3,7 @@ import "katex/dist/katex.min.css";
 import "./globals.css";
 import AppShell from "./components/AppShell";
 import { ThemeProvider } from "./components/ThemeProvider";
+import QueryProvider from "./components/QueryProvider";
 import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -83,7 +84,9 @@ export default function RootLayout({
       </head>
       <body className="bg-page text-fg min-h-screen flex antialiased">
         <ThemeProvider>
-          <AppShell>{children}</AppShell>
+          <QueryProvider>
+            <AppShell>{children}</AppShell>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>
