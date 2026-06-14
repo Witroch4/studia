@@ -106,7 +106,9 @@ sync_remote_env() {
   local gemini better_secret meili_key pg_pass
   local stripe_pub stripe_sec stripe_whsec stripe_price
   local google_id google_secret
+  local litellm_key
   gemini="$(grep -E '^GEMINI_API_KEY=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
+  litellm_key="$(grep -E '^LITELLM_API_KEY=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
   better_secret="$(grep -E '^BETTER_AUTH_SECRET=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
   # Google OAuth (Login com Google) — opcional; só grava no .env remoto se houver.
   google_id="$(grep -E '^GOOGLE_CLIENT_ID=' "$LOCAL_ENV_FILE" | head -1 | cut -d= -f2-)"
@@ -119,6 +121,7 @@ sync_remote_env() {
   meili_key="${MEILI_MASTER_KEY:-$(openssl rand -hex 24)}"
   [[ -n "$stripe_sec" ]] || log_warn "STRIPE_SECRET_KEY ausente no .env local (assinatura ficará desabilitada)"
   [[ -n "$gemini" ]] || log_warn "GEMINI_API_KEY ausente no .env local"
+  [[ -n "$litellm_key" ]] || log_warn "LITELLM_API_KEY ausente no .env local (IA cairá no Gemini direto via GEMINI_API_KEY)"
   [[ -n "$better_secret" ]] || die "BETTER_AUTH_SECRET ausente no .env local (necessário p/ Better Auth)"
   [[ -n "$google_id" && -n "$google_secret" ]] || log_warn "GOOGLE_CLIENT_ID/SECRET ausentes no .env local (Login com Google ficará desabilitado)"
 
@@ -137,7 +140,7 @@ sync_remote_env() {
   # PG password + MinIO creds dos containers de infra. Grava 0600.
   GEMINI_API_KEY="$gemini" BETTER_AUTH_SECRET="$better_secret" MEILI_KEY="$meili_key" PG_PASS_RAW="$pg_pass" \
   ssh -i "$PROD_SSH_KEY" -o BatchMode=yes -o ConnectTimeout=20 \
-      "$PROD_SSH_HOST" "GEMINI_API_KEY='$gemini' BETTER_AUTH_SECRET='$better_secret' MEILI_KEY='$meili_key' PG_PASS_RAW='$pg_pass' STRIPE_PUBLISHABLE_KEY='$stripe_pub' STRIPE_SECRET_KEY='$stripe_sec' STRIPE_WEBHOOK_SECRET='$stripe_whsec' STRIPE_PRICE_ID='$stripe_price' GOOGLE_CLIENT_ID='$google_id' GOOGLE_CLIENT_SECRET='$google_secret' bash -s" <<'REMOTE'
+      "$PROD_SSH_HOST" "GEMINI_API_KEY='$gemini' LITELLM_API_KEY='$litellm_key' BETTER_AUTH_SECRET='$better_secret' MEILI_KEY='$meili_key' PG_PASS_RAW='$pg_pass' STRIPE_PUBLISHABLE_KEY='$stripe_pub' STRIPE_SECRET_KEY='$stripe_sec' STRIPE_WEBHOOK_SECRET='$stripe_whsec' STRIPE_PRICE_ID='$stripe_price' GOOGLE_CLIENT_ID='$google_id' GOOGLE_CLIENT_SECRET='$google_secret' bash -s" <<'REMOTE'
 set -euo pipefail
 ENV_FILE=/opt/studia/.env
 
@@ -189,6 +192,8 @@ umask 077
   printf 'MEILI_MASTER_KEY=%s\n' "$MEILI_KEY"
   echo "SCRAPER_URL=http://studia-scraper:8090"
   printf 'GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY"
+  printf 'LITELLM_API_KEY=%s\n' "$LITELLM_API_KEY"
+  echo "LITELLM_BASE_URL=http://platform-litellm:4000"
   printf 'BETTER_AUTH_SECRET=%s\n' "$BETTER_AUTH_SECRET"
   printf 'STUDIA_JWT_SECRET=%s\n' "$STUDIA_JWT_SECRET"
   [ -n "${STRIPE_PUBLISHABLE_KEY:-}" ] && printf 'STRIPE_PUBLISHABLE_KEY=%s\n' "$STRIPE_PUBLISHABLE_KEY"
