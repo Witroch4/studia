@@ -20,6 +20,10 @@ services:
       - SCRAPER_URL=http://studia-scraper-dev:8090
       - MEILI_URL=http://meili:7700
       - MEILI_KEY=dev_master_key_studia_2026
+      # Dev roda em HTTP (localhost) → cookie de sessão NÃO pode ser Secure,
+      # senão o browser descarta o JWT/CSRF do handoff. Em prod (HTTPS via
+      # Traefik) o default é Secure=true.
+      - STUDIA_COOKIE_SECURE=false
     networks:
       - shared
       - studia-net
@@ -44,6 +48,10 @@ services:
       - SCRAPER_URL=http://studia-scraper-dev:8090
       - MEILI_URL=http://meili:7700
       - MEILI_KEY=dev_master_key_studia_2026
+      # Dev roda em HTTP (localhost) → cookie de sessão NÃO pode ser Secure,
+      # senão o browser descarta o JWT/CSRF do handoff. Em prod (HTTPS via
+      # Traefik) o default é Secure=true.
+      - STUDIA_COOKIE_SECURE=false
     networks:
       - shared
       - studia-net
