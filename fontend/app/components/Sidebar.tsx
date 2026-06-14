@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import { authClient } from "@/lib/auth-client";
+import { ensureHandoff } from "@/lib/api";
 import Logo from "./Logo";
 import { AnimatedThemeToggle } from "./AnimatedThemeToggle";
 
@@ -47,6 +48,8 @@ export default function Sidebar() {
       .then((res) => {
         const role = (res?.data?.user as { role?: string } | undefined)?.role;
         setIsAdmin(role === "admin");
+        // Handoff proativo: minta o JWT/CSRF antes da primeira ação do usuário.
+        if (res?.data?.session) ensureHandoff().catch(() => {});
       })
       .catch(() => {});
   }, []);

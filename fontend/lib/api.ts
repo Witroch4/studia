@@ -29,9 +29,55 @@ export class ApiError extends Error {
   }
 }
 
-export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(apiUrl(path), { credentials: "include", ...init });
+// ---------------------------------------------------------------------------
+// Helpers de CSRF e handoff JWT
+// ---------------------------------------------------------------------------
+
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
+  return m ? decodeURIComponent(m[1]) : null;
 }
+
+const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+let handoffInFlight: Promise<void> | null = null;
+
+export async function ensureHandoff(): Promise<void> {
+  if (!handoffInFlight) {
+    handoffInFlight = fetch(apiUrl("/api/auth/handoff"), {
+      method: "POST",
+      credentials: "include",
+    })
+      .then(() => undefined)
+      .finally(() => {
+        handoffInFlight = null;
+      });
+  }
+  return handoffInFlight;
+}
+
+function withCsrf(init: RequestInit): RequestInit {
+  const method = (init.method || "GET").toUpperCase();
+  if (!MUTATING.has(method)) return init;
+  const csrf = readCookie("studia_csrf");
+  return {
+    ...init,
+    headers: { ...(init.headers || {}), ...(csrf ? { "X-CSRF-Token": csrf } : {}) },
+  };
+}
+
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const doFetch = () => fetch(apiUrl(path), { credentials: "include", ...withCsrf(init) });
+  let res = await doFetch();
+  if (res.status === 401) {
+    // JWT ausente/expirado: faz o handoff (mint do JWT) e tenta de novo, uma vez.
+    await ensureHandoff();
+    res = await doFetch();
+  }
+  return res;
+}
+
+// ---------------------------------------------------------------------------
 
 function extrairMensagem(data: unknown, status: number): string {
   const d = data as
