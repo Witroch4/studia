@@ -93,6 +93,7 @@ function IndividualForm() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.decks() });
+      queryClient.invalidateQueries({ queryKey: ["flashcards"] });
       setSaved(true);
       setTimeout(() => {
         setSaved(false);
@@ -254,6 +255,7 @@ function ImportForm() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: qk.decks() });
+      queryClient.invalidateQueries({ queryKey: ["flashcards"] });
       setCards(data.cards || []);
       setImported(true);
       setError(null);

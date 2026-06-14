@@ -5,6 +5,7 @@ import { use, useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import MarkdownRenderer from "../../components/MarkdownRenderer";
 import { apiJson } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
 
 type CardData = {
   id: number;
@@ -23,7 +24,7 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
 
   const { data: deckData, isPending } = useQuery({
-    queryKey: ["flashcards", id],
+    queryKey: qk.deckCards(id),
     queryFn: () => apiJson<DeckResponse>(`/api/flashcards/${id}`),
   });
 

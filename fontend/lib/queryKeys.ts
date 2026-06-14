@@ -4,6 +4,7 @@ export const qk = {
   disciplina: (slug: string) => ["disciplinas", slug] as const,
   aula: (id: number) => ["aula", id] as const,
   decks: () => ["decks"] as const,
+  deckCards: (id: string) => ["flashcards", id] as const,
   dashboard: () => ["q", "dashboard"] as const,
   billing: () => ["billing", "status"] as const,
   pastas: () => ["q", "pastas"] as const,

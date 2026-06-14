@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import GuiasPanel from "./GuiasPanel";
 import { apiFetch } from "@/lib/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/queryKeys";
-import { useEffect } from "react";
 
 const KNOWN_TOTALS: Record<string, number> = {
   "95872872": 29774,

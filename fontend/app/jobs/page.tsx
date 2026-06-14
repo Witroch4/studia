@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { apiFetch, apiJson } from "@/lib/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/queryKeys";
-import { useEffect } from "react";
 
 type Job = {
   id: number;
@@ -80,7 +79,7 @@ export default function JobsPage() {
       const hasActive = data.some(
         (j) => j.status === "PROCESSANDO" || j.status === "PENDENTE"
       );
-      return hasActive ? 10000 : 30000;
+      return hasActive ? 10000 : false;
     },
   });
 
@@ -170,7 +169,7 @@ export default function JobsPage() {
           </button>
           <div className="flex items-center gap-2 text-xs text-fg-faint">
             <div className="h-2 w-2 rounded-full bg-accent-success animate-pulse" />
-            Auto-refresh {activeJobs.length > 0 ? "10s" : "30s"}
+            Auto-refresh {activeJobs.length > 0 ? "10s" : "off"}
           </div>
         </div>
       </header>
