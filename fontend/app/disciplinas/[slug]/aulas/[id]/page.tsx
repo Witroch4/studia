@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, use } from "react";
+import { useState, use } from "react";
+import { useQuery } from "@tanstack/react-query";
 import MarkdownRenderer from "../../../../components/MarkdownRenderer";
 import AulaChat from "../../../../components/AulaChat";
-import { apiFetch, apiUrl } from "@/lib/api";
+import { apiJson, apiUrl } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
 
 type Formula = {
   latex: string;
@@ -48,21 +50,20 @@ export default function AulaStudyPage({
 }) {
   const { slug, id } = use(params);
   const aulaId = parseInt(id);
-  const [data, setData] = useState<AulaDetail | null>(null);
-  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("resumo");
   const [chatOpen, setChatOpen] = useState(true);
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
 
-  useEffect(() => {
-    apiFetch(`/api/aulas/${aulaId}`)
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [aulaId]);
+  const { data, isPending } = useQuery({
+    queryKey: qk.aula(aulaId),
+    queryFn: () => apiJson<AulaDetail>(`/api/aulas/${aulaId}`),
+    refetchInterval: (query) => {
+      const s = query.state.data?.status;
+      return s && s !== "CONCLUIDO" && s !== "ERRO" ? 4000 : false;
+    },
+  });
 
-  if (loading) {
+  if (isPending) {
     return (
       <main className="w-full px-4 md:px-8 py-8">
         <div className="animate-pulse space-y-6">

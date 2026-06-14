@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { use, useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import MarkdownRenderer from "../../components/MarkdownRenderer";
-import { apiFetch } from "@/lib/api";
+import { apiJson } from "@/lib/api";
 
 type CardData = {
   id: number;
@@ -13,29 +14,27 @@ type CardData = {
   verso: string;
 };
 
+type DeckResponse = {
+  cards: CardData[];
+  deck_nome: string;
+};
+
 export default function FlashcardStudyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
 
-  const [cards, setCards] = useState<CardData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: deckData, isPending } = useQuery({
+    queryKey: ["flashcards", id],
+    queryFn: () => apiJson<DeckResponse>(`/api/flashcards/${id}`),
+  });
+
   const [currentCard, setCurrentCard] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [timer, setTimer] = useState(0);
-  const [deckName, setDeckName] = useState("");
 
-  // Fetch cards from backend
-  useEffect(() => {
-    apiFetch(`/api/flashcards/${id}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.cards && data.cards.length > 0) {
-          setCards(data.cards);
-          setDeckName(data.deck_nome || id.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()));
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [id]);
+  const cards = deckData?.cards ?? [];
+  const deckName =
+    deckData?.deck_nome ||
+    id.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
 
   const total = cards.length;
   const card = total > 0 ? cards[currentCard % total] : null;
@@ -89,7 +88,7 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
     }, 300);
   };
 
-  if (loading) {
+  if (isPending) {
     return (
       <main className="w-full flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

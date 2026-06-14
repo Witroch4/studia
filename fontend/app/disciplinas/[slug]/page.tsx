@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, use } from "react";
+import { useState, use } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import PdfUploader from "../../components/PdfUploader";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiJson } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
 
 type AulaData = {
   id: number;
@@ -34,57 +36,55 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; icon: string; la
 
 export default function DisciplinaPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
-  const [data, setData] = useState<DisciplinaDetail | null>(null);
-  const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const queryClient = useQueryClient();
 
-  const fetchData = () => {
-    apiFetch(`/api/disciplinas/${slug}`)
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
+  const { data, isPending } = useQuery({
+    queryKey: qk.disciplina(slug),
+    queryFn: () => apiJson<DisciplinaDetail>(`/api/disciplinas/${slug}`),
+    refetchInterval: (query) => {
+      const aulas = query.state.data?.aulas ?? [];
+      return aulas.some((a) => a.status === "PENDENTE" || a.status === "PROCESSANDO")
+        ? 4000
+        : false;
+    },
+  });
 
-  useEffect(() => {
-    fetchData();
-    // Poll para atualizar status de aulas processando
-    const interval = setInterval(() => {
-      fetchData();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [slug]);
-
-  const handleUpload = async (file: File, modelo: string) => {
-    setUploading(true);
-    try {
+  const uploadMutation = useMutation({
+    mutationFn: async ({ file, modelo }: { file: File; modelo: string }) => {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("modelo", modelo);
-
       const res = await apiFetch(`/api/disciplinas/${slug}/aulas`, {
         method: "POST",
         body: formData,
       });
-
       if (!res.ok) {
         const err = await res.json();
-        alert(err.detail || "Erro no upload");
-        return;
+        throw new Error(err.detail || "Erro no upload");
       }
-
+      return res.json();
+    },
+    onSuccess: () => {
       setShowUpload(false);
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      alert("Erro na conexão");
-    } finally {
-      setUploading(false);
+      queryClient.invalidateQueries({ queryKey: qk.disciplina(slug) });
+    },
+    onError: (err: Error) => {
+      alert(err.message || "Erro na conexão");
+    },
+  });
+
+  const handleUpload = async (file: File, modelo: string): Promise<void> => {
+    try {
+      await uploadMutation.mutateAsync({ file, modelo });
+    } catch {
+      // error handled in onError
     }
   };
 
-  if (loading) {
+  const uploading = uploadMutation.isPending;
+
+  if (isPending) {
     return (
       <main className="w-full px-4 md:px-8 py-8">
         <div className="animate-pulse space-y-6">
