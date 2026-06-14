@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { StatCard } from "@/app/components/ds";
-import { apiFetch } from "@/lib/api";
+import { apiJson } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
 
 interface Disciplina {
   nome: string;
@@ -54,32 +55,14 @@ function ultimosDias(n: number): string[] {
 }
 
 export default function PainelClient() {
-  const [data, setData] = useState<Dashboard | null>(null);
-  const [estado, setEstado] = useState<"loading" | "ok" | "erro" | "deslogado">("loading");
+  const { data, isPending, isError, error } = useQuery({
+    queryKey: qk.dashboard(),
+    queryFn: () => apiJson<Dashboard>("/api/q/dashboard", { cache: "no-store" }),
+    retry: false,
+  });
 
-  useEffect(() => {
-    let cancel = false;
-    apiFetch("/api/q/dashboard", { cache: "no-store" })
-      .then((r) => {
-        if (r.status === 401) {
-          if (!cancel) setEstado("deslogado");
-          return null;
-        }
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((d: Dashboard | null) => {
-        if (cancel || d === null) return;
-        setData(d);
-        setEstado("ok");
-      })
-      .catch(() => {
-        if (!cancel) setEstado("erro");
-      });
-    return () => {
-      cancel = true;
-    };
-  }, []);
+  const isDeslogado =
+    isError && (error as { status?: number })?.status === 401;
 
   return (
     <>
@@ -99,9 +82,9 @@ export default function PainelClient() {
           </Link>
         </div>
 
-        {estado === "loading" && <p className="text-fg-muted">Carregando seu painel…</p>}
+        {isPending && <p className="text-fg-muted">Carregando seu painel…</p>}
 
-        {estado === "deslogado" && (
+        {isDeslogado && (
           <div className="bg-surface p-8 rounded-xl border border-border text-center">
             <p className="text-fg-muted">
               Sua sessão expirou.{" "}
@@ -110,13 +93,13 @@ export default function PainelClient() {
           </div>
         )}
 
-        {estado === "erro" && (
+        {isError && !isDeslogado && (
           <div className="bg-surface p-8 rounded-xl border border-border text-center text-accent-error">
             Não foi possível carregar o painel. Tente recarregar a página.
           </div>
         )}
 
-        {estado === "ok" && data && (
+        {data && (
           data.resolvidas === 0 ? (
             <EstadoVazio />
           ) : (

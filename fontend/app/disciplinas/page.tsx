@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
-import { apiFetch } from "@/lib/api";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiJson, apiFetch } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
 
 const DISC_COLORS = [
   { iconBg: "bg-cyan-500/10", iconColor: "text-cyan-500" },
@@ -24,27 +26,18 @@ type DisciplinaData = {
 };
 
 export default function DisciplinasPage() {
-  const [disciplinas, setDisciplinas] = useState<DisciplinaData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
-  const [creating, setCreating] = useState(false);
 
-  const fetchDisciplinas = () => {
-    apiFetch("/api/disciplinas")
-      .then((r) => r.json())
-      .then((data) => setDisciplinas(data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
+  const { data: disciplinas = [], isPending } = useQuery({
+    queryKey: qk.disciplinas(),
+    queryFn: () => apiJson<DisciplinaData[]>("/api/disciplinas"),
+  });
 
-  useEffect(() => { fetchDisciplinas(); }, []);
-
-  const handleCreate = async () => {
-    if (!nome.trim() || creating) return;
-    setCreating(true);
-    try {
+  const createMutation = useMutation({
+    mutationFn: async () => {
       const res = await apiFetch("/api/disciplinas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,18 +45,24 @@ export default function DisciplinasPage() {
       });
       if (!res.ok) {
         const err = await res.json();
-        alert(err.detail || "Erro ao criar disciplina");
-        return;
+        throw new Error(err.detail || "Erro ao criar disciplina");
       }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.disciplinas() });
       setNome("");
       setDescricao("");
       setShowForm(false);
-      fetchDisciplinas();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setCreating(false);
-    }
+    },
+    onError: (err: Error) => {
+      alert(err.message);
+    },
+  });
+
+  const handleCreate = () => {
+    if (!nome.trim() || createMutation.isPending) return;
+    createMutation.mutate();
   };
 
   return (
@@ -120,10 +119,10 @@ export default function DisciplinasPage() {
               <div className="flex gap-3">
                 <button
                   onClick={handleCreate}
-                  disabled={!nome.trim() || creating}
+                  disabled={!nome.trim() || createMutation.isPending}
                   className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-cyan-600 text-white rounded-lg font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {creating ? "Criando..." : "Criar"}
+                  {createMutation.isPending ? "Criando..." : "Criar"}
                 </button>
                 <button
                   onClick={() => setShowForm(false)}
@@ -138,7 +137,7 @@ export default function DisciplinasPage() {
 
         {/* Grid de disciplinas */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-8">
-          {loading
+          {isPending
             ? Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="bg-surface-dark rounded-xl border border-border-dark p-6 animate-pulse min-h-[200px]">
                   <div className="h-10 w-10 rounded-lg bg-surface-2 mb-4" />
@@ -150,7 +149,7 @@ export default function DisciplinasPage() {
                 <DisciplinaCard key={disc.id} disc={disc} colorIdx={idx} />
               ))}
 
-          {!loading && disciplinas.length === 0 && !showForm && (
+          {!isPending && disciplinas.length === 0 && !showForm && (
             <button
               onClick={() => setShowForm(true)}
               className="bg-surface-dark rounded-xl border border-dashed border-border hover:border-primary transition-all group flex flex-col h-full items-center justify-center cursor-pointer min-h-[200px]"

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Input } from "../components/ds";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiJson } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
 
 // Cores por índice para dar variedade visual aos decks
 const DECK_COLORS = [
@@ -26,16 +28,25 @@ type DeckData = {
 };
 
 export default function FlashcardsPage() {
-  const [decks, setDecks] = useState<DeckData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    apiFetch("/api/decks")
-      .then((r) => r.json())
-      .then((data) => setDecks(data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: decks = [], isPending } = useQuery({
+    queryKey: qk.decks(),
+    queryFn: () => apiJson<DeckData[]>("/api/decks"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/api/decks/${id}`, { method: "DELETE" }).then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.decks() });
+    },
+    onError: (err: Error) => {
+      console.error(err);
+    },
+  });
 
   // Calcula totais para o card "Todos"
   const totalCards = decks.reduce((sum, d) => sum + d.total, 0);
@@ -77,7 +88,7 @@ export default function FlashcardsPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-8">
-          {loading
+          {isPending
             ? Array.from({ length: 3 }).map((_, i) => <DeckSkeleton key={i} />)
             : (
               <>
@@ -87,7 +98,15 @@ export default function FlashcardsPage() {
                 )}
 
                 {decks.map((deck, idx) => (
-                  <DeckCard key={deck.id} deck={deck} colorIdx={idx} onDelete={(id) => setDecks((prev) => prev.filter((d) => d.id !== id))} />
+                  <DeckCard
+                    key={deck.id}
+                    deck={deck}
+                    colorIdx={idx}
+                    onDelete={(id) => {
+                      if (!confirm(`Excluir "${deck.nome}" e todos os seus cartões?`)) return;
+                      deleteMutation.mutate(id);
+                    }}
+                  />
                 ))}
               </>
             )}
@@ -237,13 +256,9 @@ function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: numb
                 </button>
                 <div className="border-t border-border-dark my-1" />
                 <button
-                  onClick={async () => {
+                  onClick={() => {
                     setMenuOpen(false);
-                    if (!confirm(`Excluir "${deck.nome}" e todos os seus cartões?`)) return;
-                    try {
-                      const res = await apiFetch(`/api/decks/${deck.id}`, { method: "DELETE" });
-                      if (res.ok) onDelete(deck.id);
-                    } catch (e) { console.error(e); }
+                    onDelete(deck.id);
                   }}
                   className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-error hover:bg-error/15 hover:text-error transition-colors"
                 >

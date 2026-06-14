@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useState, useRef } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import MarkdownRenderer from "../../components/MarkdownRenderer";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiJson } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
 
 type ParsedCard = {
   id: number;
@@ -74,23 +76,23 @@ export default function NovoFlashcardPage() {
 // ─── Criar Individual ────────────────────────────────────
 
 function IndividualForm() {
+  const queryClient = useQueryClient();
   const [tema, setTema] = useState("");
   const [assunto, setAssunto] = useState("");
   const [frente, setFrente] = useState("");
   const [verso, setVerso] = useState("");
   const [showPreview, setShowPreview] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const handleSave = async () => {
-    if (!tema || !frente || !verso) return;
-    setSaving(true);
-    try {
-      await apiFetch("/api/flashcards", {
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      apiJson("/api/flashcards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tema, assunto: assunto || tema, frente, verso }),
-      });
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.decks() });
       setSaved(true);
       setTimeout(() => {
         setSaved(false);
@@ -98,9 +100,12 @@ function IndividualForm() {
         setVerso("");
         setAssunto("");
       }, 2000);
-    } finally {
-      setSaving(false);
-    }
+    },
+  });
+
+  const handleSave = () => {
+    if (!tema || !frente || !verso || saveMutation.isPending) return;
+    saveMutation.mutate();
   };
 
   return (
@@ -187,7 +192,7 @@ function IndividualForm() {
 
       <button
         onClick={handleSave}
-        disabled={!tema || !frente || !verso || saving}
+        disabled={!tema || !frente || !verso || saveMutation.isPending}
         className="flex items-center justify-center gap-2 px-8 py-3 bg-primary hover:bg-cyan-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg shadow-lg shadow-cyan-500/20 transition-all font-medium"
       >
         {saved ? (
@@ -195,7 +200,7 @@ function IndividualForm() {
             <span className="material-symbols-outlined text-[18px]">check</span>
             Salvo!
           </>
-        ) : saving ? (
+        ) : saveMutation.isPending ? (
           "Salvando..."
         ) : (
           <>
@@ -211,10 +216,10 @@ function IndividualForm() {
 // ─── Importar Lista ──────────────────────────────────────
 
 function ImportForm() {
+  const queryClient = useQueryClient();
   const [text, setText] = useState("");
   const [cards, setCards] = useState<ParsedCard[]>([]);
   const [previewIdx, setPreviewIdx] = useState<number | null>(null);
-  const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -232,11 +237,8 @@ function ImportForm() {
     }
   };
 
-  const handleParse = async () => {
-    if (!text.trim()) return;
-    setImporting(true);
-    setError(null);
-    try {
+  const importMutation = useMutation({
+    mutationFn: async () => {
       const blob = new Blob([text], { type: "text/markdown" });
       const formData = new FormData();
       formData.append("file", blob, "flashcards.md");
@@ -248,15 +250,24 @@ function ImportForm() {
       if (!res.ok) {
         throw new Error(`Erro ${res.status}: ${res.statusText}`);
       }
-      const data = await res.json();
+      return res.json() as Promise<{ cards: ParsedCard[] }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: qk.decks() });
       setCards(data.cards || []);
       setImported(true);
-    } catch (err) {
+      setError(null);
+    },
+    onError: (err: Error) => {
       console.error("Erro ao importar:", err);
-      setError(err instanceof Error ? err.message : "Erro ao conectar com o servidor");
-    } finally {
-      setImporting(false);
-    }
+      setError(err.message || "Erro ao conectar com o servidor");
+    },
+  });
+
+  const handleParse = () => {
+    if (!text.trim() || importMutation.isPending) return;
+    setError(null);
+    importMutation.mutate();
   };
 
   const handleReset = () => {
@@ -318,10 +329,10 @@ function ImportForm() {
 
           <button
             onClick={handleParse}
-            disabled={!text.trim() || importing}
+            disabled={!text.trim() || importMutation.isPending}
             className="flex items-center justify-center gap-2 px-8 py-3 bg-primary hover:bg-cyan-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg shadow-lg shadow-cyan-500/20 transition-all font-medium"
           >
-            {importing ? (
+            {importMutation.isPending ? (
               "Processando..."
             ) : (
               <>

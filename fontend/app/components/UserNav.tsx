@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { authClient, useSession } from "@/lib/auth-client";
 import { apiFetch, apiJson } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
 
 function initialsOf(name?: string | null, email?: string | null) {
   const base = (name || email || "").trim();
@@ -24,19 +26,14 @@ export default function UserNav({ variant = "desktop" }: { variant?: "desktop" |
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [plano, setPlano] = useState<"free" | "pro" | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!session?.user) return;
-    let vivo = true;
-    apiJson<{ plano: "free" | "pro" }>("/api/billing/status")
-      .then((d) => vivo && setPlano(d.plano))
-      .catch(() => {});
-    return () => {
-      vivo = false;
-    };
-  }, [session?.user]);
+  const { data: billingData } = useQuery({
+    queryKey: qk.billing(),
+    queryFn: () => apiJson<{ plano: "free" | "pro" }>("/api/billing/status"),
+    enabled: !!session?.user,
+  });
+  const plano = billingData?.plano ?? null;
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
