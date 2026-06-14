@@ -152,9 +152,10 @@ fi
 # (o front re-handoffa no 401, mas evitamos o churn). Nunca transita localmente.
 STUDIA_JWT_SECRET=""
 if [ -f "$ENV_FILE" ]; then
-  STUDIA_JWT_SECRET=$(grep -E '^STUDIA_JWT_SECRET=' "$ENV_FILE" | head -1 | cut -d= -f2-)
+  # `|| true`: sob `set -euo pipefail`, grep sem match (1º deploy) aborta a pipeline.
+  STUDIA_JWT_SECRET=$(grep -E '^STUDIA_JWT_SECRET=' "$ENV_FILE" | head -1 | cut -d= -f2- || true)
 fi
-[ -n "$STUDIA_JWT_SECRET" ] || STUDIA_JWT_SECRET=$(openssl rand -hex 32)
+[ -n "$STUDIA_JWT_SECRET" ] || STUDIA_JWT_SECRET=$(python3 -c 'import secrets;print(secrets.token_hex(32))')
 
 pg_pass_url=$(PG_PASS="$PG_PASS_RAW" python3 -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["PG_PASS"],safe=""))')
 
