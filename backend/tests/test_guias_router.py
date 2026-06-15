@@ -139,6 +139,32 @@ async def test_listar_e_detalhe_guia(client, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_renomear_guia(client, db_session, monkeypatch):
+    _fake_scraper(monkeypatch, resolve=RESOLVE, save=SAVE, enqueue=ENQUEUE)
+    imp = (
+        await client.post(
+            "/api/q/guias/importar", json={"url": "x", "iniciar_coleta": False}
+        )
+    ).json()
+    guia_id = imp["id"]
+
+    r = await client.patch(f"/api/q/guias/{guia_id}", json={"nome": "  Novo Nome  "})
+    assert r.status_code == 200
+    assert r.json()["nome"] == "Novo Nome"
+
+    det = (await client.get(f"/api/q/guias/{guia_id}")).json()
+    assert det["nome"] == "Novo Nome"
+
+    # nome vazio → 422
+    r = await client.patch(f"/api/q/guias/{guia_id}", json={"nome": "   "})
+    assert r.status_code == 422
+
+    # guia inexistente → 404
+    r = await client.patch("/api/q/guias/999999", json={"nome": "X"})
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_importar_guia_fresco_usa_itens_da_pasta(client, db_session, monkeypatch):
     """Guia que o usuário ainda não salvou: listar-pelo-guia vem sem ids; a fonte
     dos cadernos é a pasta criada por 'salvar todos'."""

@@ -66,6 +66,10 @@ class SalvarReq(BaseModel):
     )
 
 
+class RenomearGuiaReq(BaseModel):
+    nome: str = Field(..., min_length=1, max_length=512, description="Novo nome do guia")
+
+
 # ─── Helpers ─────────────────────────────────────────────
 
 
@@ -439,6 +443,44 @@ async def detalhe_guia(
         "coleta_completa": coleta_completa,
         "cadernos": cadernos_out,
     }
+
+
+@router.patch("/{guia_id}")
+async def renomear_guia(
+    guia_id: int,
+    req: RenomearGuiaReq,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Renomeia o guia (admin). Sincroniza o campo `pasta` dos cadernos já
+    materializados, que herdam o nome do guia (ver `materializar_guia`)."""
+    guia = (await db.execute(select(Guia).where(Guia.id == guia_id))).scalar_one_or_none()
+    if not guia:
+        raise HTTPException(404, "Guia não encontrado")
+    novo = req.nome.strip()
+    if not novo:
+        raise HTTPException(422, "Nome não pode ser vazio")
+    antigo = guia.nome
+    guia.nome = novo
+
+    # Cadernos materializados deste guia usam `guia.nome` como `pasta` — propaga.
+    tc_ids = (
+        await db.execute(
+            select(GuiaCaderno.tc_caderno_id).where(GuiaCaderno.guia_id == guia_id)
+        )
+    ).scalars().all()
+    if tc_ids:
+        await db.execute(
+            CadernoQuestoes.__table__.update()
+            .where(
+                CadernoQuestoes.tc_caderno_id.in_(tc_ids),
+                CadernoQuestoes.pasta == antigo,
+            )
+            .values(pasta=novo)
+        )
+    await db.commit()
+    await db.refresh(guia)
+    return _guia_dict(guia)
 
 
 @router.post("/{guia_id}/coletar")

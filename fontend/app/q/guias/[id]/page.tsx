@@ -73,6 +73,9 @@ export default function GuiaDetalhePage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [salvando, setSalvando] = useState<number | null>(null);
   const [salvandoMateria, setSalvandoMateria] = useState<number | "todas" | null>(null);
+  const [editandoNome, setEditandoNome] = useState(false);
+  const [nomeRascunho, setNomeRascunho] = useState("");
+  const [renomeando, setRenomeando] = useState(false);
 
   useEffect(() => {
     authClient
@@ -192,6 +195,32 @@ export default function GuiaDetalhePage() {
     }
   }
 
+  async function salvarNome() {
+    const novo = nomeRascunho.trim();
+    if (!novo || novo === guia?.nome) {
+      setEditandoNome(false);
+      return;
+    }
+    setRenomeando(true);
+    setMsg(null);
+    try {
+      const r = await apiFetch(`/api/q/guias/${guiaId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome: novo }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+      await queryClient.invalidateQueries({ queryKey: qk.guia(guiaId) });
+      await queryClient.invalidateQueries({ queryKey: qk.guias() });
+      setEditandoNome(false);
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setRenomeando(false);
+    }
+  }
+
   async function retomarColeta() {
     setAcao("coletar");
     setMsg(null);
@@ -228,7 +257,51 @@ export default function GuiaDetalhePage() {
         <Link href="/q/guias" className="text-xs text-fg-faint hover:text-primary">
           ← Guias de Estudos
         </Link>
-        <h1 className="text-2xl font-semibold mt-2">{guia.nome}</h1>
+        {editandoNome ? (
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <input
+              autoFocus
+              value={nomeRascunho}
+              onChange={(e) => setNomeRascunho(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void salvarNome();
+                if (e.key === "Escape") setEditandoNome(false);
+              }}
+              disabled={renomeando}
+              className="flex-1 min-w-65 text-2xl font-semibold bg-surface-dark border border-border-dark rounded px-3 py-1.5 text-fg-strong focus:outline-none focus:border-primary disabled:opacity-60"
+            />
+            <button
+              onClick={() => void salvarNome()}
+              disabled={renomeando}
+              className="text-sm bg-primary hover:bg-primary-600 disabled:bg-surface-2 text-on-primary px-3 py-2 rounded font-semibold"
+            >
+              {renomeando ? "Salvando…" : "Salvar"}
+            </button>
+            <button
+              onClick={() => setEditandoNome(false)}
+              disabled={renomeando}
+              className="text-sm bg-surface-2 hover:bg-fg-strong/6 disabled:opacity-60 px-3 py-2 rounded"
+            >
+              Cancelar
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 mt-2">
+            <h1 className="text-2xl font-semibold">{guia.nome}</h1>
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  setNomeRascunho(guia.nome);
+                  setEditandoNome(true);
+                }}
+                title="Editar nome do guia"
+                className="text-fg-faint hover:text-primary p-1 rounded"
+              >
+                <span className="material-symbols-outlined text-[20px]">edit</span>
+              </button>
+            )}
+          </div>
+        )}
         <div className="text-sm text-fg-faint mt-1 flex flex-wrap gap-x-4 gap-y-1">
           {guia.banca && <span>Banca: <strong className="text-fg">{guia.banca}</strong></span>}
           <span>{guia.cadernos.length} cadernos</span>
