@@ -59,6 +59,14 @@ async def billing_status(
     ass = await assinatura_ativa(db, user.id)
     voucher_ate = await voucher_pro_ativo(db, user.id)
     ilimitado = user.is_admin or ass is not None or voucher_ate is not None
+    tem_customer = (
+        await db.execute(
+            select(Assinatura.id).where(
+                Assinatura.usuario_uid == user.id,
+                Assinatura.stripe_customer_id.isnot(None),
+            )
+        )
+    ).first() is not None
     return {
         "plano": "pro" if ilimitado else "free",
         "is_admin": user.is_admin,
@@ -68,7 +76,9 @@ async def billing_status(
         "limite": await resumo_limite(db, user),
         "publishable_key": STRIPE_PUBLISHABLE_KEY,
         "preco_label": PRECO_LABEL,
+        "preco_label_anual": PRECO_LABEL_ANUAL,
         "stripe_configurado": stripe_configurado(),
+        "tem_customer": tem_customer,
     }
 
 
