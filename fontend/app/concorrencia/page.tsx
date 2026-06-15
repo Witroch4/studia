@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import ConcursoUploader from "../components/ConcursoUploader";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiJson } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
 
 // ─── Identidade por modalidade ───────────────────────────
 type Mod = "AC" | "PN" | "PI" | "PQ" | "PCD";
@@ -42,11 +44,12 @@ type ClassRow = {
   is_negro: boolean; is_pcd: boolean; is_indigena: boolean; is_quilombola: boolean;
 };
 
+type ConcursoItem = { id: number; nome: string; total_candidatos: number; created_at: string | null };
+
 export default function ConcorrenciaPage() {
-  const [concursos, setConcursos] = useState<{ id: number; nome: string; total_candidatos: number; created_at: string | null }[]>([]);
+  const queryClient = useQueryClient();
+
   const [meta, setMeta] = useState<ConcursoMeta | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [loadingList, setLoadingList] = useState(true);
 
   // Config da simulação
   const [cargo, setCargo] = useState<string>("");
@@ -64,21 +67,73 @@ export default function ConcorrenciaPage() {
     setMinhasCats((cur) => (cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]));
 
   const [result, setResult] = useState<SimResult | null>(null);
-  const [simLoading, setSimLoading] = useState(false);
   const [showLei, setShowLei] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchList = useCallback(() => {
-    setLoadingList(true);
-    apiFetch("/api/concursos")
-      .then((r) => r.json())
-      .then(setConcursos)
-      .catch(console.error)
-      .finally(() => setLoadingList(false));
-  }, []);
+  // ─── GET /api/concursos ──────────────────────────────────
+  const { data: concursos = [], isPending: loadingList } = useQuery({
+    queryKey: qk.concursos(),
+    queryFn: () => apiJson<ConcursoItem[]>("/api/concursos"),
+  });
 
-  useEffect(() => { fetchList(); }, [fetchList]);
+  // ─── DELETE /api/concursos/{id} ──────────────────────────
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch(`/api/concursos/${id}`, { method: "DELETE" }).then((r) => {
+        if (!r.ok) throw new Error("Erro ao excluir");
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.concursos() });
+    },
+  });
 
+  // ─── POST /api/concursos/import ──────────────────────────
+  const importMutation = useMutation({
+    mutationFn: async ({ file, nome }: { file: File; nome: string }) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("nome", nome);
+      const res = await apiFetch("/api/concursos/import", { method: "POST", body: fd });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Erro ao importar");
+      }
+      return res.json() as Promise<{ id: number }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: qk.concursos() });
+      openConcurso(data.id);
+    },
+    onError: (err: Error) => {
+      alert(err.message);
+    },
+  });
+
+  // ─── POST /api/concursos/{id}/simular ───────────────────
+  // Returns a simulation result shown in UI; does NOT change the concursos list.
+  // useMutation gives us isPending for the spinner + result via onSuccess.
+  const simularMutation = useMutation({
+    mutationFn: async ({ id, body }: { id: number; body: object }) => {
+      const r = await apiFetch(`/api/concursos/${id}/simular`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error((await r.json()).detail);
+      return r.json() as Promise<SimResult>;
+    },
+    onSuccess: (data) => {
+      setResult(data);
+    },
+    onError: (err) => {
+      console.error(err);
+    },
+  });
+
+  // ─── On-demand GET /api/concursos/{id} (detail/meta) ───
+  // Kept as apiFetch: it's a one-shot fetch triggered by user interaction
+  // (selecting a concurso from the list or after import). Not a background
+  // subscription, so useQuery with enabled would add complexity without benefit.
   const openConcurso = useCallback((id: number) => {
     apiFetch(`/api/concursos/${id}`)
       .then((r) => r.json())
@@ -92,22 +147,11 @@ export default function ConcorrenciaPage() {
   }, []);
 
   const handleUpload = async (file: File, nome: string) => {
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("nome", nome);
-      const res = await apiFetch("/api/concursos/import", { method: "POST", body: fd });
-      if (!res.ok) { alert((await res.json()).detail || "Erro ao importar"); return; }
-      const data = await res.json();
-      fetchList();
-      openConcurso(data.id);
-    } finally { setUploading(false); }
+    importMutation.mutate({ file, nome });
   };
 
   const runSim = useCallback(() => {
     if (!meta) return;
-    setSimLoading(true);
     const body = {
       cargo: cargo || null,
       abrangencia,
@@ -121,14 +165,8 @@ export default function ConcorrenciaPage() {
       minha_pontuacao: minhaPont ? parseFloat(minhaPont) : null,
       minhas_categorias: minhasCats,
     };
-    apiFetch(`/api/concursos/${meta.id}/simular`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    })
-      .then(async (r) => { if (!r.ok) throw new Error((await r.json()).detail); return r.json(); })
-      .then(setResult)
-      .catch((e) => { console.error(e); })
-      .finally(() => setSimLoading(false));
-  }, [meta, cargo, abrangencia, recorte, totalVagas, fatorCR, pct, arredRacial, criterio, maxEsp, minhaPont, minhasCats]);
+    simularMutation.mutate({ id: meta.id, body });
+  }, [meta, cargo, abrangencia, recorte, totalVagas, fatorCR, pct, arredRacial, criterio, maxEsp, minhaPont, minhasCats, simularMutation]);
 
   useEffect(() => {
     if (!meta) return;
@@ -144,11 +182,25 @@ export default function ConcorrenciaPage() {
     return [];
   }, [meta, abrangencia]);
 
-  useEffect(() => {
-    if (abrangencia !== "GERAL" && recorteOpts.length && !recorteOpts.includes(recorte)) {
-      setRecorte(recorteOpts[0]);
-    }
-  }, [abrangencia, recorteOpts, recorte]);
+  // Reset recorte when abrangencia changes — done in the event handler to avoid
+  // calling setState inside a useEffect body (react-hooks/set-state-in-effect).
+  const handleAbrangencia = useCallback(
+    (next: "GERAL" | "MACROPOLO" | "POLO") => {
+      setAbrangencia(next);
+      if (next === "GERAL") {
+        setRecorte("");
+      } else {
+        const opts =
+          next === "MACROPOLO"
+            ? (meta?.macropolos ?? [])
+            : (meta?.polos.map((p) => p.uf) ?? []);
+        if (opts.length) setRecorte(opts[0]);
+      }
+    },
+    [meta],
+  );
+
+  const simLoading = simularMutation.isPending;
 
   // ─── Tela inicial: upload + lista ──────────────────────
   if (!meta) {
@@ -166,7 +218,7 @@ export default function ConcorrenciaPage() {
             </div>
 
             <div className="bg-surface-dark border border-border-dark rounded-2xl p-6 mb-8">
-              <ConcursoUploader onUpload={handleUpload} uploading={uploading} />
+              <ConcursoUploader onUpload={handleUpload} uploading={importMutation.isPending} />
             </div>
 
             <div className="flex items-center gap-3 mb-4">
@@ -190,8 +242,13 @@ export default function ConcorrenciaPage() {
                     </div>
                   </button>
                   <button
-                    onClick={async () => { if (confirm(`Excluir "${c.nome}"?`)) { await apiFetch(`/api/concursos/${c.id}`, { method: "DELETE" }); fetchList(); } }}
-                    className="text-fg-faint hover:text-accent-error transition-colors p-2"
+                    onClick={async () => {
+                      if (confirm(`Excluir "${c.nome}"?`)) {
+                        deleteMutation.mutate(c.id);
+                      }
+                    }}
+                    disabled={deleteMutation.isPending && deleteMutation.variables === c.id}
+                    className="text-fg-faint hover:text-accent-error transition-colors p-2 disabled:opacity-50"
                   >
                     <span className="material-symbols-outlined text-[20px]">delete</span>
                   </button>
@@ -278,7 +335,7 @@ export default function ConcorrenciaPage() {
               <Field label="Abrangência">
                 <div className="grid grid-cols-3 gap-1 p-1 bg-bg-dark rounded-lg border border-border-dark">
                   {(["GERAL", "MACROPOLO", "POLO"] as const).map((a) => (
-                    <button key={a} onClick={() => setAbrangencia(a)}
+                    <button key={a} onClick={() => handleAbrangencia(a)}
                       className={`text-[11px] font-semibold py-1.5 rounded-md transition-all ${abrangencia === a ? "bg-primary text-white shadow" : "text-fg-muted hover:text-fg-strong"}`}>
                       {a === "GERAL" ? "Nacional" : a === "MACROPOLO" ? "Região" : "Estado"}
                     </button>
