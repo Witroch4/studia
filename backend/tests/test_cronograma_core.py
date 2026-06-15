@@ -65,3 +65,53 @@ def test_gerar_plano_sem_dias_uteis_levanta():
             dias_folga=[0, 1, 2, 3, 4, 5, 6],  # tudo folga
             buffer_dias=0,
         )
+
+
+from cronograma_core import calcular_kpis, derivar_revisoes, PainelKPIs, ItemRevisao
+
+
+def _plano_simples():
+    return gerar_plano(date(2026, 6, 1), date(2026, 6, 28), 120, [6], 7)
+
+
+def test_calcular_kpis_saldo_adiantado():
+    plano = _plano_simples()
+    kpis = calcular_kpis(plano, total=120, resolvidas=60, acertos=45, hoje=date(2026, 6, 3))
+    assert isinstance(kpis, PainelKPIs)
+    assert kpis.total == 120
+    assert kpis.resolvidas == 60
+    assert kpis.erros == 15
+    assert kpis.restantes == 60
+    assert kpis.pct_conclusao == 0.5
+    assert round(kpis.pct_acerto, 2) == 0.75
+    assert kpis.saldo == kpis.resolvidas - kpis.meta_hoje
+    assert kpis.dias_uteis_restantes > 0
+    assert kpis.questoes_dia_necessarias >= 1
+
+
+def test_calcular_kpis_zero_resolvidas():
+    plano = _plano_simples()
+    kpis = calcular_kpis(plano, total=120, resolvidas=0, acertos=0, hoje=date(2026, 6, 1))
+    assert kpis.pct_conclusao == 0.0
+    assert kpis.pct_acerto == 0.0
+    assert kpis.restantes == 120
+
+
+def test_derivar_revisoes_d1_d7_vencidas():
+    hoje = date(2026, 6, 10)
+    resolucoes = [
+        (1, False, date(2026, 6, 9)),
+        (2, False, date(2026, 6, 3)),
+        (3, False, date(2026, 6, 2)),
+        (3, True, date(2026, 6, 5)),
+    ]
+    itens = derivar_revisoes(resolucoes, hoje=hoje)
+    qids = {i.questao_id for i in itens}
+    assert qids == {1, 2}
+    assert all(isinstance(i, ItemRevisao) for i in itens)
+    assert all(i.revisar_em <= hoje for i in itens)
+
+
+def test_derivar_revisoes_ignora_questao_so_acertada():
+    itens = derivar_revisoes([(9, True, date(2026, 6, 1))], hoje=date(2026, 6, 30))
+    assert itens == []

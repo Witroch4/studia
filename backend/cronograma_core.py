@@ -82,3 +82,95 @@ def gerar_plano(
         acumulado += novas
         plano.append(DiaPlano(d, d.weekday(), fase, novas, acumulado))
     return plano
+
+
+@dataclass
+class PainelKPIs:
+    total: int
+    resolvidas: int
+    acertos: int
+    erros: int
+    pct_conclusao: float
+    pct_acerto: float
+    restantes: int
+    dias_uteis_restantes: int
+    questoes_dia_necessarias: int
+    meta_hoje: int
+    saldo: int
+
+
+def calcular_kpis(
+    plano: list[DiaPlano],
+    total: int,
+    resolvidas: int,
+    acertos: int,
+    hoje: date,
+) -> PainelKPIs:
+    """KPIs do painel. `resolvidas`/`acertos` são contagens DISTINCT de questões."""
+    meta_hoje = 0
+    for d in plano:
+        if d.data <= hoje:
+            meta_hoje = d.meta_acumulada
+        else:
+            break
+    restantes = max(total - resolvidas, 0)
+    dias_uteis_restantes = sum(
+        1 for d in plano if d.data >= hoje and d.questoes_novas > 0
+    )
+    if dias_uteis_restantes > 0:
+        necessarias = ceil(restantes / dias_uteis_restantes)
+    else:
+        necessarias = restantes
+    return PainelKPIs(
+        total=total,
+        resolvidas=resolvidas,
+        acertos=acertos,
+        erros=max(resolvidas - acertos, 0),
+        pct_conclusao=(resolvidas / total) if total else 0.0,
+        pct_acerto=(acertos / resolvidas) if resolvidas else 0.0,
+        restantes=restantes,
+        dias_uteis_restantes=dias_uteis_restantes,
+        questoes_dia_necessarias=necessarias,
+        meta_hoje=meta_hoje,
+        saldo=resolvidas - meta_hoje,
+    )
+
+
+@dataclass
+class ItemRevisao:
+    questao_id: int
+    errou_em: date
+    revisar_em: date
+    intervalo: str          # "D+1" | "D+7" | "D+21"
+
+
+_INTERVALOS = [(1, "D+1"), (7, "D+7"), (21, "D+21")]
+
+
+def derivar_revisoes(
+    resolucoes: list[tuple[int, bool, date]],
+    hoje: date,
+) -> list[ItemRevisao]:
+    """Revisões vencidas (<= hoje) das questões erradas e ainda não reacertadas.
+
+    `resolucoes`: (questao_id, acertou, data). Para cada questão pega o último
+    erro; se houver acerto posterior, a questão está "resolvida" e é ignorada.
+    Cada erro pendente gera os marcos D+1/D+7/D+21 que já venceram.
+    """
+    ult_erro: dict[int, date] = {}
+    ult_acerto: dict[int, date] = {}
+    for qid, acertou, dt in resolucoes:
+        alvo = ult_acerto if acertou else ult_erro
+        if qid not in alvo or dt > alvo[qid]:
+            alvo[qid] = dt
+
+    itens: list[ItemRevisao] = []
+    for qid, errou_em in ult_erro.items():
+        if qid in ult_acerto and ult_acerto[qid] > errou_em:
+            continue  # reacertada depois do erro
+        for delta, label in _INTERVALOS:
+            revisar_em = errou_em + timedelta(days=delta)
+            if revisar_em <= hoje:
+                itens.append(ItemRevisao(qid, errou_em, revisar_em, label))
+    itens.sort(key=lambda i: (i.revisar_em, i.questao_id))
+    return itens
