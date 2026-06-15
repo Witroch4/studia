@@ -142,6 +142,40 @@ async def criar_checkout(
     return {"client_secret": session["client_secret"], "intervalo": intervalo}
 
 
+@router.post("/portal")
+async def abrir_portal(
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    if not stripe_configurado():
+        raise HTTPException(503, "billing não configurado")
+    row = (
+        await db.execute(
+            select(Assinatura)
+            .where(
+                Assinatura.usuario_uid == user.id,
+                Assinatura.stripe_customer_id.isnot(None),
+            )
+            .order_by(Assinatura.updated_at.desc())
+        )
+    ).scalars().first()
+    if not row or not row.stripe_customer_id:
+        raise HTTPException(400, "nenhuma assinatura para gerenciar")
+
+    try:
+        sess = await stripe_request(
+            "POST",
+            "/billing_portal/sessions",
+            {
+                "customer": row.stripe_customer_id,
+                "return_url": f"{FRONTEND_URL}/conta",
+            },
+        )
+    except StripeError as exc:
+        raise HTTPException(502, f"Stripe: {exc.message}") from exc
+    return {"url": sess["url"]}
+
+
 async def _upsert_sub(
     db: AsyncSession,
     sub: dict[str, Any],
