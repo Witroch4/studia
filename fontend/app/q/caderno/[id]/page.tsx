@@ -534,8 +534,13 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                       disabled={resolvida}
                       struck={isStruck({ type: "alternative", id: alt.id })}
                       onSelect={() => {
+                        // Estado FRESCO p/ a questão atual: não espalhar `prev`, que
+                        // ainda carrega resolvida/acertou da questão anterior (bug:
+                        // ao clicar numa alternativa da próxima questão ela já
+                        // aparecia "resolvida/errada"). Seleção só ocorre pré-resolução
+                        // (alternativa fica disabled quando resolvida).
                         setRespostaQid(currentQid ?? null);
-                        setRespostaState((prev) => ({ ...prev, selecionada: alt.letra }));
+                        setRespostaState({ selecionada: alt.letra, resolvida: false, acertou: null });
                       }}
                       onToggleStrike={() => annotations.toggleStrike({ type: "alternative", id: alt.id })}
                       className={`w-full text-left flex items-start gap-3 px-3 py-2 rounded border transition ${
