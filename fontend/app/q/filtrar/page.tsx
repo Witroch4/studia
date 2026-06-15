@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { apiFetch } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { apiJson, apiPost } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
 
 /**
  * /q/filtrar — Filtro facetado tipo TecConcursos.
@@ -47,6 +49,28 @@ interface Filtros {
   status_excluir?: string[];
 }
 
+interface CountResp {
+  total: number;
+  facets: Record<string, Record<string, number>>;
+  ms: number;
+}
+
+interface CadernoPayload {
+  nome: string;
+  pasta: string | null;
+  filtros: Record<string, Array<string | number>>;
+  q: string;
+  favoritas: boolean;
+  limite: number;
+  ordem: string;
+}
+
+interface CadernoResp {
+  id: string | number;
+  redirect?: string;
+  detail?: string;
+}
+
 // Categorias que são pura lista de facetas Meili (as demais têm UI própria)
 const GRUPOS_FACET: Partial<Record<Categoria, { campo: CampoFacet; titulo?: string }[]>> = {
   "Banca": [{ campo: "banca" }],
@@ -84,62 +108,106 @@ const CAMPOS_CHIP = Object.keys(CHIP_PREFIX) as (keyof Filtros & string)[];
 
 export default function FiltrarPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  // ── UI / local state (preservado integralmente) ──────────────────────────
   const [categoria, setCategoria] = useState<Categoria>("Matéria e assunto");
   const [tipoQ, setTipoQ] = useState<TipoQuestao>("OBJETIVAS_TODAS");
   const [filtros, setFiltros] = useState<Filtros>({});
   const [favoritas, setFavoritas] = useState(false);
-  const [favTotal, setFavTotal] = useState<number | null>(null);
   const [qEnunciado, setQEnunciado] = useState("");
   const [busca, setBusca] = useState("");
-  const [arvore, setArvore] = useState<MateriaArvore[]>([]);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [nomeCaderno, setNomeCaderno] = useState("Caderno de Estudo");
   const [pastaCaderno, setPastaCaderno] = useState("");
-  const [pastas, setPastas] = useState<string[]>([]);
-  const [gerando, setGerando] = useState(false);
   const [erroGerar, setErroGerar] = useState<string | null>(null);
-  const [contagem, setContagem] = useState<{ total: number; facets: Record<string, Record<string, number>>; ms: number }>({
-    total: 0,
-    facets: {},
-    ms: 0,
-  });
 
+  // ── filtrosEnvio derivado ─────────────────────────────────────────────────
   // Radio do topo → filtro `tipo` (inéditas ainda sem flag indexada — tratado como todas)
   const filtrosEnvio = useMemo<Record<string, Array<string | number>>>(() => ({
     ...filtros,
     tipo: tipoQ === "DISCURSIVAS" ? ["DISCURSIVA"] : ["MULTIPLA_ESCOLHA", "CERTO_ERRADO"],
   }), [filtros, tipoQ]);
 
-  // Carrega árvore matéria→assunto, contagem de favoritas e pastas existentes
-  useEffect(() => {
-    apiFetch("/api/q/categorias-arvore")
-      .then((r) => r.json())
-      .then(setArvore)
-      .catch(console.error);
-    apiFetch("/api/q/favoritas")
-      .then((r) => r.json())
-      .then((d) => setFavTotal(d.total ?? 0))
-      .catch(console.error);
-    apiFetch("/api/q/pastas")
-      .then((r) => r.json())
-      .then((rows: { pasta: string | null }[]) => setPastas(rows.map((p) => p.pasta).filter(Boolean) as string[]))
-      .catch(console.error);
-  }, []);
+  // ── Debounce: actualiza filtrosDebounced 250ms após mudança (padrão TC) ──
+  const [filtrosDebounced, setFiltrosDebounced] = useState<{
+    filtros: Record<string, Array<string | number>>;
+    q: string;
+    favoritas: boolean;
+  }>({ filtros: filtrosEnvio, q: qEnunciado, favoritas });
 
-  // Carrega contagem + facetas sempre que filtros mudam (debounce 250ms — padrão TC)
   useEffect(() => {
     const t = setTimeout(() => {
-      apiFetch("/api/q/count", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filtros: filtrosEnvio, q: qEnunciado, favoritas }),
-      })
-        .then((r) => r.json())
-        .then(setContagem)
-        .catch(console.error);
+      setFiltrosDebounced({ filtros: filtrosEnvio, q: qEnunciado, favoritas });
     }, 250);
     return () => clearTimeout(t);
   }, [filtrosEnvio, qEnunciado, favoritas]);
+
+  // ── Queries de dados estáticos ────────────────────────────────────────────
+
+  const { data: arvore = [], isPending: arvoreLoading } = useQuery<MateriaArvore[]>({
+    queryKey: qk.categoriasArvore(),
+    queryFn: () => apiJson<MateriaArvore[]>("/api/q/categorias-arvore"),
+  });
+
+  const { data: favData } = useQuery<{ total: number }>({
+    queryKey: qk.favoritas(),
+    queryFn: () => apiJson<{ total: number }>("/api/q/favoritas"),
+  });
+  const favTotal = favData?.total ?? null;
+
+  const { data: pastasData = [] } = useQuery<{ pasta: string | null }[]>({
+    queryKey: qk.pastas(),
+    queryFn: () => apiJson<{ pasta: string | null }[]>("/api/q/pastas"),
+  });
+  const pastas = useMemo(
+    () => pastasData.map((p) => p.pasta).filter(Boolean) as string[],
+    [pastasData],
+  );
+
+  // ── Query de contagem (debounced) ─────────────────────────────────────────
+  // Skeleton APENAS no carregamento inicial (isPending). Durante refetch usa
+  // placeholderData: keepPreviousData para manter a contagem anterior visível.
+  // isFetching é usado para um indicador sutil (opacity) no footer.
+  const {
+    data: contagem = { total: 0, facets: {}, ms: 0 },
+    isFetching: contagemFetching,
+  } = useQuery<CountResp>({
+    queryKey: qk.count(filtrosDebounced),
+    queryFn: () => apiPost<CountResp>("/api/q/count", filtrosDebounced),
+    placeholderData: keepPreviousData,
+  });
+
+  // ── Mutation: gerar caderno ───────────────────────────────────────────────
+  const gerarMutation = useMutation<CadernoResp, Error, CadernoPayload>({
+    mutationFn: (payload) => apiPost<CadernoResp>("/api/q/cadernos", payload),
+    onSuccess: (data) => {
+      // Invalida lista de cadernos e pastas para refletir o novo caderno
+      queryClient.invalidateQueries({ queryKey: qk.cadernos() });
+      queryClient.invalidateQueries({ queryKey: qk.pastas() });
+      router.push(data.redirect || `/q/caderno/${data.id}`);
+    },
+    onError: (e) => {
+      setErroGerar(e.message);
+    },
+  });
+
+  const gerando = gerarMutation.isPending;
+
+  async function gerarCaderno() {
+    setErroGerar(null);
+    gerarMutation.mutate({
+      nome: nomeCaderno || "Caderno de Estudo",
+      pasta: pastaCaderno.trim() || null,
+      filtros: filtrosEnvio,
+      q: qEnunciado,
+      favoritas,
+      limite: Math.min(Math.max(contagem.total, 1), 30000),
+      ordem: "aleatoria",
+    });
+  }
+
+  // ── Handlers de filtro (preservados) ─────────────────────────────────────
 
   const arvoreFiltrada = useMemo(() => {
     if (!busca) return arvore;
@@ -204,36 +272,6 @@ export default function FiltrarPage() {
     if (campo === "ano") arr.sort((a, b) => Number(b[0]) - Number(a[0]));
     else arr.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     return arr;
-  }
-
-  async function gerarCaderno() {
-    setErroGerar(null);
-    setGerando(true);
-    try {
-      const r = await apiFetch("/api/q/cadernos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nome: nomeCaderno || "Caderno de Estudo",
-          pasta: pastaCaderno.trim() || null,
-          filtros: filtrosEnvio,
-          q: qEnunciado,
-          favoritas,
-          limite: Math.min(Math.max(contagem.total, 1), 30000),
-          ordem: "aleatoria",
-        }),
-      });
-      const data = await r.json();
-      if (!r.ok) {
-        setErroGerar(data.detail || `HTTP ${r.status}`);
-      } else {
-        router.push(data.redirect || `/q/caderno/${data.id}`);
-      }
-    } catch (e: unknown) {
-      setErroGerar((e as Error).message);
-    } finally {
-      setGerando(false);
-    }
   }
 
   function removerChip(campo: keyof Filtros, valor: string) {
@@ -308,45 +346,53 @@ export default function FiltrarPage() {
           )}
 
           {categoria === "Matéria e assunto" && (
-            <ul className="space-y-0.5">
-              {arvoreFiltrada.map((m) => (
-                <li key={m.id}>
-                  <button
-                    onClick={() => togglePasta(m.id)}
-                    className="w-full text-left flex items-center gap-2 px-2 py-1.5 hover:bg-surface-2 rounded text-sm"
-                  >
-                    <span className="text-yellow-500">📁</span>
-                    <span className={expanded.has(m.id) ? "font-semibold" : ""}>{m.nome}</span>
-                    <span className="ml-auto text-xs text-fg-faint">{contagem.facets["materia"]?.[m.nome] || 0}</span>
-                  </button>
-                  {expanded.has(m.id) && (
-                    <ul className="pl-8 space-y-0.5 mt-0.5">
-                      <li>
-                        <button
-                          onClick={() => selecionarMateriaInteira(m)}
-                          className="text-left px-2 py-1 text-xs text-primary hover:bg-surface-2 rounded w-full"
-                        >
-                          ✓ Todo o conteúdo de &quot;{m.nome}&quot;
-                        </button>
-                      </li>
-                      {m.assuntos.map((a) => (
-                        <li key={a.id}>
+            arvoreLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="h-8 bg-surface-2 rounded animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <ul className="space-y-0.5">
+                {arvoreFiltrada.map((m) => (
+                  <li key={m.id}>
+                    <button
+                      onClick={() => togglePasta(m.id)}
+                      className="w-full text-left flex items-center gap-2 px-2 py-1.5 hover:bg-surface-2 rounded text-sm"
+                    >
+                      <span className="text-yellow-500">📁</span>
+                      <span className={expanded.has(m.id) ? "font-semibold" : ""}>{m.nome}</span>
+                      <span className="ml-auto text-xs text-fg-faint">{contagem.facets["materia"]?.[m.nome] || 0}</span>
+                    </button>
+                    {expanded.has(m.id) && (
+                      <ul className="pl-8 space-y-0.5 mt-0.5">
+                        <li>
                           <button
-                            onClick={() => toggleAssunto(a.nome)}
-                            className={`text-left px-2 py-1 text-sm hover:bg-surface-2 rounded w-full flex items-center justify-between ${
-                              filtros.assuntos?.includes(a.nome) ? "text-primary font-medium" : ""
-                            }`}
+                            onClick={() => selecionarMateriaInteira(m)}
+                            className="text-left px-2 py-1 text-xs text-primary hover:bg-surface-2 rounded w-full"
                           >
-                            <span>📄 {a.nome}</span>
-                            <span className="text-xs text-fg-faint">{contagem.facets["assuntos"]?.[a.nome] || 0}</span>
+                            ✓ Todo o conteúdo de &quot;{m.nome}&quot;
                           </button>
                         </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ul>
+                        {m.assuntos.map((a) => (
+                          <li key={a.id}>
+                            <button
+                              onClick={() => toggleAssunto(a.nome)}
+                              className={`text-left px-2 py-1 text-sm hover:bg-surface-2 rounded w-full flex items-center justify-between ${
+                                filtros.assuntos?.includes(a.nome) ? "text-primary font-medium" : ""
+                              }`}
+                            >
+                              <span>📄 {a.nome}</span>
+                              <span className="text-xs text-fg-faint">{contagem.facets["assuntos"]?.[a.nome] || 0}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )
           )}
 
           {gruposDaCategoria && gruposDaCategoria.map(({ campo, titulo }) => {
@@ -446,7 +492,7 @@ export default function FiltrarPage() {
             )}
             {qEnunciado.trim() && (
               <div className="flex items-center justify-between bg-surface-2 border border-border rounded px-2 py-1 text-xs">
-                <span className="truncate">Enunciado: “{qEnunciado.trim()}”</span>
+                <span className="truncate">Enunciado: &quot;{qEnunciado.trim()}&quot;</span>
                 <button onClick={() => setQEnunciado("")} className="ml-2 text-error hover:text-error">✕</button>
               </div>
             )}
@@ -486,10 +532,12 @@ export default function FiltrarPage() {
         </aside>
       </div>
 
+      {/* Footer: contagem com indicador sutil de refetch via opacity */}
       <footer className="border-t border-border px-6 py-4 bg-page flex items-center gap-4">
         <div className="flex-1">
-          <div className="text-2xl font-semibold text-primary">
+          <div className={`text-2xl font-semibold text-primary transition-opacity ${contagemFetching ? "opacity-60" : "opacity-100"}`}>
             {contagem.total.toLocaleString("pt-BR")} <span className="text-base text-fg-muted">questões encontradas</span>
+            {contagemFetching && <span className="ml-2 text-xs text-fg-faint animate-pulse">…</span>}
           </div>
           <div className="text-xs text-fg-faint">Meili: {contagem.ms}ms</div>
         </div>
