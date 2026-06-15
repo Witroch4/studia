@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useHotkeys, ATALHOS_TC } from "../../../hooks/useHotkeys";
 import type { CanvasTool, StrikeTarget } from "./annotations/types";
 import { useQuestionAnnotations } from "./annotations/useQuestionAnnotations";
@@ -10,7 +11,8 @@ import { QuestionCanvasOverlay } from "./components/QuestionCanvasOverlay";
 import { ScientificCalculator } from "./components/ScientificCalculator";
 import { StrikableAlternative } from "./components/StrikableAlternative";
 import QuestionHtml from "../../../components/QuestionHtml";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiJson } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
 
 interface Alternativa {
   id: number;
@@ -62,13 +64,17 @@ function formatTempo(s: number): string {
 export default function CadernoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const [caderno, setCaderno] = useState<Caderno | null>(null);
+  const queryClient = useQueryClient();
+
+  // ─── UI state (preserved 100%) ───
   const [idx, setIdx] = useState(0);
-  const [questao, setQuestao] = useState<Questao | null>(null);
-  const [stats, setStats] = useState<Stats>({ resolvidas: 0, acertos: 0, erros: 0 });
-  const [selecionada, setSelecionada] = useState<string | null>(null);
-  const [resolvida, setResolvida] = useState(false);
-  const [acertou, setAcertou] = useState<boolean | null>(null);
+  // Resposta vinculada à questão atual: ao trocar de qid o estado é descartado sem useEffect
+  const [respostaQid, setRespostaQid] = useState<number | null>(null);
+  const [respostaState, setRespostaState] = useState<{
+    selecionada: string | null;
+    resolvida: boolean;
+    acertou: boolean | null;
+  }>({ selecionada: null, resolvida: false, acertou: null });
   const [showAtalhos, setShowAtalhos] = useState(false);
   const [gotoOpen, setGotoOpen] = useState(false);
   const [gotoValue, setGotoValue] = useState("");
@@ -81,14 +87,15 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const [canvasColor, setCanvasColor] = useState("#22c55e");
   const [canvasWidth, setCanvasWidth] = useState(5);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
-  const [limite, setLimite] = useState<{
+  const [paywall, setPaywall] = useState<string | null>(null);
+  // limite local: sobrescrito pelo retorno do /responder, sincronizado com a query
+  const [limiteLocal, setLimiteLocal] = useState<{
     usado: number; limite: number; restantes: number | null; ilimitado: boolean;
   } | null>(null);
-  const [paywall, setPaywall] = useState<string | null>(null);
   const questionCardRef = useRef<HTMLDivElement | null>(null);
   const startedAt = useRef<number>(0);
 
-  // Timer global (geral do caderno) + init de startedAt
+  // ─── Timer global (preservado) ───
   useEffect(() => {
     startedAt.current = Date.now();
   }, []);
@@ -99,114 +106,149 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     return () => clearInterval(t);
   }, [pausado]);
 
-  // Contador do cabeçalho = acumulado do CADERNO (não da questão isolada).
-  const carregarStatsCaderno = useCallback(() => {
-    apiFetch(`/api/q/cadernos/${id}/estatisticas`)
-      .then((r) => r.json())
-      .then((s) => setStats({ resolvidas: s.resolvidas, acertos: s.acertos, erros: s.erros }))
-      .catch(console.error);
-  }, [id]);
+  // ─── Caderno (skeleton só aqui) ───
+  const { data: caderno, isPending: cadernoLoading } = useQuery<Caderno>({
+    queryKey: qk.caderno(id),
+    queryFn: () => apiJson(`/api/q/cadernos/${id}`),
+    staleTime: 5 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    apiFetch(`/api/q/cadernos/${id}`)
-      .then((r) => r.json())
-      .then(setCaderno)
-      .catch(console.error);
-    carregarStatsCaderno();
-  }, [id, carregarStatsCaderno]);
+  // ─── Stats do caderno ───
+  const { data: statsData } = useQuery<Stats>({
+    queryKey: qk.cadernoSub(id, "estatisticas"),
+    queryFn: () => apiJson(`/api/q/cadernos/${id}/estatisticas`),
+    enabled: !!caderno,
+    staleTime: 30_000,
+  });
+  const stats: Stats = statsData ?? { resolvidas: 0, acertos: 0, erros: 0 };
 
-  // Limite diário de questões (plano grátis) — alimenta o contador "X/10 hoje".
-  const carregarLimite = useCallback(() => {
-    apiFetch("/api/q/limite")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((l) => l && setLimite(l))
-      .catch(() => {});
-  }, []);
-  useEffect(() => { carregarLimite(); }, [carregarLimite]);
+  // ─── Limite diário ───
+  const { data: limiteQuery } = useQuery<{
+    usado: number; limite: number; restantes: number | null; ilimitado: boolean;
+  }>({
+    queryKey: qk.limite(),
+    queryFn: () => apiJson("/api/q/limite"),
+    staleTime: 60_000,
+  });
+  // O /responder retorna limite atualizado — usamos o valor local se presente (mais fresco)
+  const limite = limiteLocal ?? limiteQuery ?? null;
 
-  // Favoritas persistidas — carrega os IDs uma vez, sincroniza a estrela por questão
-  const [favIds, setFavIds] = useState<Set<number>>(new Set());
-  useEffect(() => {
-    apiFetch("/api/q/favoritas")
-      .then((r) => r.json())
-      .then((d) => setFavIds(new Set<number>(d.ids || [])))
-      .catch(console.error);
-  }, []);
+  // ─── Favoritas ───
+  const { data: favData } = useQuery<{ ids: number[] }>({
+    queryKey: qk.favoritas(),
+    queryFn: () => apiJson("/api/q/favoritas"),
+    staleTime: 5 * 60 * 1000,
+  });
+  const favIds = new Set<number>(favData?.ids ?? []);
 
   const currentQid = caderno?.question_ids[idx];
   const fav = currentQid ? favIds.has(currentQid) : false;
 
-  const toggleFavorita = useCallback(() => {
-    if (!currentQid) return;
-    const alternar = (s: Set<number>) => {
-      const n = new Set(s);
-      if (n.has(currentQid)) n.delete(currentQid); else n.add(currentQid);
-      return n;
-    };
-    setFavIds(alternar); // otimista; o POST confirma (ou reverte) abaixo
-    apiFetch(`/api/q/${currentQid}/favoritar`, { method: "POST" })
-      .then((r) => r.json())
-      .then((d) => {
-        setFavIds((s) => {
-          const n = new Set(s);
-          if (d.favorita) n.add(currentQid); else n.delete(currentQid);
-          return n;
-        });
-      })
-      .catch((e) => {
-        console.error(e);
-        setFavIds(alternar);
-      });
-  }, [currentQid]);
-  const annotations = useQuestionAnnotations(caderno?.id ?? null, currentQid ?? null);
+  // Deriva o estado de resposta: se o qid gravado não bate com o atual, reseta.
+  // Isso evita um useEffect com setState síncrono (lint: react-hooks/set-state-in-effect).
+  const respostaAtual =
+    respostaQid === (currentQid ?? null)
+      ? respostaState
+      : { selecionada: null, resolvida: false, acertou: null };
+  const { selecionada, resolvida, acertou } = respostaAtual;
 
-  useEffect(() => {
-    if (!currentQid) return;
-    let cancelled = false;
-    startedAt.current = Date.now();
-    apiFetch(`/api/q/${currentQid}`)
-      .then((r) => r.json())
-      .then((q) => {
-        if (cancelled) return;
-        setQuestao(q);
-        setSelecionada(null);
-        setResolvida(false);
-        setAcertou(null);
-      })
-      .catch(console.error);
-    return () => { cancelled = true; };
-  }, [currentQid]);
+  // ─── Questão atual (keepPreviousData: sem skeleton ao trocar de questão) ───
+  const { data: questao } = useQuery<Questao>({
+    queryKey: qk.questao(currentQid ?? 0),
+    queryFn: () => apiJson(`/api/q/${currentQid}`),
+    enabled: !!currentQid,
+    placeholderData: keepPreviousData,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // ─── Mutation: responder questão ───
+  const responderMutation = useMutation({
+    mutationFn: async ({
+      qid,
+      resposta,
+      tempo_segundos,
+      caderno_id,
+    }: {
+      qid: number;
+      resposta: string;
+      tempo_segundos: number;
+      caderno_id: number;
+    }) => {
+      const r = await apiFetch(`/api/q/${qid}/responder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resposta, tempo_segundos, caderno_id }),
+      });
+      if (r.status === 402) {
+        const err = await r.json().catch(() => null);
+        // Lança erro especial para ser capturado no onError
+        throw Object.assign(new Error("paywall"), { isPaywall: true, detail: err });
+      }
+      return r.json() as Promise<{ acertou: boolean; limite?: typeof limiteQuery }>;
+    },
+    onSuccess: (data) => {
+      setRespostaState((prev) => ({ ...prev, acertou: data.acertou }));
+      if (data.limite) setLimiteLocal(data.limite as typeof limiteLocal);
+      // Invalidações: estatísticas + limite + gabarito
+      void queryClient.invalidateQueries({ queryKey: qk.cadernoSub(id, "estatisticas") });
+      void queryClient.invalidateQueries({ queryKey: qk.cadernoSub(id, "stats-detalhe") });
+      void queryClient.invalidateQueries({ queryKey: qk.cadernoSub(id, "gabarito") });
+      void queryClient.invalidateQueries({ queryKey: qk.limite() });
+    },
+    onError: (err: unknown) => {
+      const e = err as { isPaywall?: boolean; detail?: { detail?: { mensagem?: string } } };
+      if (e.isPaywall) {
+        setRespostaState((prev) => ({ ...prev, resolvida: false }));
+        const msg = (e.detail as { detail?: { mensagem?: string } } | null)?.detail?.mensagem;
+        setPaywall(msg || "Você atingiu o limite de questões de hoje do plano grátis.");
+      } else {
+        console.error(err);
+        setRespostaState((prev) => ({ ...prev, resolvida: false }));
+      }
+    },
+  });
 
   async function resolverQuestao() {
     if (!selecionada || !questao || !caderno) return;
     const tempo_segundos = Math.round((Date.now() - startedAt.current) / 1000);
-    setResolvida(true);
-    try {
-      const r = await apiFetch(`/api/q/${questao.id}/responder`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resposta: selecionada, tempo_segundos, caderno_id: caderno.id }),
-      });
-      if (r.status === 402) {
-        // Limite diário do plano grátis atingido → mostra paywall.
-        const err = await r.json().catch(() => null);
-        setResolvida(false);
-        setPaywall(err?.detail?.mensagem || "Você atingiu o limite de questões de hoje do plano grátis.");
-        return;
-      }
-      const data = await r.json();
-      setAcertou(data.acertou);
-      if (data.limite) setLimite(data.limite);
-      carregarStatsCaderno();
-    } catch (e) {
-      console.error(e);
-    }
+    setRespostaQid(questao.id);
+    setRespostaState((prev) => ({ ...prev, resolvida: true }));
+    responderMutation.mutate({
+      qid: questao.id,
+      resposta: selecionada,
+      tempo_segundos,
+      caderno_id: caderno.id,
+    });
   }
+
+  // ─── Mutation: favoritar ───
+  const favoritarMutation = useMutation({
+    mutationFn: async (qid: number) => {
+      const r = await apiFetch(`/api/q/${qid}/favoritar`, { method: "POST" });
+      return r.json() as Promise<{ favorita: boolean }>;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.favoritas() });
+    },
+    onError: (err) => {
+      console.error(err);
+      // Sem rollback: a query refetchará o estado real do servidor
+    },
+  });
+
+  const toggleFavorita = useCallback(() => {
+    if (!currentQid) return;
+    favoritarMutation.mutate(currentQid);
+  }, [currentQid, favoritarMutation]);
+
+  const annotations = useQuestionAnnotations(caderno?.id ?? null, currentQid ?? null);
 
   async function mudarIndice(proximoIdx: number) {
     if (!caderno) return;
     await annotations.flush();
     const novo = Math.max(0, Math.min(caderno.total - 1, proximoIdx));
+    startedAt.current = Date.now();
+    setRespostaQid(null); // reseta estado de resposta para a nova questão
     setIdx(novo);
   }
 
@@ -236,7 +278,9 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     Escape: () => setCanvasActive(false),
   }, { enabled: !calculatorOpen });
 
-  if (!caderno) return <div className="p-8 text-fg-muted">Carregando caderno…</div>;
+  // ─── Skeleton somente no carregamento inicial do caderno ───
+  if (cadernoLoading || !caderno) return <div className="p-8 text-fg-muted">Carregando caderno…</div>;
+  // Questão: keepPreviousData garante que a anterior fica visível enquanto a nova carrega
   if (!questao) return <div className="p-8 text-fg-muted">Carregando questão {idx + 1} de {caderno.total}…</div>;
 
   const taxa = stats.resolvidas > 0 ? Math.round((stats.acertos / stats.resolvidas) * 100) : 0;
@@ -477,7 +521,10 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                       selected={selecionada === alt.letra}
                       disabled={resolvida}
                       struck={isStruck({ type: "alternative", id: alt.id })}
-                      onSelect={() => setSelecionada(alt.letra)}
+                      onSelect={() => {
+                        setRespostaQid(currentQid ?? null);
+                        setRespostaState((prev) => ({ ...prev, selecionada: alt.letra }));
+                      }}
                       onToggleStrike={() => annotations.toggleStrike({ type: "alternative", id: alt.id })}
                       className={`w-full text-left flex items-start gap-3 px-3 py-2 rounded border transition ${
                         isCorreta ? "border-success bg-success/10" :
@@ -702,16 +749,13 @@ interface StatsDetalhe {
 }
 
 function EstatisticasTab({ cadernoId }: { cadernoId: number }) {
-  const [data, setData] = useState<StatsDetalhe | null>(null);
+  const { data, isPending } = useQuery<StatsDetalhe>({
+    queryKey: qk.cadernoSub(cadernoId, "stats-detalhe"),
+    queryFn: () => apiJson(`/api/q/cadernos/${cadernoId}/stats-detalhe`),
+    staleTime: 30_000,
+  });
 
-  useEffect(() => {
-    apiFetch(`/api/q/cadernos/${cadernoId}/stats-detalhe`)
-      .then((r) => r.json())
-      .then(setData)
-      .catch(console.error);
-  }, [cadernoId]);
-
-  if (!data) return <div className="p-8 text-fg-muted">Carregando estatísticas…</div>;
+  if (isPending || !data) return <div className="p-8 text-fg-muted">Carregando estatísticas…</div>;
 
   const progresso = data.questoes_total > 0 ? Math.round((data.resolvidas / data.questoes_total) * 100) : 0;
 
@@ -867,15 +911,14 @@ interface IndiceItem {
 function IndiceTab({ cadernoId, onAbrir, idxAtual }: {
   cadernoId: number; onAbrir: (n: number) => void; idxAtual: number;
 }) {
-  const [items, setItems] = useState<IndiceItem[]>([]);
   const [filtro, setFiltro] = useState("");
 
-  useEffect(() => {
-    apiFetch(`/api/q/cadernos/${cadernoId}/indice`)
-      .then((r) => r.json())
-      .then((d) => setItems(d.items || []))
-      .catch(console.error);
-  }, [cadernoId]);
+  const { data } = useQuery<{ items: IndiceItem[] }>({
+    queryKey: qk.cadernoSub(cadernoId, "indice"),
+    queryFn: () => apiJson(`/api/q/cadernos/${cadernoId}/indice`),
+    staleTime: 5 * 60 * 1000,
+  });
+  const items = data?.items ?? [];
 
   const filtrados = filtro
     ? items.filter((i) =>
@@ -945,14 +988,12 @@ interface GabaritoItem {
 }
 
 function GabaritoTab({ cadernoId }: { cadernoId: number }) {
-  const [items, setItems] = useState<GabaritoItem[]>([]);
-
-  useEffect(() => {
-    apiFetch(`/api/q/cadernos/${cadernoId}/gabarito`)
-      .then((r) => r.json())
-      .then((d) => setItems(d.items || []))
-      .catch(console.error);
-  }, [cadernoId]);
+  const { data } = useQuery<{ items: GabaritoItem[] }>({
+    queryKey: qk.cadernoSub(cadernoId, "gabarito"),
+    queryFn: () => apiJson(`/api/q/cadernos/${cadernoId}/gabarito`),
+    staleTime: 30_000,
+  });
+  const items = data?.items ?? [];
 
   function corDe(g: string | null) {
     if (!g) return "text-fg-faint";
