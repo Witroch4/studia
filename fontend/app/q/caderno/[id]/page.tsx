@@ -11,7 +11,7 @@ import { QuestionCanvasOverlay } from "./components/QuestionCanvasOverlay";
 import { ScientificCalculator } from "./components/ScientificCalculator";
 import { StrikableAlternative } from "./components/StrikableAlternative";
 import QuestionHtml from "../../../components/QuestionHtml";
-import { apiFetch, apiJson } from "@/lib/api";
+import { apiFetch, apiJson, apiPost } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
 
 interface Alternativa {
@@ -221,18 +221,30 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     });
   }
 
-  // ─── Mutation: favoritar ───
+  // ─── Mutation: favoritar (com optimistic update) ───
   const favoritarMutation = useMutation({
-    mutationFn: async (qid: number) => {
-      const r = await apiFetch(`/api/q/${qid}/favoritar`, { method: "POST" });
-      return r.json() as Promise<{ favorita: boolean }>;
+    mutationFn: (qid: number) => apiPost<{ favorita: boolean }>(`/api/q/${qid}/favoritar`),
+    onMutate: async (qid) => {
+      await queryClient.cancelQueries({ queryKey: qk.favoritas() });
+      const prev = queryClient.getQueryData<{ ids: number[] }>(qk.favoritas());
+      queryClient.setQueryData<{ ids: number[] }>(qk.favoritas(), (old) => {
+        const currentIds = old?.ids ?? [];
+        const isAlreadyFav = currentIds.includes(qid);
+        return {
+          ids: isAlreadyFav
+            ? currentIds.filter((id) => id !== qid)
+            : [...currentIds, qid],
+        };
+      });
+      return { prev };
     },
-    onSuccess: () => {
+    onError: (_e, _qid, ctx) => {
+      if (ctx?.prev !== undefined) {
+        queryClient.setQueryData(qk.favoritas(), ctx.prev);
+      }
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: qk.favoritas() });
-    },
-    onError: (err) => {
-      console.error(err);
-      // Sem rollback: a query refetchará o estado real do servidor
     },
   });
 
