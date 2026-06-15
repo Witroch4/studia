@@ -550,7 +550,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               </button>
             )}
 
-            {resolvida && (
+            {resolvida && acertou !== null && (
               <div className={`p-3 rounded text-sm font-medium ${
                 acertou ? "bg-success/15 border border-success/40 text-success" :
                 "bg-error/15 border border-error/40 text-error"
