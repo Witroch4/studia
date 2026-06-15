@@ -19,7 +19,11 @@ STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 STRIPE_PRICE_ID = os.getenv("STRIPE_PRICE_ID", "")
+STRIPE_PRICE_ID_ANUAL = os.getenv("STRIPE_PRICE_ID_ANUAL", "")
 PRECO_LABEL = os.getenv("STRIPE_PRICE_LABEL", "R$ 29,90/mês")
+PRECO_LABEL_ANUAL = os.getenv("STRIPE_PRICE_LABEL_ANUAL", "R$ 298,80/ano")
+# Versão da API que suporta ui_mode="elements".
+STRIPE_API_VERSION = os.getenv("STRIPE_API_VERSION", "2026-05-27.dahlia")
 
 
 class StripeError(RuntimeError):
@@ -45,7 +49,10 @@ async def stripe_request(method: str, path: str, data: dict[str, Any] | None = N
             url,
             data={k: str(v) for k, v in (data or {}).items()},
             auth=(STRIPE_SECRET_KEY, ""),
-            headers={"Accept": "application/json"},
+            headers={
+                "Accept": "application/json",
+                **({"Stripe-Version": STRIPE_API_VERSION} if STRIPE_API_VERSION else {}),
+            },
         )
     if resp.status_code >= 400:
         try:
