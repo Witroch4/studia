@@ -18,8 +18,10 @@ from stripe_client import STRIPE_SECRET_KEY, stripe_request
 
 PRODUTO_NOME = "studIA Pro"
 VALOR_CENTAVOS = 2990
+VALOR_CENTAVOS_ANUAL = 29880
 MOEDA = "brl"
 INTERVALO = "month"
+INTERVALO_ANUAL = "year"
 EVENTOS = [
     "checkout.session.completed",
     "customer.subscription.created",
@@ -64,6 +66,30 @@ async def _achar_ou_criar_preco(product_id: str) -> dict:
     )
 
 
+async def _achar_ou_criar_preco_anual(product_id: str) -> dict:
+    prices = await stripe_request("GET", f"/prices?product={product_id}&active=true&limit=100")
+    for pr in prices.get("data", []):
+        rec = pr.get("recurring") or {}
+        if (
+            pr.get("unit_amount") == VALOR_CENTAVOS_ANUAL
+            and pr.get("currency") == MOEDA
+            and rec.get("interval") == INTERVALO_ANUAL
+        ):
+            return pr
+    return await stripe_request(
+        "POST",
+        "/prices",
+        {
+            "product": product_id,
+            "unit_amount": str(VALOR_CENTAVOS_ANUAL),
+            "currency": MOEDA,
+            "recurring[interval]": INTERVALO_ANUAL,
+            "nickname": "studIA Pro Anual",
+            "metadata[app]": "studia",
+        },
+    )
+
+
 async def _achar_ou_criar_webhook(url: str) -> tuple[dict, bool]:
     hooks = await stripe_request("GET", "/webhook_endpoints?limit=100")
     for h in hooks.get("data", []):
@@ -87,8 +113,10 @@ async def main() -> int:
 
     produto = await _achar_ou_criar_produto()
     preco = await _achar_ou_criar_preco(produto["id"])
+    preco_anual = await _achar_ou_criar_preco_anual(produto["id"])
     print(f"# produto: {produto['id']} ({produto.get('name')})", file=sys.stderr)
     print(f"STRIPE_PRICE_ID={preco['id']}")
+    print(f"STRIPE_PRICE_ID_ANUAL={preco_anual['id']}")
 
     if not args.skip_webhook:
         hook, criado = await _achar_ou_criar_webhook(args.webhook_url)
