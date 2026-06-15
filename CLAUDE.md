@@ -56,9 +56,15 @@ cd fontend && pnpm install && pnpm dev
 
 ```bash
 cd fontend && pnpm lint    # ESLint (Next.js + TypeScript)
+
+# Backend (pytest + pytest-asyncio + aiosqlite; testes em backend/tests/)
+cd backend && python -m pytest tests/ -v
 ```
 
-No test suites exist yet. Backend has no linter configured.
+O backend tem suíte de testes em `backend/tests/` (pytest, fixtures em
+`tests/conftest.py`, banco de teste via `TEST_DATABASE_URL`), incluindo um teste
+de drift de migrations (`test_alembic_no_drift.py`). Não há linter configurado no
+backend.
 
 ## Target Stack (Full Vision)
 
