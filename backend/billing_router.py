@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import CurrentUser, require_user
 from database import get_db
-from entitlements import assinatura_ativa, resumo_limite
+from entitlements import acesso_pro_ativo, assinatura_ativa, resumo_limite, voucher_pro_ativo
 from models import Assinatura
 from stripe_client import (
     PRECO_LABEL,
@@ -54,12 +54,14 @@ async def billing_status(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     ass = await assinatura_ativa(db, user.id)
-    ilimitado = user.is_admin or ass is not None
+    voucher_ate = await voucher_pro_ativo(db, user.id)
+    ilimitado = user.is_admin or ass is not None or voucher_ate is not None
     return {
         "plano": "pro" if ilimitado else "free",
         "is_admin": user.is_admin,
         "ilimitado": ilimitado,
         "assinatura": _assinatura_dict(ass) if ass else None,
+        "voucher_pro_ate": voucher_ate.isoformat() if voucher_ate else None,
         "limite": await resumo_limite(db, user),
         "publishable_key": STRIPE_PUBLISHABLE_KEY,
         "preco_label": PRECO_LABEL,
@@ -97,7 +99,7 @@ async def criar_checkout(
 ) -> dict[str, Any]:
     if not stripe_configurado():
         raise HTTPException(503, "billing não configurado (faltam chaves Stripe)")
-    if user.is_admin or await assinatura_ativa(db, user.id):
+    if user.is_admin or await acesso_pro_ativo(db, user.id):
         raise HTTPException(400, "você já tem acesso ilimitado")
 
     try:

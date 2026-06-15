@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiJson, apiPost, ApiError } from "@/lib/api";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/queryKeys";
 
 type BillingStatus = {
@@ -23,6 +23,7 @@ type BillingStatus = {
     restantes: number | null;
     motivo: string;
   };
+  voucher_pro_ate: string | null;
   publishable_key: string;
   preco_label: string;
   stripe_configurado: boolean;
@@ -41,6 +42,11 @@ function AssinarInner() {
 
   const [checkingOut, setCheckingOut] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  const queryClient = useQueryClient();
+  const [cupom, setCupom] = useState("");
+  const [resgatando, setResgatando] = useState(false);
+  const [erroCupom, setErroCupom] = useState<string | null>(null);
 
   // Após voltar do checkout (sucesso), o webhook pode demorar 1-2s — repolla
   // até plano virar "pro" (máx ~20s com intervalo de 4s), então para.
@@ -68,6 +74,23 @@ function AssinarInner() {
     } catch (e) {
       setCheckingOut(false);
       setErro(e instanceof ApiError ? e.message : "Não foi possível iniciar o checkout.");
+    }
+  }
+
+  async function resgatarCupom() {
+    if (!cupom.trim()) return;
+    setErroCupom(null);
+    setResgatando(true);
+    try {
+      await apiPost("/api/vouchers/resgatar", { codigo: cupom.trim() });
+      setCupom("");
+      // Revalida billing (vira "pro"/ilimitado) e o contador de limite.
+      await queryClient.invalidateQueries({ queryKey: qk.billing() });
+      await queryClient.invalidateQueries({ queryKey: qk.limite() });
+    } catch (e) {
+      setErroCupom(e instanceof ApiError ? e.message : "Não foi possível resgatar o cupom.");
+    } finally {
+      setResgatando(false);
     }
   }
 
@@ -112,6 +135,11 @@ function AssinarInner() {
             <p className="mt-4 text-xs text-fg-faint">
               {status.assinatura.cancel_at_period_end ? "Acesso até " : "Renova em "}
               {new Date(status.assinatura.current_period_end).toLocaleDateString("pt-BR")}
+            </p>
+          )}
+          {!status?.assinatura && status?.voucher_pro_ate && (
+            <p className="mt-4 text-xs text-fg-faint">
+              Acesso via cupom até {new Date(status.voucher_pro_ate).toLocaleDateString("pt-BR")}
             </p>
           )}
         </div>
@@ -160,6 +188,39 @@ function AssinarInner() {
           <p className="mt-3 text-center text-xs text-fg-faint">
             Pagamento seguro via Stripe · cancele quando quiser
           </p>
+
+          {/* Resgate de cupom — libera PRO sem pagamento */}
+          <div className="mt-7 border-t border-border-dark pt-5">
+            <label htmlFor="cupom" className="text-xs font-medium text-fg-muted flex items-center gap-1">
+              <span className="material-symbols-outlined text-[16px] text-secondary">redeem</span>
+              Tem um cupom?
+            </label>
+            <div className="mt-2 flex gap-2">
+              <input
+                id="cupom"
+                type="text"
+                value={cupom}
+                placeholder="PRO-XXXX-XXXX"
+                onChange={(e) => setCupom(e.target.value.toUpperCase())}
+                onKeyDown={(e) => { if (e.key === "Enter") void resgatarCupom(); }}
+                className="flex-1 rounded-lg bg-page border border-border-dark px-3 py-2 text-sm text-fg-strong font-mono uppercase placeholder:font-sans placeholder:normal-case"
+              />
+              <button
+                onClick={resgatarCupom}
+                disabled={resgatando || !cupom.trim()}
+                className="flex items-center justify-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:opacity-90 disabled:opacity-50 transition"
+              >
+                {resgatando && <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>}
+                {resgatando ? "…" : "Aplicar"}
+              </button>
+            </div>
+            {erroCupom && (
+              <div className="mt-2 flex items-start gap-2 rounded-lg border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
+                <span className="material-symbols-outlined text-[16px]">error</span>
+                <span>{erroCupom}</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </main>

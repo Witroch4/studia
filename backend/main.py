@@ -196,6 +196,10 @@ app.include_router(q_router)
 from billing_router import router as billing_router  # noqa: E402
 app.include_router(billing_router)
 
+# Vouchers PRO (resgate sem Stripe)
+from voucher_router import router as voucher_router  # noqa: E402
+app.include_router(voucher_router)
+
 # Auth: handoff Better Auth → JWT + logout
 from auth_router import router as auth_router  # noqa: E402
 app.include_router(auth_router)

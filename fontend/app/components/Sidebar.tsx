@@ -30,6 +30,8 @@ const navItems: NavItem[] = [
   { href: "/concorrencia", label: "Concorrência", icon: "leaderboard" },
   // Jobs IA: processamento de PDFs (Gemini Batch) — área de administração.
   { href: "/jobs", label: "Jobs IA", icon: "monitoring", adminOnly: true },
+  // Vouchers PRO: geração e controle de resgates — área de administração.
+  { href: "/admin/vouchers", label: "Vouchers", icon: "redeem", adminOnly: true },
   { href: "/em-breve?f=Planejamento", label: "Planejamento", icon: "calendar_month" },
   { href: "/em-breve?f=Revisões", label: "Revisões", icon: "autorenew" },
   { href: "/em-breve?f=Histórico", label: "Histórico", icon: "history" },

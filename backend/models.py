@@ -576,6 +576,35 @@ class Assinatura(Base):
     )
 
 
+# ─── Vouchers PRO (resgate sem Stripe) ──────────────────────────
+
+
+class Voucher(Base):
+    """Código de cupom que concede acesso PRO por `dias` (sem pagamento Stripe).
+
+    Gerado pelo admin, resgatável UMA vez por UMA conta. Ao resgatar gravamos a
+    conta (`resgatado_por_uid`) e a data PRO acumulada da conta (`pro_ate`), que
+    estende a partir da data mais distante já vigente (Stripe ou voucher anterior).
+    Disponível = `resgatado_por_uid IS NULL`. O acesso vale enquanto `pro_ate > now`.
+    """
+
+    __tablename__ = "vouchers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    dias: Mapped[int] = mapped_column(Integer, default=365)
+    criado_por_uid: Mapped[str] = mapped_column(String(64), index=True)
+    resgatado_por_uid: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    resgatado_em: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    pro_ate: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
 # ─── Estatísticas e fórum do TC por questão ─────────────────────
 
 

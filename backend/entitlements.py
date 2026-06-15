@@ -15,7 +15,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Assinatura, Resolucao
+from models import Assinatura, Resolucao, Voucher
 
 LIMITE_DIARIO_GRATIS = 10
 STATUS_ATIVOS = ("active", "trialing")
@@ -55,6 +55,28 @@ async def assinatura_ativa(db: AsyncSession, uid: str) -> Optional[Assinatura]:
     return row
 
 
+async def voucher_pro_ativo(db: AsyncSession, uid: str) -> Optional[datetime]:
+    """Maior `pro_ate` futuro entre os vouchers resgatados pela conta (ou None)."""
+    agora = datetime.now(_UTC)
+    pro_ate = (
+        await db.execute(
+            select(func.max(Voucher.pro_ate)).where(Voucher.resgatado_por_uid == uid)
+        )
+    ).scalar_one_or_none()
+    if pro_ate is None:
+        return None
+    if pro_ate.tzinfo is None:
+        pro_ate = pro_ate.replace(tzinfo=_UTC)
+    return pro_ate if pro_ate > agora else None
+
+
+async def acesso_pro_ativo(db: AsyncSession, uid: str) -> bool:
+    """True se a conta tem PRO por assinatura Stripe ativa OU voucher vigente."""
+    if await assinatura_ativa(db, uid):
+        return True
+    return await voucher_pro_ativo(db, uid) is not None
+
+
 async def contagem_questoes_hoje(db: AsyncSession, uid: str) -> int:
     """Quantas questões DISTINTAS o usuário já resolveu hoje."""
     inicio = inicio_do_dia_utc_naive()
@@ -92,6 +114,9 @@ async def resumo_limite(db: AsyncSession, user) -> dict:
     if await assinatura_ativa(db, user.id):
         return {"ilimitado": True, "motivo": "assinatura", "usado": 0,
                 "limite": LIMITE_DIARIO_GRATIS, "restantes": None}
+    if await voucher_pro_ativo(db, user.id):
+        return {"ilimitado": True, "motivo": "voucher", "usado": 0,
+                "limite": LIMITE_DIARIO_GRATIS, "restantes": None}
     usado = await contagem_questoes_hoje(db, user.id)
     return {
         "ilimitado": False,
@@ -107,7 +132,7 @@ async def garantir_pode_resolver(db: AsyncSession, user, questao_id: int) -> Non
     uma questão NOVA hoje. Admin/assinante passam direto."""
     if user.is_admin:
         return
-    if await assinatura_ativa(db, user.id):
+    if await acesso_pro_ativo(db, user.id):
         return
     if await _questao_ja_contada_hoje(db, user.id, questao_id):
         return  # repetir questão já contada não consome nova cota
