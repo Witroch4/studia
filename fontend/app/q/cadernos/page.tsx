@@ -1,9 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { apiFetch, apiJson } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
 
 /**
  * /q/cadernos — "Minhas pastas", hierarquia estilo TecConcursos:
@@ -78,15 +80,12 @@ function PastasView({ pastas }: { pastas: PastaRow[] }) {
 }
 
 function CadernosView({ pasta }: { pasta: string }) {
-  const [cadernos, setCadernos] = useState<CadernoRow[] | null>(null);
   const [desempenho, setDesempenho] = useState<Record<number, Desempenho | "loading">>({});
 
-  useEffect(() => {
-    apiFetch(`/api/q/cadernos?pasta=${encodeURIComponent(pasta)}`)
-      .then((r) => r.json())
-      .then(setCadernos)
-      .catch(console.error);
-  }, [pasta]);
+  const { data: cadernos, isPending } = useQuery({
+    queryKey: qk.cadernos(pasta),
+    queryFn: () => apiJson<CadernoRow[]>(`/api/q/cadernos?pasta=${encodeURIComponent(pasta)}`),
+  });
 
   async function carregarDesempenho(id: number) {
     setDesempenho((d) => ({ ...d, [id]: "loading" }));
@@ -104,12 +103,12 @@ function CadernosView({ pasta }: { pasta: string }) {
     }
   }
 
-  if (cadernos === null) return <p className="text-sm text-fg-faint">Carregando…</p>;
-  if (cadernos.length === 0) return <p className="text-sm text-fg-faint italic">Nenhum caderno nesta pasta.</p>;
+  if (isPending && !cadernos) return <p className="text-sm text-fg-faint">Carregando…</p>;
+  if (!cadernos || cadernos.length === 0) return <p className="text-sm text-fg-faint italic">Nenhum caderno nesta pasta.</p>;
 
   return (
     <div className="space-y-2">
-      {cadernos.map((c) => {
+      {cadernos.map((c: CadernoRow) => {
         const d = desempenho[c.id];
         return (
           <div
@@ -150,14 +149,11 @@ function CadernosView({ pasta }: { pasta: string }) {
 function MinhasPastasInner() {
   const searchParams = useSearchParams();
   const pastaParam = searchParams.has("pasta") ? (searchParams.get("pasta") ?? "") : null;
-  const [pastas, setPastas] = useState<PastaRow[]>([]);
 
-  useEffect(() => {
-    apiFetch("/api/q/pastas")
-      .then((r) => r.json())
-      .then(setPastas)
-      .catch(console.error);
-  }, []);
+  const { data: pastas = [], isPending: pastasPending } = useQuery({
+    queryKey: qk.pastas(),
+    queryFn: () => apiJson<PastaRow[]>("/api/q/pastas"),
+  });
 
   const tituloPasta = pastaParam === null ? null : pastaParam === "" ? SEM_CLASSIFICACAO : pastaParam;
 
@@ -188,7 +184,15 @@ function MinhasPastasInner() {
           </Link>
         </div>
 
-        {pastaParam === null ? <PastasView pastas={pastas} /> : <CadernosView pasta={pastaParam} />}
+        {pastaParam === null ? (
+          pastasPending && pastas.length === 0 ? (
+            <p className="text-sm text-fg-faint">Carregando…</p>
+          ) : (
+            <PastasView pastas={pastas} />
+          )
+        ) : (
+          <CadernosView pasta={pastaParam} />
+        )}
       </main>
     </div>
   );

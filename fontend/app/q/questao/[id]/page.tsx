@@ -1,10 +1,12 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { useHotkeys, ATALHOS_TC } from "../../../hooks/useHotkeys";
 import QuestionHtml from "../../../components/QuestionHtml";
-import { apiFetch } from "@/lib/api";
+import { apiJson } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
 
 /**
  * /q/questao/[id] — Resolver questão única.
@@ -41,19 +43,16 @@ interface Questao {
 export default function QuestaoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const [q, setQ] = useState<Questao | null>(null);
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [resolvida, setResolvida] = useState(false);
   const [favorita, setFavorita] = useState(false);
   const [fontSize, setFontSize] = useState(16);
   const [showAtalhos, setShowAtalhos] = useState(false);
 
-  useEffect(() => {
-    apiFetch(`/api/q/${id}`)
-      .then((r) => r.json())
-      .then(setQ)
-      .catch(console.error);
-  }, [id]);
+  const { data: q, isPending } = useQuery({
+    queryKey: qk.questao(id),
+    queryFn: () => apiJson<Questao>(`/api/q/${id}`),
+  });
 
   useHotkeys({
     ArrowLeft: () => router.push(`/q/questao/${Number(id) - 1}`),
@@ -85,7 +84,8 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
     "?": () => setShowAtalhos(true),
   });
 
-  if (!q) return <div className="p-8 text-fg-muted">Carregando…</div>;
+  if (isPending && !q) return <div className="p-8 text-fg-muted">Carregando…</div>;
+  if (!q) return null;
 
   return (
     <div
