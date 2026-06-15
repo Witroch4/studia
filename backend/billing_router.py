@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +23,9 @@ from entitlements import acesso_pro_ativo, assinatura_ativa, resumo_limite, vouc
 from models import Assinatura
 from stripe_client import (
     PRECO_LABEL,
+    PRECO_LABEL_ANUAL,
     STRIPE_PRICE_ID,
+    STRIPE_PRICE_ID_ANUAL,
     STRIPE_PUBLISHABLE_KEY,
     StripeError,
     stripe_configurado,
@@ -92,8 +95,13 @@ async def _garantir_customer(db: AsyncSession, user: CurrentUser) -> str:
     return cid
 
 
+class CheckoutBody(BaseModel):
+    intervalo: str = "month"  # "month" | "year"
+
+
 @router.post("/checkout")
 async def criar_checkout(
+    body: CheckoutBody = CheckoutBody(),
     user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -102,28 +110,36 @@ async def criar_checkout(
     if user.is_admin or await acesso_pro_ativo(db, user.id):
         raise HTTPException(400, "você já tem acesso ilimitado")
 
+    intervalo = "year" if body.intervalo == "year" else "month"
+    price = STRIPE_PRICE_ID_ANUAL if intervalo == "year" else STRIPE_PRICE_ID
+    if not price:
+        raise HTTPException(503, f"plano {intervalo} não configurado")
+
     try:
         customer_id = await _garantir_customer(db, user)
         session = await stripe_request(
             "POST",
             "/checkout/sessions",
             {
+                "ui_mode": "elements",
                 "mode": "subscription",
-                "line_items[0][price]": STRIPE_PRICE_ID,
+                "line_items[0][price]": price,
                 "line_items[0][quantity]": "1",
                 "customer": customer_id,
                 "client_reference_id": user.id,
                 "metadata[usuario_uid]": user.id,
                 "subscription_data[metadata][usuario_uid]": user.id,
-                "allow_promotion_codes": "true",
-                "success_url": f"{FRONTEND_URL}/assinar?status=sucesso&session_id={{CHECKOUT_SESSION_ID}}",
-                "cancel_url": f"{FRONTEND_URL}/assinar?status=cancelado",
+                "saved_payment_method_options[payment_method_save]": "enabled",
+                "return_url": (
+                    f"{FRONTEND_URL}/assinar?status=sucesso"
+                    "&session_id={CHECKOUT_SESSION_ID}"
+                ),
             },
         )
     except StripeError as exc:
         raise HTTPException(502, f"Stripe: {exc.message}") from exc
 
-    return {"url": session["url"], "id": session["id"]}
+    return {"client_secret": session["client_secret"], "intervalo": intervalo}
 
 
 async def _upsert_sub(
