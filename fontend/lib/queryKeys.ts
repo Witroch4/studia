@@ -14,4 +14,13 @@ export const qk = {
   coletarJobs: () => ["q", "coletar", "jobs"] as const,
   jobs: () => ["jobs"] as const,
   batchJobs: () => ["batch-jobs"] as const,
+  // Fase 2 — detalhe de caderno (singular "caderno" p/ não colidir com a lista "cadernos")
+  caderno: (id: string | number) => ["q", "caderno", String(id)] as const,
+  cadernoSub: (id: string | number, sub: string) => ["q", "caderno", String(id), sub] as const, // indice|gabarito|estatisticas|stats-detalhe
+  questao: (id: string | number) => ["q", "questao", String(id)] as const,
+  favoritas: () => ["q", "favoritas"] as const,
+  limite: () => ["q", "limite"] as const,
+  categoriasArvore: () => ["q", "categorias-arvore"] as const,
+  count: (filtros: unknown) => ["q", "count", filtros] as const,
+  concursos: () => ["concursos"] as const,
 };
