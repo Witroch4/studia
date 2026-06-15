@@ -170,12 +170,23 @@ export default function DisciplinasPage() {
 }
 
 function DisciplinaCard({ disc, colorIdx }: { disc: DisciplinaData; colorIdx: number }) {
+  const queryClient = useQueryClient();
   const colors = DISC_COLORS[colorIdx % DISC_COLORS.length];
 
   return (
     <Link
       href={`/disciplinas/${disc.slug}`}
       className="bg-surface-dark rounded-xl border border-border-dark shadow-sm hover:shadow-md hover:border-primary/50 transition-all group flex flex-col"
+      onMouseEnter={() => queryClient.prefetchQuery({
+        queryKey: qk.disciplina(disc.slug),
+        queryFn: () => apiJson(`/api/disciplinas/${disc.slug}`),
+        staleTime: 30_000,
+      })}
+      onFocus={() => queryClient.prefetchQuery({
+        queryKey: qk.disciplina(disc.slug),
+        queryFn: () => apiJson(`/api/disciplinas/${disc.slug}`),
+        staleTime: 30_000,
+      })}
     >
       <div className="p-6 flex-1">
         <div className="flex justify-between items-start mb-4">

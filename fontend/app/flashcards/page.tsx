@@ -204,14 +204,23 @@ function AllDeckCard({ total, revisar }: { total: number; revisar: number }) {
 }
 
 function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: number; onDelete: (id: string) => void }) {
+  const queryClient = useQueryClient();
   const colors = DECK_COLORS[colorIdx % DECK_COLORS.length];
   const isAllDone = deck.revisar === 0;
   const [menuOpen, setMenuOpen] = useState(false);
 
+  function prefetchDeck() {
+    queryClient.prefetchQuery({
+      queryKey: qk.deckCards(deck.id),
+      queryFn: () => apiJson(`/api/flashcards/${deck.id}`),
+      staleTime: 30_000,
+    });
+  }
+
   return (
     <div className="relative bg-surface-dark rounded-xl border border-border-dark shadow-sm hover:shadow-md hover:border-primary/50 transition-all group flex flex-col h-full">
       {/* Corpo clicável */}
-      <Link href={`/flashcards/${deck.id}`} className="p-6 grow block">
+      <Link href={`/flashcards/${deck.id}`} className="p-6 grow block" onMouseEnter={prefetchDeck} onFocus={prefetchDeck}>
         <div className="flex justify-between items-start mb-4">
           <div className={`h-10 w-10 rounded-lg ${colors.iconBg} flex items-center justify-center ${colors.iconColor}`}>
             <span className="material-symbols-outlined">{colors.icon}</span>

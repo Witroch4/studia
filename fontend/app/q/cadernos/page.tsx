@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, apiJson } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
 
@@ -80,6 +80,7 @@ function PastasView({ pastas }: { pastas: PastaRow[] }) {
 }
 
 function CadernosView({ pasta }: { pasta: string }) {
+  const queryClient = useQueryClient();
   const [desempenho, setDesempenho] = useState<Record<number, Desempenho | "loading">>({});
 
   const { data: cadernos, isPending } = useQuery({
@@ -117,7 +118,20 @@ function CadernosView({ pasta }: { pasta: string }) {
           >
             <span className="text-fg-faint">🎓</span>
             <div className="flex-1 min-w-0">
-              <Link href={`/q/caderno/${c.id}`} className="text-sm font-medium text-fg hover:text-primary hover:underline truncate block">
+              <Link
+                href={`/q/caderno/${c.id}`}
+                className="text-sm font-medium text-fg hover:text-primary hover:underline truncate block"
+                onMouseEnter={() => queryClient.prefetchQuery({
+                  queryKey: qk.caderno(c.id),
+                  queryFn: () => apiJson(`/api/q/cadernos/${c.id}`),
+                  staleTime: 30_000,
+                })}
+                onFocus={() => queryClient.prefetchQuery({
+                  queryKey: qk.caderno(c.id),
+                  queryFn: () => apiJson(`/api/q/cadernos/${c.id}`),
+                  staleTime: 30_000,
+                })}
+              >
                 {c.nome}
               </Link>
               <div className="text-xs text-fg-faint">
