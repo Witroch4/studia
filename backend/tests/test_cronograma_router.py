@@ -3,6 +3,7 @@ from datetime import date
 
 from conftest import USER_A, USER_B
 from models import CadernoQuestoes
+import cronograma_router as cr
 
 
 async def _caderno(db, owner="user-A", total=120):
@@ -133,3 +134,49 @@ async def test_patch_simulado_resultado(client, db_session, auth_state):
     novo = (await client.get(f"/api/q/cadernos/{cad.id}/cronograma")).json()
     alvo = next(s for s in novo["simulados"] if s["id"] == sid)
     assert alvo["resultado_objetiva"] == 88
+
+
+@pytest.mark.asyncio
+async def test_criar_com_discursivas_usa_ia(client, db_session, auth_state, monkeypatch):
+    auth_state["user"] = USER_A
+    cad = await _caderno(db_session)
+    monkeypatch.setattr(cr, "gerar_temas_discursivas",
+                        lambda materias, n: [f"Tema IA {i}" for i in range(n)])
+    body = (await client.post(f"/api/q/cadernos/{cad.id}/cronograma", json={
+        "data_prova": "2026-08-16", "data_inicio": "2026-05-25",
+        "incluir_discursivas": True, "discursivas_por_semana": 2,
+    })).json()
+    assert len(body["discursivas"]) >= 1
+    assert body["discursivas"][0]["tema"].startswith("Tema IA")
+
+
+@pytest.mark.asyncio
+async def test_ia_indisponivel_nao_bloqueia(client, db_session, auth_state, monkeypatch):
+    auth_state["user"] = USER_A
+    cad = await _caderno(db_session)
+    def _boom(materias, n):
+        raise RuntimeError("gemini down")
+    monkeypatch.setattr(cr, "gerar_temas_discursivas", _boom)
+    r = await client.post(f"/api/q/cadernos/{cad.id}/cronograma", json={
+        "data_prova": "2026-08-16", "data_inicio": "2026-05-25",
+        "incluir_discursivas": True,
+    })
+    assert r.status_code == 200
+    assert r.json()["discursivas"] == []
+
+
+@pytest.mark.asyncio
+async def test_patch_discursiva_status(client, db_session, auth_state, monkeypatch):
+    auth_state["user"] = USER_A
+    cad = await _caderno(db_session)
+    monkeypatch.setattr(cr, "gerar_temas_discursivas", lambda m, n: ["T1", "T2"])
+    body = (await client.post(f"/api/q/cadernos/{cad.id}/cronograma", json={
+        "data_prova": "2026-08-16", "data_inicio": "2026-05-25",
+        "incluir_discursivas": True})).json()
+    did = body["discursivas"][0]["id"]
+    r = await client.patch(f"/api/q/cadernos/{cad.id}/cronograma/discursivas/{did}",
+                           json={"status": "Feita", "nota": 17.5})
+    assert r.status_code == 200
+    novo = (await client.get(f"/api/q/cadernos/{cad.id}/cronograma")).json()
+    alvo = next(d for d in novo["discursivas"] if d["id"] == did)
+    assert alvo["status"] == "Feita" and alvo["nota"] == 17.5

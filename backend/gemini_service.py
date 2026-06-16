@@ -442,3 +442,29 @@ async def chat_stream(
     for chunk in response:
         if chunk.text:
             yield chunk.text
+
+
+def gerar_temas_discursivas(materias: list[str], n: int = 18) -> list[str]:
+    """Sugere `n` temas de discursiva (caso prático) a partir das matérias do caderno.
+
+    Retorna lista de strings. Levanta em caso de falha de IA — o chamador trata.
+    """
+    materias_txt = ", ".join(materias) or "tema geral do concurso"
+    prompt = (
+        "Você é um examinador de concursos. Gere "
+        f"{n} temas de questão DISCURSIVA (caso prático, até 20 linhas) "
+        f"para um candidato que estuda estas matérias: {materias_txt}. "
+        "Cada tema deve ser específico e cobrir um aspecto diferente. "
+        'Responda APENAS um JSON no formato {"temas": ["...", "..."]}.'
+    )
+    client = _get_client()
+    response = client.models.generate_content(
+        model="gemini-3-flash-preview",
+        contents=[prompt],
+        config=types.GenerateContentConfig(
+            temperature=1.0, response_mime_type="application/json"
+        ),
+    )
+    data = json.loads(response.text)
+    temas = data.get("temas", []) if isinstance(data, dict) else []
+    return [str(t).strip() for t in temas if str(t).strip()][:n]

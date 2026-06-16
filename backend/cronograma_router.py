@@ -16,6 +16,10 @@ from models import (
     Cronograma, CronogramaDiscursiva, CronogramaSimulado,
 )
 import cronograma_core as core
+import logging
+from gemini_service import gerar_temas_discursivas
+
+_log = logging.getLogger("cronograma")
 
 router = APIRouter(prefix="/api/q", tags=["cronograma"])
 
@@ -137,6 +141,37 @@ async def _montar_resposta(db: AsyncSession, cad: CadernoQuestoes, c: Cronograma
     }
 
 
+
+async def _materias_do_caderno(db: AsyncSession, cad: CadernoQuestoes) -> list[str]:
+    from models import Questao, Materia
+    ids = cad.question_ids or []
+    if not ids:
+        return []
+    rows = (await db.execute(
+        select(Materia.nome, func.count())
+        .join(Questao, Questao.materia_id == Materia.id)
+        .where(Questao.id.in_(ids))
+        .group_by(Materia.nome).order_by(func.count().desc())
+    )).all()
+    return [nome for nome, _ in rows]
+
+
+async def _popular_discursivas(db: AsyncSession, cad: CadernoQuestoes, c: Cronograma) -> None:
+    """Gera temas via IA e agenda em terças/quintas. Falha de IA não propaga."""
+    from datetime import timedelta
+    try:
+        materias = await _materias_do_caderno(db, cad)
+        temas = gerar_temas_discursivas(materias, n=18)
+    except Exception as e:  # noqa: BLE001
+        _log.warning("IA de discursivas indisponível: %s", e)
+        return
+    fim_1volta = c.data_prova - timedelta(days=c.buffer_dias)
+    agenda = core.agendar_discursivas(temas, c.data_inicio, fim_1volta, c.discursivas_por_semana)
+    for data_, tema in agenda:
+        db.add(CronogramaDiscursiva(cronograma_id=c.id, data=data_, tema=tema,
+                                    tipo="Treino 20 linhas", qtd=1, status="Pendente",
+                                    reescrita=False))
+
 @router.post("/cadernos/{caderno_id}/cronograma")
 async def criar_cronograma(
     caderno_id: int, payload: CronogramaIn,
@@ -156,6 +191,8 @@ async def criar_cronograma(
     if payload.incluir_simulados:
         for s in core.gerar_simulados(payload.data_inicio, payload.data_prova, payload.buffer_dias):
             db.add(CronogramaSimulado(cronograma_id=c.id, **s))
+    if payload.incluir_discursivas:
+        await _popular_discursivas(db, cad, c)
     await db.commit()
     await db.refresh(c)
     return await _montar_resposta(db, cad, c)
@@ -244,6 +281,52 @@ async def patch_simulado(
     await db.commit()
     return {"ok": True}
 
+
+
+
+class DiscursivaPatch(BaseModel):
+    status: Optional[str] = None
+    nota: Optional[float] = None
+    reescrita: Optional[bool] = None
+    observacoes: Optional[str] = None
+
+
+@router.patch("/cadernos/{caderno_id}/cronograma/discursivas/{disc_id}")
+async def patch_discursiva(
+    caderno_id: int, disc_id: int, payload: DiscursivaPatch,
+    user: CurrentUser = Depends(require_user), db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    c = await _get_cron(db, caderno_id, user.id)
+    if not c:
+        raise HTTPException(404, "sem cronograma")
+    d = (await db.execute(
+        select(CronogramaDiscursiva).where(
+            CronogramaDiscursiva.id == disc_id, CronogramaDiscursiva.cronograma_id == c.id
+        )
+    )).scalar_one_or_none()
+    if not d:
+        raise HTTPException(404, "discursiva não encontrada")
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(d, k, v)
+    await db.commit()
+    return {"ok": True}
+
+
+@router.post("/cadernos/{caderno_id}/cronograma/discursivas/regenerar")
+async def regenerar_discursivas(
+    caderno_id: int,
+    user: CurrentUser = Depends(require_user), db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    cad = await _caderno_do_usuario(db, caderno_id, user)
+    c = await _get_cron(db, caderno_id, user.id)
+    if not c:
+        raise HTTPException(404, "sem cronograma")
+    await db.execute(
+        sa_delete(CronogramaDiscursiva).where(CronogramaDiscursiva.cronograma_id == c.id)
+    )
+    await _popular_discursivas(db, cad, c)
+    await db.commit()
+    return await _montar_resposta(db, cad, c)
 
 @router.delete("/cadernos/{caderno_id}/cronograma")
 async def deletar_cronograma(
