@@ -103,3 +103,33 @@ async def test_put_liga_simulados_gera_marcos(client, db_session, auth_state):
         "data_prova": "2026-08-16", "data_inicio": "2026-05-25",
         "incluir_simulados": False})).json()
     assert body2["simulados"] == []
+
+
+@pytest.mark.asyncio
+async def test_recalcular_rebaseline(client, db_session, auth_state):
+    auth_state["user"] = USER_A
+    cad = await _caderno(db_session)
+    await client.post(f"/api/q/cadernos/{cad.id}/cronograma",
+                      json={"data_prova": "2026-08-16", "data_inicio": "2026-06-01"})
+    r = await client.post(f"/api/q/cadernos/{cad.id}/cronograma/recalcular")
+    assert r.status_code == 200
+    assert r.json()["config"]["rebaseline_em"] is not None
+
+
+@pytest.mark.asyncio
+async def test_patch_simulado_resultado(client, db_session, auth_state):
+    auth_state["user"] = USER_A
+    cad = await _caderno(db_session)
+    body = (await client.post(f"/api/q/cadernos/{cad.id}/cronograma",
+            json={"data_prova": "2026-08-16", "data_inicio": "2026-05-25",
+                  "incluir_simulados": True})).json()
+    assert body["simulados"], "deve ter marcos de simulado"
+    sid = body["simulados"][0]["id"]
+    r = await client.patch(
+        f"/api/q/cadernos/{cad.id}/cronograma/simulados/{sid}",
+        json={"resultado_objetiva": 88, "observacoes": "ok"},
+    )
+    assert r.status_code == 200
+    novo = (await client.get(f"/api/q/cadernos/{cad.id}/cronograma")).json()
+    alvo = next(s for s in novo["simulados"] if s["id"] == sid)
+    assert alvo["resultado_objetiva"] == 88

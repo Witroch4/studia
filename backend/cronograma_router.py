@@ -201,6 +201,50 @@ async def atualizar_cronograma(
     return await _montar_resposta(db, cad, c)
 
 
+@router.post("/cadernos/{caderno_id}/cronograma/recalcular")
+async def recalcular_cronograma(
+    caderno_id: int,
+    user: CurrentUser = Depends(require_user), db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Re-ancora o plano em hoje: a curva de meta passa a partir de hoje com o
+    restante das questões. Mantém datas de prova/folgas/buffer."""
+    cad = await _caderno_do_usuario(db, caderno_id, user)
+    c = await _get_cron(db, caderno_id, user.id)
+    if not c:
+        raise HTTPException(404, "sem cronograma")
+    c.rebaseline_em = date.today()
+    await db.commit()
+    await db.refresh(c)
+    return await _montar_resposta(db, cad, c)
+
+
+class SimuladoPatch(BaseModel):
+    resultado_objetiva: Optional[int] = None
+    resultado_discursiva: Optional[float] = None
+    observacoes: Optional[str] = None
+
+
+@router.patch("/cadernos/{caderno_id}/cronograma/simulados/{sim_id}")
+async def patch_simulado(
+    caderno_id: int, sim_id: int, payload: SimuladoPatch,
+    user: CurrentUser = Depends(require_user), db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    c = await _get_cron(db, caderno_id, user.id)
+    if not c:
+        raise HTTPException(404, "sem cronograma")
+    sim = (await db.execute(
+        select(CronogramaSimulado).where(
+            CronogramaSimulado.id == sim_id, CronogramaSimulado.cronograma_id == c.id
+        )
+    )).scalar_one_or_none()
+    if not sim:
+        raise HTTPException(404, "simulado não encontrado")
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(sim, k, v)
+    await db.commit()
+    return {"ok": True}
+
+
 @router.delete("/cadernos/{caderno_id}/cronograma")
 async def deletar_cronograma(
     caderno_id: int,
