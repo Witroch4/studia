@@ -92,7 +92,14 @@ async def _garantir_customer(db: AsyncSession, user: CurrentUser) -> str:
         )
     ).scalars().first()
     if row and row.stripe_customer_id:
-        return row.stripe_customer_id
+        # Valida que o customer ainda existe NESTA conta. Customers criados em
+        # modo teste não existem na conta live → recriar (evita 502 "No such customer").
+        try:
+            c = await stripe_request("GET", f"/customers/{row.stripe_customer_id}")
+            if not c.get("deleted"):
+                return row.stripe_customer_id
+        except StripeError:
+            pass  # não existe aqui — segue e cria um novo
 
     cust = await stripe_request(
         "POST",
@@ -100,7 +107,10 @@ async def _garantir_customer(db: AsyncSession, user: CurrentUser) -> str:
         {"email": user.email, "name": user.name, "metadata[usuario_uid]": user.id},
     )
     cid = cust["id"]
-    db.add(Assinatura(usuario_uid=user.id, stripe_customer_id=cid, status="incomplete"))
+    if row is not None:
+        row.stripe_customer_id = cid  # atualiza o registro existente com customer válido
+    else:
+        db.add(Assinatura(usuario_uid=user.id, stripe_customer_id=cid, status="incomplete"))
     await db.commit()
     return cid
 
