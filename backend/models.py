@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import (
@@ -655,3 +655,71 @@ class QuestaoComentario(Base):
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+# ─── Cronograma ────────────────────────────────────────────
+
+
+class Cronograma(Base):
+    """Configuração de um cronograma de estudo para um caderno (1 por usuário/caderno).
+
+    O plano dia-a-dia, KPIs e revisões NÃO são persistidos — são calculados sob
+    demanda (cronograma_core) a partir desta config + da tabela `resolucoes`.
+    """
+    __tablename__ = "cronogramas"
+    __table_args__ = (
+        UniqueConstraint("usuario_uid", "caderno_id", name="uq_cronograma_user_caderno"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    usuario_uid: Mapped[str] = mapped_column(String(64), index=True)
+    caderno_id: Mapped[int] = mapped_column(
+        ForeignKey("cadernos_questoes.id", ondelete="CASCADE"), index=True
+    )
+    data_inicio: Mapped[date] = mapped_column(Date)
+    data_prova: Mapped[date] = mapped_column(Date)
+    rebaseline_em: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    dias_folga: Mapped[list] = mapped_column(JSON, default=list)
+    buffer_dias: Mapped[int] = mapped_column(Integer, default=21)
+    incluir_revisao: Mapped[bool] = mapped_column(Boolean, default=True)
+    incluir_discursivas: Mapped[bool] = mapped_column(Boolean, default=False)
+    incluir_simulados: Mapped[bool] = mapped_column(Boolean, default=True)
+    discursivas_por_semana: Mapped[int] = mapped_column(Integer, default=2)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class CronogramaDiscursiva(Base):
+    __tablename__ = "cronograma_discursivas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cronograma_id: Mapped[int] = mapped_column(
+        ForeignKey("cronogramas.id", ondelete="CASCADE"), index=True
+    )
+    data: Mapped[date] = mapped_column(Date)
+    tema: Mapped[str] = mapped_column(Text)
+    tipo: Mapped[str] = mapped_column(String(64), default="Treino 20 linhas")
+    qtd: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(32), default="Pendente")
+    nota: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    reescrita: Mapped[bool] = mapped_column(Boolean, default=False)
+    observacoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class CronogramaSimulado(Base):
+    __tablename__ = "cronograma_simulados"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cronograma_id: Mapped[int] = mapped_column(
+        ForeignKey("cronogramas.id", ondelete="CASCADE"), index=True
+    )
+    data: Mapped[date] = mapped_column(Date)
+    tipo: Mapped[str] = mapped_column(String(64))
+    objetivas_planejadas: Mapped[int] = mapped_column(Integer, default=0)
+    meta_objetiva: Mapped[int] = mapped_column(Integer, default=0)
+    resultado_objetiva: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    discursiva_planejada: Mapped[int] = mapped_column(Integer, default=0)
+    resultado_discursiva: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    observacoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
