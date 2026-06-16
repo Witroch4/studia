@@ -525,32 +525,32 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                     type="button"
                     disabled={stats.resolvidas === 0}
                     onClick={() => derivarCaderno("resolvidas")}
-                    title="Criar um caderno só com as questões resolvidas"
-                    className="text-primary enabled:hover:underline disabled:cursor-default"
+                    title="Gerar um caderno só com as questões resolvidas"
+                    className="text-primary underline decoration-primary/60 underline-offset-2 hover:decoration-primary disabled:no-underline disabled:cursor-default"
                   >
-                    {stats.resolvidas}
-                  </button>{" "}
-                  Resolvidas,{" "}
+                    {stats.resolvidas} Resolvidas
+                  </button>
+                  ,{" "}
                   <button
                     type="button"
                     disabled={stats.acertos === 0}
                     onClick={() => derivarCaderno("acertadas")}
-                    title="Criar um caderno só com as questões que você acertou"
-                    className="text-success enabled:hover:underline disabled:cursor-default"
+                    title="Gerar um caderno só com as questões que você acertou"
+                    className="text-success underline decoration-success/60 underline-offset-2 hover:decoration-success disabled:no-underline disabled:cursor-default"
                   >
-                    {stats.acertos}
+                    {stats.acertos} Acertos
                   </button>{" "}
-                  Acertos e{" "}
+                  e{" "}
                   <button
                     type="button"
                     disabled={stats.erros === 0}
                     onClick={() => derivarCaderno("erradas")}
-                    title="Criar um caderno só com as questões que você errou"
-                    className="text-error enabled:hover:underline disabled:cursor-default"
+                    title="Gerar um caderno só com as questões que você errou"
+                    className="text-error underline decoration-error/60 underline-offset-2 hover:decoration-error disabled:no-underline disabled:cursor-default"
                   >
-                    {stats.erros}
-                  </button>{" "}
-                  Erros{stats.resolvidas > 0 && `, ${taxa}% acerto`}) ✕
+                    {stats.erros} Erros
+                  </button>
+                  {stats.resolvidas > 0 && `, ${taxa}% acerto`}) ✕
                 </span>
                 {fav && <span className="text-yellow-400">⭐</span>}
               </div>
