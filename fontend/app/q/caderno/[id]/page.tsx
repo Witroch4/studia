@@ -341,6 +341,13 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
         </button>
         <span className="text-fg-faint">›</span>
         <span className="text-fg-muted truncate max-w-[24rem]">{caderno.nome}</span>
+        <a
+          href={`/q/caderno/${id}/cronograma`}
+          className="text-xs border border-border/60 rounded px-2 py-1 text-primary hover:bg-primary/10"
+          title="Cronograma de estudo"
+        >
+          📅 Cronograma
+        </a>
         <button
           onClick={() => router.push("/q/filtrar")}
           className="ml-auto text-fg-muted hover:text-fg"
