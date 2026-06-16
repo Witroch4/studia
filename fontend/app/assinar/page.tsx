@@ -53,6 +53,7 @@ function PagamentoTransparente({ intervalo, valorHoje, onVoltar }: { intervalo: 
   const [erroPg, setErroPg] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [walletsReady, setWalletsReady] = useState(false);
+  const [indoSite, setIndoSite] = useState(false);
 
   if (checkoutState.type === "loading") {
     return (
@@ -82,6 +83,20 @@ function PagamentoTransparente({ intervalo, valorHoje, onVoltar }: { intervalo: 
       setEnviando(false);
     }
     // Em caso de sucesso o Stripe redireciona para o return_url.
+  }
+
+  // Alternativa para quem desconfia do formulário embutido: redireciona para a
+  // página hospedada do Stripe (checkout.stripe.com).
+  async function pagarNoSite() {
+    setErroPg(null);
+    setIndoSite(true);
+    try {
+      const { url } = await apiPost<{ url: string }>("/api/billing/checkout-hosted", { intervalo });
+      window.location.href = url;
+    } catch (e) {
+      setIndoSite(false);
+      setErroPg(e instanceof ApiError ? e.message : "Não foi possível abrir o site da Stripe.");
+    }
   }
 
   return (
@@ -119,9 +134,15 @@ function PagamentoTransparente({ intervalo, valorHoje, onVoltar }: { intervalo: 
           {enviando && <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>}
           {enviando ? "Processando…" : `Pagar ${valorHoje} e assinar`}
         </button>
-        <p className="mt-3 text-center text-[11px] text-fg-faint">Cobrança segura · cancele quando quiser</p>
-        <div className="mt-4 border-t border-border-dark pt-4">
+        <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[11px] text-fg-faint">
+          <span className="material-symbols-outlined text-[13px]">lock</span>
+          Dados do cartão criptografados e enviados direto à Stripe — não passam pelos servidores do studIA.
+        </p>
+        <div className="mt-4 flex flex-col items-center gap-2.5 border-t border-border-dark pt-4">
           <PoweredByStripe />
+          <button type="button" onClick={pagarNoSite} disabled={indoSite} className="text-xs text-fg-muted underline-offset-2 hover:text-fg-strong hover:underline disabled:opacity-50 transition">
+            {indoSite ? "Abrindo o site da Stripe…" : "Prefere pagar no site da Stripe? →"}
+          </button>
         </div>
       </form>
 

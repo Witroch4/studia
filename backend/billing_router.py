@@ -152,6 +152,48 @@ async def criar_checkout(
     return {"client_secret": session["client_secret"], "intervalo": intervalo}
 
 
+@router.post("/checkout-hosted")
+async def criar_checkout_hosted(
+    body: CheckoutBody = CheckoutBody(),
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Checkout HOSPEDADO (redirect para checkout.stripe.com) — opção para quem
+    prefere pagar no domínio do Stripe em vez do formulário embutido."""
+    if not stripe_configurado():
+        raise HTTPException(503, "billing não configurado (faltam chaves Stripe)")
+    if user.is_admin or await acesso_pro_ativo(db, user.id):
+        raise HTTPException(400, "você já tem acesso ilimitado")
+
+    intervalo = "year" if body.intervalo == "year" else "month"
+    price = STRIPE_PRICE_ID_ANUAL if intervalo == "year" else STRIPE_PRICE_ID
+    if not price:
+        raise HTTPException(503, f"plano {intervalo} não configurado")
+
+    try:
+        customer_id = await _garantir_customer(db, user)
+        session = await stripe_request(
+            "POST",
+            "/checkout/sessions",
+            {
+                "mode": "subscription",
+                "line_items[0][price]": price,
+                "line_items[0][quantity]": "1",
+                "customer": customer_id,
+                "client_reference_id": user.id,
+                "metadata[usuario_uid]": user.id,
+                "subscription_data[metadata][usuario_uid]": user.id,
+                "allow_promotion_codes": "true",
+                "success_url": f"{FRONTEND_URL}/assinar?status=sucesso&session_id={{CHECKOUT_SESSION_ID}}",
+                "cancel_url": f"{FRONTEND_URL}/assinar?status=cancelado",
+            },
+        )
+    except StripeError as exc:
+        raise HTTPException(502, f"Stripe: {exc.message}") from exc
+
+    return {"url": session["url"]}
+
+
 @router.post("/portal")
 async def abrir_portal(
     user: CurrentUser = Depends(require_user),
