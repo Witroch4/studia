@@ -4,6 +4,7 @@ import { siteConfig } from "@/lib/site";
 import { LogoMark } from "./components/Logo";
 import LandingHeader from "./components/landing/LandingHeader";
 import RedirectIfAuthed from "./components/RedirectIfAuthed";
+import { BENEFICIOS_PRO, BENEFICIOS_FREE, PRECO_MENSAL_LABEL } from "@/app/lib/planos";
 
 export const metadata: Metadata = {
   title: { absolute: siteConfig.title },
@@ -82,22 +83,17 @@ const PLANS = [
     cta: "Criar conta grátis",
     href: "/cadastro",
     featured: false,
-    perks: ["10 questões por dia", "Flashcards com repetição espaçada", "1 disciplina com IA", "Estatísticas básicas"],
+    perks: [...BENEFICIOS_FREE],
   },
   {
     name: "Pro",
-    price: "R$29,90",
+    price: PRECO_MENSAL_LABEL,
     period: "/mês",
     desc: "Tudo liberado pra quem está no foco da aprovação.",
     cta: "Assinar o Pro",
     href: "/assinar",
     featured: true,
-    perks: [
-      "Questões ilimitadas",
-      "Disciplinas e PDFs ilimitados com IA",
-      "Tutor por aula sem limite",
-      "Guias completos + estatísticas avançadas",
-    ],
+    perks: [...BENEFICIOS_PRO],
   },
 ];
 
