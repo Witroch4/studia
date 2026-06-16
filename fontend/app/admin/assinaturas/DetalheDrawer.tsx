@@ -68,8 +68,12 @@ export default function DetalheDrawer({ uid, onClose }: { uid: string; onClose: 
   async function acao(fn: () => Promise<unknown>, ok: string) {
     setErro(null); setMsg(null); setBusy(true);
     try {
-      await fn();
-      setMsg(ok);
+      const res = await fn();
+      const aviso =
+        res && typeof res === "object" && "stripe_aviso" in res
+          ? (res as { stripe_aviso?: string | null }).stripe_aviso
+          : null;
+      setMsg(aviso ? `${ok} (${aviso})` : ok);
       await invalidarTudo();
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : "Falha na operação.");

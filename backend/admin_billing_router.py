@@ -452,6 +452,14 @@ async def cancelar(
                 a.current_period_end = agora
         await _expirar_vouchers(db, uid, agora)
 
+    # ── fim_periodo: marca cancel_at_period_end LOCALMENTE também (independe do
+    #    Stripe — cobre customer de teste/inexistente no live, em que a chamada
+    #    Stripe falha e nada seria persistido). Mantém acesso até o fim do período.
+    if body.modo == "fim_periodo":
+        for a in assinaturas:
+            if a.status in ("active", "trialing"):
+                a.cancel_at_period_end = True
+
     alvo = com_sub or (assinaturas[0] if assinaturas else None)
     if alvo:
         alvo.cancel_motivo = body.motivo
