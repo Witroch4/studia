@@ -14,7 +14,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import CurrentUser, require_admin
@@ -377,6 +377,15 @@ class CancelarIn(BaseModel):
     banir: bool = False
 
 
+async def _expirar_vouchers(db: AsyncSession, uid: str, agora: datetime) -> None:
+    """Expira (pro_ate=agora) todos os vouchers vigentes do usuário."""
+    await db.execute(
+        update(Voucher)
+        .where(Voucher.resgatado_por_uid == uid, Voucher.pro_ate > agora)
+        .values(pro_ate=agora)
+    )
+
+
 @router.post("/usuarios/{uid}/cancelar")
 async def cancelar(
     uid: str,
@@ -384,49 +393,70 @@ async def cancelar(
     admin: CurrentUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
+    """Cancela acesso PRO. Modos imediatos revogam LOCALMENTE (assinatura + vouchers),
+    independem do Stripe — funcionam pra PRO via voucher e pra assinatura cujo customer
+    Stripe não existe mais (ex.: criado em teste). O Stripe é tratado best-effort."""
     if body.modo not in {"fim_periodo", "imediato", "imediato_reembolso"}:
         raise HTTPException(400, "modo inválido")
-    if not stripe_configurado():
-        raise HTTPException(503, "billing não configurado (faltam chaves Stripe)")
+    u = await _email_do_uid(db, uid)
+    if u is None:
+        raise HTTPException(404, "usuário não encontrado")
 
-    ass = (
+    agora = datetime.now(_UTC)
+    assinaturas = (
         await db.execute(
             select(Assinatura)
-            .where(Assinatura.usuario_uid == uid, Assinatura.stripe_subscription_id.isnot(None))
+            .where(Assinatura.usuario_uid == uid)
             .order_by(Assinatura.updated_at.desc())
         )
-    ).scalars().first()
-    if ass is None or not ass.stripe_subscription_id:
-        raise HTTPException(400, "usuário sem assinatura Stripe ativa")
-    sub_id = ass.stripe_subscription_id
+    ).scalars().all()
+    com_sub = next((a for a in assinaturas if a.stripe_subscription_id), None)
 
     reembolso: Optional[dict[str, Any]] = None
-    try:
-        if body.modo == "fim_periodo":
-            sub = await stripe_request(
-                "POST", f"/subscriptions/{sub_id}", {"cancel_at_period_end": "true"}
-            )
-            await _upsert_sub(db, sub)
-        else:
-            if body.modo == "imediato_reembolso":
-                sub_atual = await stripe_request(
-                    "GET", f"/subscriptions/{sub_id}?expand[]=latest_invoice"
-                )
-                inv = sub_atual.get("latest_invoice") or {}
-                inv = inv if isinstance(inv, dict) else {}
-                pi = inv.get("payment_intent")
-                if not pi:
-                    raise HTTPException(400, "sem cobrança a reembolsar nesta assinatura")
-                ref = await stripe_request("POST", "/refunds", {"payment_intent": pi})
-                reembolso = {"id": ref.get("id"), "centavos": ref.get("amount"), "status": ref.get("status")}
-            sub = await stripe_request("DELETE", f"/subscriptions/{sub_id}")
-            await _upsert_sub(db, sub)
-    except StripeError as exc:
-        raise HTTPException(502, f"Stripe: {exc.message}") from exc
+    stripe_aviso: Optional[str] = None
 
-    ass.cancel_motivo = body.motivo
-    ass.cancel_admin_uid = admin.id
-    ass.cancel_em = datetime.now(_UTC)
+    # ── Stripe best-effort (só se houver sub + chaves) — nunca derruba o cancelamento
+    if com_sub and com_sub.stripe_subscription_id and stripe_configurado():
+        sub_id = com_sub.stripe_subscription_id
+        try:
+            if body.modo == "fim_periodo":
+                sub = await stripe_request(
+                    "POST", f"/subscriptions/{sub_id}", {"cancel_at_period_end": "true"}
+                )
+                com_sub.cancel_at_period_end = True
+                cpe = sub.get("current_period_end")
+                if cpe:
+                    com_sub.current_period_end = datetime.fromtimestamp(int(cpe), tz=_UTC)
+            else:
+                if body.modo == "imediato_reembolso":
+                    sub_atual = await stripe_request(
+                        "GET", f"/subscriptions/{sub_id}?expand[]=latest_invoice"
+                    )
+                    inv = sub_atual.get("latest_invoice") or {}
+                    inv = inv if isinstance(inv, dict) else {}
+                    pi = inv.get("payment_intent")
+                    if pi:
+                        ref = await stripe_request("POST", "/refunds", {"payment_intent": pi})
+                        reembolso = {"id": ref.get("id"), "centavos": ref.get("amount"), "status": ref.get("status")}
+                    else:
+                        stripe_aviso = "sem cobrança a reembolsar"
+                await stripe_request("DELETE", f"/subscriptions/{sub_id}")
+        except StripeError as exc:
+            stripe_aviso = f"Stripe: {exc.message}"  # segue com a revogação local
+
+    # ── Revogação LOCAL (independe do Stripe) p/ modos imediatos
+    if body.modo in {"imediato", "imediato_reembolso"}:
+        for a in assinaturas:
+            if a.status in ("active", "trialing"):
+                a.status = "canceled"
+                a.current_period_end = agora
+        await _expirar_vouchers(db, uid, agora)
+
+    alvo = com_sub or (assinaturas[0] if assinaturas else None)
+    if alvo:
+        alvo.cancel_motivo = body.motivo
+        alvo.cancel_admin_uid = admin.id
+        alvo.cancel_em = agora
 
     banido = False
     if body.banir:
@@ -436,7 +466,73 @@ async def cancelar(
         banido = True
 
     await db.commit()
-    return {"ok": True, "modo": body.modo, "reembolso": reembolso, "banido": banido}
+    return {"ok": True, "modo": body.modo, "reembolso": reembolso, "banido": banido, "stripe_aviso": stripe_aviso}
+
+
+# ─── Editar tempo (define a validade do PRO local) ──────────────
+
+class EditarTempoIn(BaseModel):
+    dias: Optional[int] = Field(default=None, ge=0, le=3650)  # validade a partir de agora; 0 = revoga
+    pro_ate: Optional[str] = None  # alternativa: data ISO exata
+
+
+@router.post("/usuarios/{uid}/editar-tempo")
+async def editar_tempo(
+    uid: str,
+    body: EditarTempoIn,
+    admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Define a validade do PRO de forma determinística: revoga todas as fontes
+    locais e, se a data-alvo for futura, concede um voucher único até ela."""
+    u = await _email_do_uid(db, uid)
+    if u is None:
+        raise HTTPException(404, "usuário não encontrado")
+
+    agora = datetime.now(_UTC)
+    if body.pro_ate:
+        try:
+            alvo = datetime.fromisoformat(body.pro_ate)
+        except ValueError:
+            raise HTTPException(400, "pro_ate inválido (use ISO 8601)")
+        if alvo.tzinfo is None:
+            alvo = alvo.replace(tzinfo=_UTC)
+    elif body.dias is not None:
+        alvo = agora + timedelta(days=body.dias)
+    else:
+        raise HTTPException(400, "informe 'dias' ou 'pro_ate'")
+
+    # revoga tudo (assinaturas ativas + vouchers vigentes)
+    assinaturas = (
+        await db.execute(select(Assinatura).where(Assinatura.usuario_uid == uid))
+    ).scalars().all()
+    for a in assinaturas:
+        if a.status in ("active", "trialing"):
+            a.status = "canceled"
+            a.current_period_end = agora
+    await _expirar_vouchers(db, uid, agora)
+
+    codigo: Optional[str] = None
+    if alvo > agora:
+        dias_calc = max(1, (alvo - agora).days)
+        v = Voucher(
+            codigo=f"{_gerar_codigo()}-{secrets.token_hex(2).upper()}",
+            dias=dias_calc,
+            criado_por_uid=admin.id,
+            resgatado_por_uid=uid,
+            resgatado_em=agora,
+            pro_ate=alvo,
+        )
+        db.add(v)
+        codigo = v.codigo
+
+    await db.commit()
+    return {
+        "ok": True,
+        "revogado": alvo <= agora,
+        "pro_ate": alvo.isoformat() if alvo > agora else None,
+        "codigo": codigo,
+    }
 
 
 # ─── Sincronizar do Stripe ──────────────────────────────────────
@@ -463,7 +559,8 @@ async def sincronizar(
             "GET", f"/subscriptions?customer={ass.stripe_customer_id}&status=all&limit=10"
         )
     except StripeError as exc:
-        raise HTTPException(502, f"Stripe: {exc.message}") from exc
+        # Customer pode não existir no live (ex.: criado em modo teste) — não derruba.
+        return {"ok": False, "sincronizadas": 0, "aviso": f"Stripe: {exc.message}"}
 
     n = 0
     for sub in resp.get("data", []):

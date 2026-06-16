@@ -47,6 +47,7 @@ export default function DetalheDrawer({ uid, onClose }: { uid: string; onClose: 
   const [busy, setBusy] = useState(false);
 
   const [dias, setDias] = useState(365);
+  const [editarDias, setEditarDias] = useState(30);
   const [modo, setModo] = useState<"fim_periodo" | "imediato" | "imediato_reembolso">("fim_periodo");
   const [motivo, setMotivo] = useState("");
   const [banir, setBanir] = useState(false);
@@ -149,6 +150,34 @@ export default function DetalheDrawer({ uid, onClose }: { uid: string; onClose: 
                   className="bg-secondary hover:opacity-90 text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-40"
                 >
                   Conceder
+                </button>
+              </div>
+            </section>
+
+            <section className="space-y-3 border-t border-border pt-4">
+              <div className="text-fg-strong text-sm font-medium">Editar tempo (definir validade)</div>
+              <p className="text-xs text-fg-muted">Revoga tudo e define o PRO para valer por N dias a partir de agora. <strong>0 = revogar já.</strong> Não depende do Stripe.</p>
+              <div className="flex gap-2 items-end">
+                <label className="text-xs text-fg-muted flex-1">
+                  Dias a partir de agora
+                  <input
+                    type="number" min={0} max={3650} value={editarDias}
+                    onChange={(e) => setEditarDias(Math.max(0, Number(e.target.value) || 0))}
+                    className="mt-1 w-full rounded-lg bg-page border border-border px-3 py-2 text-sm text-fg-strong"
+                  />
+                </label>
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    const msg = editarDias === 0
+                      ? "Revogar o PRO deste usuário AGORA?"
+                      : `Definir PRO para ${editarDias} dias a partir de agora? (revoga o vigente)`;
+                    if (!window.confirm(msg)) return;
+                    acao(() => apiPost(`/api/admin/billing/usuarios/${uid}/editar-tempo`, { dias: editarDias }), "Tempo atualizado.");
+                  }}
+                  className="bg-primary hover:opacity-90 text-on-primary px-4 py-2 rounded text-sm font-semibold disabled:opacity-40"
+                >
+                  Aplicar
                 </button>
               </div>
             </section>
