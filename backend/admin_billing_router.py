@@ -450,6 +450,7 @@ async def cancelar(
             if a.status in ("active", "trialing"):
                 a.status = "canceled"
                 a.current_period_end = agora
+                a.cancel_at_period_end = False  # já cancelou de vez: não "cancela no fim"
         await _expirar_vouchers(db, uid, agora)
 
     # ── fim_periodo: marca cancel_at_period_end LOCALMENTE também (independe do
@@ -518,6 +519,7 @@ async def editar_tempo(
         if a.status in ("active", "trialing"):
             a.status = "canceled"
             a.current_period_end = agora
+            a.cancel_at_period_end = False  # revogado de vez: não "cancela no fim"
     await _expirar_vouchers(db, uid, agora)
 
     codigo: Optional[str] = None

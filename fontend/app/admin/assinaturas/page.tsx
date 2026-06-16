@@ -184,7 +184,7 @@ export default function AssinaturasAdminPage() {
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell text-fg-muted">
                       {u.status ?? "—"}
-                      {u.cancel_at_period_end && (
+                      {u.cancel_at_period_end && (u.status === "active" || u.status === "trialing") && (
                         <span className="ml-2 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-500/15 text-amber-500">
                           <span className="material-symbols-outlined text-xs leading-none">schedule</span>
                           cancela no fim

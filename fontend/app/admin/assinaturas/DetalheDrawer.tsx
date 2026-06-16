@@ -121,7 +121,8 @@ export default function DetalheDrawer({ uid, onClose }: { uid: string; onClose: 
               <div className="text-fg-strong text-sm font-medium mb-1">Assinatura (local)</div>
               <div>status: {data.assinatura_local?.status ?? "—"}</div>
               <div>vence: {fmt(data.assinatura_local?.current_period_end ?? null)}</div>
-              {data.assinatura_local?.cancel_at_period_end ? (
+              {data.assinatura_local?.cancel_at_period_end
+                && (data.assinatura_local?.status === "active" || data.assinatura_local?.status === "trialing") ? (
                 <div className="inline-flex items-center gap-1 mt-1 text-amber-500 font-medium">
                   <span className="material-symbols-outlined text-sm leading-none">schedule</span>
                   cancela no fim do período (acesso mantido até o vencimento)
