@@ -72,3 +72,34 @@ async def test_delete_cronograma(client, db_session, auth_state):
     r = await client.delete(f"/api/q/cadernos/{cad.id}/cronograma")
     assert r.status_code == 200
     assert (await client.get(f"/api/q/cadernos/{cad.id}/cronograma")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_post_duplicado_409(client, db_session, auth_state):
+    auth_state["user"] = USER_A
+    cad = await _caderno(db_session)
+    body = {"data_prova": "2026-08-16", "data_inicio": "2026-06-01"}
+    assert (await client.post(f"/api/q/cadernos/{cad.id}/cronograma", json=body)).status_code == 200
+    r = await client.post(f"/api/q/cadernos/{cad.id}/cronograma", json=body)
+    assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_put_liga_simulados_gera_marcos(client, db_session, auth_state):
+    auth_state["user"] = USER_A
+    cad = await _caderno(db_session)
+    # cria SEM simulados
+    body0 = (await client.post(f"/api/q/cadernos/{cad.id}/cronograma", json={
+        "data_prova": "2026-08-16", "data_inicio": "2026-05-25",
+        "incluir_simulados": False})).json()
+    assert body0["simulados"] == []
+    # PUT ligando simulados → devem aparecer
+    body1 = (await client.put(f"/api/q/cadernos/{cad.id}/cronograma", json={
+        "data_prova": "2026-08-16", "data_inicio": "2026-05-25",
+        "incluir_simulados": True})).json()
+    assert len(body1["simulados"]) >= 1
+    # PUT desligando → somem
+    body2 = (await client.put(f"/api/q/cadernos/{cad.id}/cronograma", json={
+        "data_prova": "2026-08-16", "data_inicio": "2026-05-25",
+        "incluir_simulados": False})).json()
+    assert body2["simulados"] == []

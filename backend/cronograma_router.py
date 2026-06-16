@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import select, delete as sa_delete
+from sqlalchemy import select, delete as sa_delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import CurrentUser, require_user
@@ -184,6 +184,18 @@ async def atualizar_cronograma(
         raise HTTPException(404, "sem cronograma")
     for k, v in payload.model_dump().items():
         setattr(c, k, v)
+    # sincroniza marcos de simulado com o flag (sem apagar resultados já registrados)
+    sims_existentes = (await db.execute(
+        select(func.count()).select_from(CronogramaSimulado)
+        .where(CronogramaSimulado.cronograma_id == c.id)
+    )).scalar_one()
+    if c.incluir_simulados and sims_existentes == 0:
+        for s in core.gerar_simulados(c.data_inicio, c.data_prova, c.buffer_dias):
+            db.add(CronogramaSimulado(cronograma_id=c.id, **s))
+    elif not c.incluir_simulados and sims_existentes > 0:
+        await db.execute(
+            sa_delete(CronogramaSimulado).where(CronogramaSimulado.cronograma_id == c.id)
+        )
     await db.commit()
     await db.refresh(c)
     return await _montar_resposta(db, cad, c)
