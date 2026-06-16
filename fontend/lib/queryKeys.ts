@@ -15,6 +15,10 @@ export const qk = {
   jobs: () => ["jobs"] as const,
   batchJobs: () => ["batch-jobs"] as const,
   vouchers: () => ["vouchers"] as const,
+  adminAssinaturasOverview: () => ["admin", "assinaturas", "overview"] as const,
+  adminAssinaturas: (q: string, plano: string, page: number) =>
+    ["admin", "assinaturas", "lista", q, plano, page] as const,
+  adminAssinaturaDetalhe: (uid: string) => ["admin", "assinaturas", "detalhe", uid] as const,
   // Fase 2 — detalhe de caderno (singular "caderno" p/ não colidir com a lista "cadernos")
   caderno: (id: string | number) => ["q", "caderno", String(id)] as const,
   cadernoSub: (id: string | number, sub: string) => ["q", "caderno", String(id), sub] as const, // indice|gabarito|estatisticas|stats-detalhe

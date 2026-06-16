@@ -32,6 +32,8 @@ const navItems: NavItem[] = [
   { href: "/jobs", label: "Jobs IA", icon: "monitoring", adminOnly: true },
   // Vouchers PRO: geração e controle de resgates — área de administração.
   { href: "/admin/vouchers", label: "Vouchers", icon: "redeem", adminOnly: true },
+  // Assinaturas: gestão Stripe (overview, conceder/cancelar) — área de administração.
+  { href: "/admin/assinaturas", label: "Assinaturas", icon: "paid", adminOnly: true },
   { href: "/em-breve?f=Planejamento", label: "Planejamento", icon: "calendar_month" },
   { href: "/em-breve?f=Revisões", label: "Revisões", icon: "autorenew" },
   { href: "/em-breve?f=Histórico", label: "Histórico", icon: "history" },
