@@ -7,7 +7,7 @@ import { apiJson, apiPost, ApiError } from "@/lib/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/queryKeys";
 import { loadStripe } from "@stripe/stripe-js";
-import { CheckoutElementsProvider, PaymentElement, useCheckoutElements } from "@stripe/react-stripe-js/checkout";
+import { CheckoutElementsProvider, ExpressCheckoutElement, PaymentElement, useCheckoutElements } from "@stripe/react-stripe-js/checkout";
 import { BENEFICIOS_PRO, BENEFICIOS_FREE, PRECO_ANUAL_EQUIV_MES, ECONOMIA_ANUAL } from "@/app/lib/planos";
 
 type BillingStatus = {
@@ -52,6 +52,7 @@ function PagamentoTransparente({ intervalo, valorHoje, onVoltar }: { intervalo: 
   const checkoutState = useCheckoutElements();
   const [erroPg, setErroPg] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [walletsReady, setWalletsReady] = useState(false);
 
   if (checkoutState.type === "loading") {
     return (
@@ -89,9 +90,25 @@ function PagamentoTransparente({ intervalo, valorHoje, onVoltar }: { intervalo: 
         <button type="button" onClick={onVoltar} className="mb-5 inline-flex items-center gap-1 text-xs font-medium text-fg-muted hover:text-fg-strong transition">
           <span className="material-symbols-outlined text-[16px]">arrow_back</span> Voltar aos planos
         </button>
-        <h2 className="mb-1 text-lg font-bold text-fg-strong">Pagamento</h2>
-        <p className="mb-5 text-xs text-fg-faint">Apple&nbsp;Pay e Google&nbsp;Pay aparecem aqui quando disponíveis no seu dispositivo.</p>
-        <PaymentElement options={{ layout: { type: "tabs" }, wallets: { applePay: "auto", googlePay: "auto" } }} />
+        <h2 className="mb-4 text-lg font-bold text-fg-strong">Pagamento</h2>
+
+        {/* Fileira expressa de carteiras (Apple Pay / Google Pay). Some quando
+            nenhuma carteira está disponível no dispositivo — sem UI vazia. */}
+        <ExpressCheckoutElement
+          onReady={(e) => setWalletsReady(Boolean(e.availablePaymentMethods))}
+          onConfirm={async () => {
+            setErroPg(null);
+            const r = await checkout.confirm();
+            if (r.type === "error") setErroPg(r.error.message ?? "Não foi possível confirmar o pagamento.");
+          }}
+        />
+        {walletsReady && (
+          <div className="my-4 flex items-center gap-3 text-[11px] uppercase tracking-wide text-fg-faint">
+            <span className="h-px flex-1 bg-border-dark" /> ou com cartão <span className="h-px flex-1 bg-border-dark" />
+          </div>
+        )}
+
+        <PaymentElement options={{ layout: { type: "tabs" }, wallets: { applePay: "auto", googlePay: "auto", link: "auto" } }} />
         {erroPg && (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-error/40 bg-error/10 px-3 py-2 text-sm text-error">
             <span className="material-symbols-outlined text-[18px]">error</span>
