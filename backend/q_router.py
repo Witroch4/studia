@@ -974,6 +974,35 @@ async def responder(
     if not q:
         raise HTTPException(404, "questao não encontrada")
 
+    # Idempotência: uma questão já resolvida pelo usuário NESTE caderno não pode
+    # ser respondida de novo. Sem isso, voltar à questão (ou cliques-fantasma)
+    # gravava Resolucao duplicada — inflando estatísticas e burlando o limite.
+    cond_cad = (
+        Resolucao.caderno_id == req.caderno_id
+        if req.caderno_id is not None
+        else Resolucao.caderno_id.is_(None)
+    )
+    existente = (await db.execute(
+        select(Resolucao)
+        .where(
+            Resolucao.usuario_uid == user.id,
+            Resolucao.questao_id == questao_id,
+            cond_cad,
+        )
+        .order_by(Resolucao.created_at.asc())
+        .limit(1)
+    )).scalars().first()
+    if existente is not None:
+        total = (await db.execute(select(func.count()).where(Resolucao.questao_id == questao_id, Resolucao.usuario_uid == user.id))).scalar_one()
+        acertos = (await db.execute(select(func.count()).where(Resolucao.questao_id == questao_id, Resolucao.usuario_uid == user.id, Resolucao.acertou == True))).scalar_one()  # noqa: E712
+        return {
+            "acertou": existente.acertou,
+            "gabarito": q.gabarito,
+            "stats": {"resolvidas": total, "acertos": acertos, "erros": total - acertos},
+            "limite": await resumo_limite(db, user),
+            "ja_resolvida": True,
+        }
+
     # Plano grátis: bloqueia a partir da 11ª questão NOVA do dia (402). Admin e
     # assinante ativo passam direto. Repetir questão já contada hoje é livre.
     await garantir_pode_resolver(db, user, questao_id)
@@ -1251,6 +1280,29 @@ async def indice_caderno(
             "preview": (r.preview or "").strip()[:140],
         })
     return {"caderno_id": caderno_id, "total": len(items), "items": items}
+
+
+@router.get("/cadernos/{caderno_id}/minhas-resolucoes")
+async def minhas_resolucoes_caderno(
+    caderno_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Resoluções DO usuário neste caderno: questao_id → {resposta, acertou}.
+    Usado pelo front pra travar questões já respondidas e pular as resolvidas
+    na navegação (Aleatória/Próxima não resolvida)."""
+    await _caderno_acessivel(db, caderno_id, user)
+    rows = (await db.execute(
+        select(Resolucao.questao_id, Resolucao.resposta, Resolucao.acertou)
+        .where(Resolucao.usuario_uid == user.id, Resolucao.caderno_id == caderno_id)
+        .order_by(Resolucao.created_at.desc())
+    )).all()
+    out: dict[str, Any] = {}
+    for r in rows:
+        key = str(r.questao_id)
+        if key not in out:  # ordenado desc → mantém a resolução mais recente
+            out[key] = {"resposta": r.resposta, "acertou": r.acertou}
+    return {"caderno_id": caderno_id, "resolucoes": out}
 
 
 @router.get("/cadernos/{caderno_id}/questoes/{questao_id}/annotations")

@@ -141,15 +141,32 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   });
   const favIds = new Set<number>(favData?.ids ?? []);
 
+  // ─── Minhas resoluções neste caderno (trava as já respondidas) ───
+  const { data: minhasResData } = useQuery<{
+    resolucoes: Record<string, { resposta: string | null; acertou: boolean | null }>;
+  }>({
+    queryKey: qk.cadernoSub(id, "minhas-resolucoes"),
+    queryFn: () => apiJson(`/api/q/cadernos/${id}/minhas-resolucoes`),
+    enabled: !!caderno,
+    staleTime: 30_000,
+  });
+  const minhasResolucoes = minhasResData?.resolucoes ?? {};
+  const resolvidasSet = new Set<number>(Object.keys(minhasResolucoes).map(Number));
+
   const currentQid = caderno?.question_ids[idx];
   const fav = currentQid ? favIds.has(currentQid) : false;
 
-  // Deriva o estado de resposta: se o qid gravado não bate com o atual, reseta.
-  // Isso evita um useEffect com setState síncrono (lint: react-hooks/set-state-in-effect).
+  // Deriva o estado de resposta: estado local (resposta recém-enviada) tem
+  // prioridade; senão, se o servidor diz que já resolvi esta questão neste
+  // caderno, restaura travado (gabarito visível); senão, questão nova.
+  const respostaServidor =
+    currentQid != null ? minhasResolucoes[String(currentQid)] : undefined;
   const respostaAtual =
     respostaQid === (currentQid ?? null)
       ? respostaState
-      : { selecionada: null, resolvida: false, acertou: null };
+      : respostaServidor
+        ? { selecionada: respostaServidor.resposta, resolvida: true, acertou: respostaServidor.acertou }
+        : { selecionada: null, resolvida: false, acertou: null };
   const { selecionada, resolvida, acertou } = respostaAtual;
 
   // ─── Questão atual (keepPreviousData: sem skeleton ao trocar de questão) ───
@@ -193,6 +210,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       void queryClient.invalidateQueries({ queryKey: qk.cadernoSub(id, "estatisticas") });
       void queryClient.invalidateQueries({ queryKey: qk.cadernoSub(id, "stats-detalhe") });
       void queryClient.invalidateQueries({ queryKey: qk.cadernoSub(id, "gabarito") });
+      void queryClient.invalidateQueries({ queryKey: qk.cadernoSub(id, "minhas-resolucoes") });
       void queryClient.invalidateQueries({ queryKey: qk.limite() });
     },
     onError: (err: unknown) => {
@@ -209,7 +227,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   });
 
   async function resolverQuestao() {
-    if (!selecionada || !questao || !caderno) return;
+    if (!selecionada || !questao || !caderno || resolvida) return;
     const tempo_segundos = Math.round((Date.now() - startedAt.current) / 1000);
     setRespostaQid(questao.id);
     setRespostaState((prev) => ({ ...prev, resolvida: true }));
@@ -270,14 +288,36 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
 
   function aleatoria() {
     if (!caderno) return;
-    void mudarIndice(Math.floor(Math.random() * caderno.total));
+    // Sorteia entre as NÃO resolvidas; se todas já foram, cai pra qualquer uma.
+    const naoResolvidas = caderno.question_ids
+      .map((qid, i) => ({ qid, i }))
+      .filter(({ qid }) => !resolvidasSet.has(qid));
+    if (naoResolvidas.length === 0) {
+      void mudarIndice(Math.floor(Math.random() * caderno.total));
+      return;
+    }
+    const escolha = naoResolvidas[Math.floor(Math.random() * naoResolvidas.length)];
+    void mudarIndice(escolha.i);
+  }
+
+  function proximaNaoResolvida() {
+    if (!caderno) return;
+    const n = caderno.total;
+    for (let step = 1; step <= n; step++) {
+      const cand = (idx + step) % n;
+      if (!resolvidasSet.has(caderno.question_ids[cand])) {
+        void mudarIndice(cand);
+        return;
+      }
+    }
+    void avancar(1); // todas resolvidas → só avança
   }
 
   useHotkeys({
     ArrowLeft: () => { if (!canvasActive) avancar(-1); },
     ArrowRight: () => { if (!canvasActive) avancar(1); },
     l: () => { if (!canvasActive) aleatoria(); },
-    n: () => { if (!canvasActive) avancar(1); },
+    n: () => { if (!canvasActive) proximaNaoResolvida(); },
     p: () => { if (!canvasActive) setGotoOpen(true); },
     m: () => { if (!canvasActive) toggleFavorita(); },
     j: () => { if (!canvasActive) toggleFavorita(); },
@@ -588,7 +628,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               <NavBtn icon="←" title="Anterior (←)" onClick={() => avancar(-1)} disabled={idx === 0} />
               <NavBtn icon="→" title="Próxima (→)" onClick={() => avancar(1)} disabled={idx === caderno.total - 1} />
               <NavBtn icon="🔀" title="Aleatória (L)" onClick={aleatoria} />
-              <NavBtn icon="→⊟" title="Próxima não resolvida (N)" onClick={() => avancar(1)} />
+              <NavBtn icon="→⊟" title="Próxima não resolvida (N)" onClick={proximaNaoResolvida} />
               <NavBtn icon="◀" title="Tópico anterior (Z)" onClick={() => avancar(-1)} />
               <NavBtn icon="▶" title="Tópico seguinte (X)" onClick={() => avancar(1)} />
               <NavBtn icon="↺" title="Desfazer (Ctrl+Z)" onClick={() => avancar(-1)} />
