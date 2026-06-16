@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, useState, useMemo } from "react";
+import { Suspense, useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { apiJson, apiPost, ApiError } from "@/lib/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/queryKeys";
+import { celebrarPro } from "@/lib/confetti";
 import { loadStripe } from "@stripe/stripe-js";
 import { CheckoutElementsProvider, ExpressCheckoutElement, PaymentElement, useCheckoutElements } from "@stripe/react-stripe-js/checkout";
 import { BENEFICIOS_PRO, BENEFICIOS_FREE, PRECO_ANUAL_EQUIV_MES, ECONOMIA_ANUAL } from "@/app/lib/planos";
@@ -250,8 +251,59 @@ function AssinarInner() {
   const ilimitado = status?.ilimitado;
   const noPagamento = Boolean(clientSecret) && !ilimitado;
 
+  // Comemoração ao virar PRO — cobre assinatura (polling vira ilimitado) e
+  // voucher (invalidação refaz a query). Dispara uma única vez, na transição
+  // free→pro. Se o usuário chega já PRO numa visita normal, NÃO comemora;
+  // exceção: volta do checkout (?status=sucesso) com PRO já ativo.
+  const [comemorouPro, setComemorouPro] = useState(false);
+  const jaComemorouRef = useRef(false);
+  const prevIlimitadoRef = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (ilimitado === undefined) return;
+    const anterior = prevIlimitadoRef.current;
+    prevIlimitadoRef.current = ilimitado;
+    if (jaComemorouRef.current) return;
+    const virouPro = anterior === false && ilimitado === true;
+    const sucessoComPro = statusParam === "sucesso" && ilimitado === true;
+    if (virouPro || sucessoComPro) {
+      jaComemorouRef.current = true;
+      setComemorouPro(true);
+      celebrarPro();
+    }
+  }, [ilimitado, statusParam]);
+
   return (
     <main className="min-h-screen bg-page">
+      {/* Overlay de comemoração — aparece junto com o confete quando vira PRO */}
+      {comemorouPro && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 px-5 backdrop-blur-sm"
+          onClick={() => setComemorouPro(false)}
+        >
+          <div
+            className="relative w-full max-w-sm rounded-3xl border border-secondary/40 bg-surface-dark p-8 text-center shadow-[0_24px_80px_rgba(139,92,246,0.45)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-primary to-secondary shadow-[0_8px_30px_rgba(139,92,246,0.5)]">
+              <span className="material-symbols-outlined text-3xl text-white">workspace_premium</span>
+            </div>
+            <h2 className="mt-5 text-2xl font-extrabold tracking-tight text-fg-strong">
+              🎉 Agora você é PRO!!
+            </h2>
+            <p className="mt-2 text-sm text-fg-muted">
+              Acesso ilimitado liberado — questões sem limite, estatísticas e a IA do studIA sem barreiras. Bons estudos!
+            </p>
+            <button
+              type="button"
+              onClick={() => setComemorouPro(false)}
+              className="mt-6 w-full rounded-xl bg-secondary py-3 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(139,92,246,0.30)] hover:opacity-90 transition"
+            >
+              Começar a estudar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Cabeçalho enxuto — marca + fio gradiente (assinatura visual do studIA) */}
       <header className="sticky top-0 z-10 border-b border-border-dark bg-page/80 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-5 py-3.5">
