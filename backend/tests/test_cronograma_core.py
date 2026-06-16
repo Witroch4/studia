@@ -115,3 +115,33 @@ def test_derivar_revisoes_d1_d7_vencidas():
 def test_derivar_revisoes_ignora_questao_so_acertada():
     itens = derivar_revisoes([(9, True, date(2026, 6, 1))], hoje=date(2026, 6, 30))
     assert itens == []
+
+
+from cronograma_core import agendar_discursivas, gerar_simulados
+
+
+def test_agendar_discursivas_tercas_e_quintas():
+    temas = [f"tema {i}" for i in range(6)]
+    agenda = agendar_discursivas(
+        temas, data_inicio=date(2026, 6, 1), fim_1volta=date(2026, 6, 28), por_semana=2
+    )
+    assert len(agenda) == 6
+    assert all(d.weekday() in (1, 3) for d, _ in agenda)
+    assert [t for _, t in agenda] == temas
+    assert [d for d, _ in agenda] == sorted(d for d, _ in agenda)
+
+
+def test_agendar_discursivas_sem_temas():
+    assert agendar_discursivas([], date(2026, 6, 1), date(2026, 6, 28), 2) == []
+
+
+def test_gerar_simulados_marcos():
+    sims = gerar_simulados(
+        data_inicio=date(2026, 5, 25), data_prova=date(2026, 8, 16), buffer_dias=21
+    )
+    assert len(sims) >= 2
+    datas = [s["data"] for s in sims]
+    assert datas == sorted(datas)
+    assert datas[0] >= date(2026, 5, 25)
+    assert datas[-1] <= date(2026, 8, 16)
+    assert any(s["tipo"].startswith("Simulado completo") for s in sims)

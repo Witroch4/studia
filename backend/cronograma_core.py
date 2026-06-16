@@ -174,3 +174,50 @@ def derivar_revisoes(
                 itens.append(ItemRevisao(qid, errou_em, revisar_em, label))
     itens.sort(key=lambda i: (i.revisar_em, i.questao_id))
     return itens
+
+
+def _proximos_dias_semana(inicio: date, fim: date, weekdays: list[int]) -> list[date]:
+    alvo = set(weekdays)
+    return [d for d in _enumerar_datas(inicio, fim) if d.weekday() in alvo]
+
+
+def agendar_discursivas(
+    temas: list[str],
+    data_inicio: date,
+    fim_1volta: date,
+    por_semana: int,
+) -> list[tuple[date, str]]:
+    """Distribui os temas em terças/quintas (ou só terça se por_semana==1)."""
+    if not temas:
+        return []
+    weekdays = [1, 3] if por_semana >= 2 else [1]
+    slots = _proximos_dias_semana(data_inicio, fim_1volta, weekdays)
+    return [(slots[i], tema) for i, tema in enumerate(temas) if i < len(slots)]
+
+
+def gerar_simulados(
+    data_inicio: date, data_prova: date, buffer_dias: int
+) -> list[dict]:
+    """Marcos de simulado: diagnóstico, parciais a cada ~14 dias, 2 completos na reta final."""
+    fim_1volta = data_prova - timedelta(days=buffer_dias)
+    sims: list[dict] = []
+
+    diag = data_inicio + timedelta(days=20)
+    if diag < fim_1volta:
+        sims.append({"data": diag, "tipo": "Simulado diagnóstico",
+                     "objetivas_planejadas": 35, "meta_objetiva": 50,
+                     "discursiva_planejada": 1})
+    cursor = diag + timedelta(days=14)
+    while cursor < fim_1volta:
+        sims.append({"data": cursor, "tipo": "Simulado parcial",
+                     "objetivas_planejadas": 70, "meta_objetiva": 95,
+                     "discursiva_planejada": 1})
+        cursor += timedelta(days=14)
+    for offset, label in ((7, "Simulado completo"), (-7, "Simulado completo final")):
+        d = (fim_1volta + timedelta(days=7)) if offset == 7 else (data_prova - timedelta(days=7))
+        if data_inicio <= d <= data_prova:
+            sims.append({"data": d, "tipo": label,
+                         "objetivas_planejadas": 70, "meta_objetiva": 100,
+                         "discursiva_planejada": 2})
+    sims.sort(key=lambda s: s["data"])
+    return sims
