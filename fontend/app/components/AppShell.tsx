@@ -7,7 +7,7 @@ import Sidebar from "./Sidebar";
  * Decide o "chrome" do app: rotas de auth (ex.: /login) ficam fullscreen sem
  * sidebar; todo o resto ganha a sidebar + área de conteúdo.
  */
-const BARE_ROUTES = ["/", "/login", "/cadastro"];
+const BARE_ROUTES = ["/", "/login", "/cadastro", "/assinar"];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
