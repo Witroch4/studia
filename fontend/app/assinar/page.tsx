@@ -106,11 +106,12 @@ function PagamentoTransparente({ intervalo, valorHoje, onVoltar }: { intervalo: 
           <span className="material-symbols-outlined text-[16px]">arrow_back</span> Voltar aos planos
         </button>
         <h2 className="mb-4 text-lg font-bold text-fg-strong">Pagamento</h2>
-        <p className="mb-4 text-xs text-fg-faint">Apple&nbsp;Pay e Google&nbsp;Pay aparecem no topo quando disponíveis no seu dispositivo.</p>
 
-        {/* Wallets (Apple/Google Pay) vêm NATIVOS no Payment Element — integração
-            do Stripe com o Checkout Session, sem onConfirm manual (mais robusto). */}
-        <PaymentElement options={{ layout: { type: "tabs" }, wallets: { applePay: "auto", googlePay: "auto", link: "auto" } }} />
+        {/* Google Pay desligado: dá REQUEST_TIMEOUT no live (provisionamento da
+            conta Stripe, não é o código — o wallet nativo do Stripe falha igual).
+            Apple Pay mantido (mecanismo próprio + domínio registrado). Reabilitar
+            o googlePay quando a Stripe confirmar que está provisionado. */}
+        <PaymentElement options={{ layout: { type: "tabs" }, wallets: { applePay: "auto", googlePay: "never", link: "auto" } }} />
         {erroPg && (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-error/40 bg-error/10 px-3 py-2 text-sm text-error">
             <span className="material-symbols-outlined text-[18px]">error</span>
