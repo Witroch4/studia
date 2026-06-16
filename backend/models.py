@@ -570,6 +570,10 @@ class Assinatura(Base):
         DateTime(timezone=True), nullable=True
     )
     cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Cancelamento administrativo (por violação etc.) — preenchido pelo painel admin.
+    cancel_motivo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    cancel_admin_uid: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    cancel_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
