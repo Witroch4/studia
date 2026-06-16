@@ -47,8 +47,11 @@ function PagamentoTransparente({ intervalo, precoAnual, onVoltar }: { intervalo:
     e.preventDefault();
     setErroPg(null);
     setEnviando(true);
-    const { error } = await checkout.confirm();
-    if (error) { setErroPg(error.message ?? "Não foi possível confirmar o pagamento."); setEnviando(false); }
+    const result = await checkout.confirm();
+    if (result.type === "error") {
+      setErroPg(result.error.message ?? "Não foi possível confirmar o pagamento.");
+      setEnviando(false);
+    }
   }
 
   return (
