@@ -435,7 +435,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       </nav>
 
       {tab === "Estatisticas" && (
-        <EstatisticasTab cadernoId={caderno.id} />
+        <EstatisticasTab cadernoId={caderno.id} cadernoNome={caderno.nome} />
       )}
       {tab === "Indice" && (
         <IndiceTab
@@ -812,12 +812,45 @@ interface StatsDetalhe {
   }>;
 }
 
-function EstatisticasTab({ cadernoId }: { cadernoId: number }) {
+type TipoDerivar = "resolvidas" | "acertadas" | "erradas";
+const LABEL_DERIVAR: Record<TipoDerivar, string> = {
+  resolvidas: "Resolvidas",
+  acertadas: "Acertadas",
+  erradas: "Erradas",
+};
+
+function EstatisticasTab({ cadernoId, cadernoNome }: { cadernoId: number; cadernoNome: string }) {
+  const router = useRouter();
   const { data, isPending } = useQuery<StatsDetalhe>({
     queryKey: qk.cadernoSub(cadernoId, "stats-detalhe"),
     queryFn: () => apiJson(`/api/q/cadernos/${cadernoId}/stats-detalhe`),
     staleTime: 30_000,
   });
+
+  // Dialog próprio (sem alert nativo): clicar num card abre confirmação com
+  // nome editável; ao confirmar, cria um caderno derivado e avisa (fica na tela).
+  const [dialog, setDialog] = useState<{ tipo: TipoDerivar; nome: string } | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [criado, setCriado] = useState<{ id: number; nome: string; total: number } | null>(null);
+
+  const derivarMutation = useMutation({
+    mutationFn: (body: { tipo: TipoDerivar; nome: string }) =>
+      apiPost<{ id: number; nome: string; total: number }>(`/api/q/cadernos/${cadernoId}/derivar`, body),
+    onSuccess: (res) => {
+      setCriado(res);
+      setDialog(null);
+      setErro(null);
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "Não foi possível criar o caderno.";
+      setErro(msg);
+    },
+  });
+
+  function abrirDialog(tipo: TipoDerivar) {
+    setErro(null);
+    setDialog({ tipo, nome: `${LABEL_DERIVAR[tipo]} — ${cadernoNome}` });
+  }
 
   if (isPending || !data) return <div className="p-8 text-fg-muted">Carregando estatísticas…</div>;
 
@@ -827,9 +860,12 @@ function EstatisticasTab({ cadernoId }: { cadernoId: number }) {
     <main className="max-w-5xl mx-auto px-6 py-6 space-y-6">
       {/* ─── Resumo grande ─── */}
       <section className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Card label="Resolvidas" value={data.resolvidas} sub={`de ${data.questoes_total}`} color="cyan" />
-        <Card label="Acertos" value={data.acertos} sub={`${data.taxa}% taxa`} color="green" />
-        <Card label="Erros" value={data.erros} color="red" />
+        <Card label="Resolvidas" value={data.resolvidas} sub={`de ${data.questoes_total}`} color="cyan"
+          onClick={data.resolvidas > 0 ? () => abrirDialog("resolvidas") : undefined} />
+        <Card label="Acertos" value={data.acertos} sub={`${data.taxa}% taxa`} color="green"
+          onClick={data.acertos > 0 ? () => abrirDialog("acertadas") : undefined} />
+        <Card label="Erros" value={data.erros} color="red"
+          onClick={data.erros > 0 ? () => abrirDialog("erradas") : undefined} />
         <Card label="Tempo total" value={formatTempo(data.tempo_total_segundos)} mono color="violet" />
         <Card label="Médio/questão" value={data.tempo_medio_segundos > 0 ? `${Math.round(data.tempo_medio_segundos)}s` : "—"} color="amber" />
       </section>
@@ -903,14 +939,86 @@ function EstatisticasTab({ cadernoId }: { cadernoId: number }) {
           Resolva algumas questões para ver suas estatísticas aqui.
         </div>
       )}
+
+      {/* ─── Dialog próprio: criar caderno derivado ─── */}
+      {dialog && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => !derivarMutation.isPending && setDialog(null)}
+        >
+          <div className="w-full max-w-md rounded-2xl border border-primary/30 bg-surface-dark p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-fg-strong">
+              Criar caderno com as <span className="text-primary">{LABEL_DERIVAR[dialog.tipo].toLowerCase()}</span>
+            </h2>
+            <p className="mt-1 text-sm text-fg-muted">
+              Um caderno novo será criado com {dialog.tipo === "acertadas" ? "as questões que você acertou" : dialog.tipo === "erradas" ? "as questões que você errou" : "todas as questões que você resolveu"} neste caderno.
+            </p>
+            <label className="mt-4 block text-xs text-fg-faint">Nome do caderno</label>
+            <input
+              autoFocus
+              value={dialog.nome}
+              onChange={(e) => setDialog((d) => (d ? { ...d, nome: e.target.value } : d))}
+              onKeyDown={(e) => { if (e.key === "Enter" && dialog.nome.trim()) derivarMutation.mutate(dialog); }}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-fg outline-none focus:border-primary"
+            />
+            {erro && <p className="mt-2 text-xs text-error">{erro}</p>}
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => derivarMutation.mutate(dialog)}
+                disabled={!dialog.nome.trim() || derivarMutation.isPending}
+                className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-semibold text-black hover:opacity-90 disabled:opacity-40 transition"
+              >
+                {derivarMutation.isPending ? "Criando…" : "Criar caderno"}
+              </button>
+              <button
+                onClick={() => setDialog(null)}
+                disabled={derivarMutation.isPending}
+                className="rounded-lg border border-border px-4 py-2.5 text-sm text-fg-muted hover:text-fg disabled:opacity-40"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Aviso de caderno criado (fica na tela, com link) ─── */}
+      {criado && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setCriado(null)}
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-success/30 bg-surface-dark p-7 text-center shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <span className="material-symbols-outlined text-success text-5xl">task_alt</span>
+            <h2 className="mt-3 text-lg font-bold text-fg-strong">Caderno criado</h2>
+            <p className="mt-2 text-sm text-fg-muted">
+              <span className="text-fg">{criado.nome}</span> — {criado.total} {criado.total === 1 ? "questão" : "questões"}.
+            </p>
+            <button
+              onClick={() => router.push(`/q/caderno/${criado.id}`)}
+              className="mt-6 w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-black hover:opacity-90 transition"
+            >
+              Abrir caderno
+            </button>
+            <button onClick={() => setCriado(null)} className="mt-2 w-full rounded-lg py-2 text-xs text-fg-faint hover:text-fg">
+              Continuar aqui
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
 
-function Card({ label, value, sub, color, mono }: {
+function Card({ label, value, sub, color, mono, onClick }: {
   label: string; value: string | number; sub?: string;
   color: "cyan" | "green" | "red" | "violet" | "amber";
   mono?: boolean;
+  onClick?: () => void;
 }) {
   const colors = {
     cyan: "text-primary",
@@ -919,13 +1027,26 @@ function Card({ label, value, sub, color, mono }: {
     violet: "text-secondary",
     amber: "text-warning",
   };
-  return (
-    <div className="border border-border/60 rounded-lg bg-surface p-4">
+  const inner = (
+    <>
       <div className={`text-2xl font-bold ${colors[color]} ${mono ? "font-mono" : ""}`}>{value}</div>
       <div className="text-xs text-fg-muted mt-1">{label}</div>
       {sub && <div className="text-xs text-fg-faint">{sub}</div>}
-    </div>
+    </>
   );
+  if (onClick) {
+    return (
+      <button
+        onClick={onClick}
+        title="Criar um caderno só com essas questões"
+        className="border border-border/60 rounded-lg bg-surface p-4 text-left transition hover:border-primary/50 hover:bg-surface-2/40 focus:outline-none focus:ring-1 focus:ring-primary/50"
+      >
+        {inner}
+        <div className="text-[10px] text-primary/70 mt-1.5">+ gerar caderno →</div>
+      </button>
+    );
+  }
+  return <div className="border border-border/60 rounded-lg bg-surface p-4">{inner}</div>;
 }
 
 function BarBlock({ titulo, items }: {

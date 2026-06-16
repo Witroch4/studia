@@ -816,6 +816,68 @@ async def gerar_caderno(
     }
 
 
+class DerivarCadernoReq(BaseModel):
+    tipo: str = Field(..., description="resolvidas | acertadas | erradas")
+    nome: str = Field(default="", description="nome do novo caderno (vazio = automático)")
+
+
+@router.post("/cadernos/{caderno_id}/derivar")
+async def derivar_caderno(
+    caderno_id: int,
+    req: DerivarCadernoReq,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Cria um caderno novo com o subconjunto das questões que o usuário
+    resolveu/acertou/errou neste caderno. Snapshot dos IDs (estilo TC)."""
+    if req.tipo not in ("resolvidas", "acertadas", "erradas"):
+        raise HTTPException(422, "tipo inválido (resolvidas | acertadas | erradas)")
+    cad = await _caderno_acessivel(db, caderno_id, user)
+
+    rows = (await db.execute(
+        select(Resolucao.questao_id, Resolucao.acertou)
+        .where(Resolucao.usuario_uid == user.id, Resolucao.caderno_id == caderno_id)
+        .order_by(Resolucao.created_at.desc())
+    )).all()
+    acertou_por_q: dict[int, Any] = {}
+    for r in rows:
+        if r.questao_id not in acertou_por_q:  # desc → mantém a mais recente
+            acertou_por_q[r.questao_id] = r.acertou
+
+    def incluir(qid: int) -> bool:
+        if qid not in acertou_por_q:
+            return False
+        if req.tipo == "resolvidas":
+            return True
+        if req.tipo == "acertadas":
+            return acertou_por_q[qid] is True
+        return acertou_por_q[qid] is False  # erradas
+
+    # Preserva a ordem original do caderno.
+    ids = [qid for qid in (cad.question_ids or []) if incluir(qid)]
+    if not ids:
+        raise HTTPException(400, "Nenhuma questão nessa categoria ainda.")
+
+    label = {"resolvidas": "Resolvidas", "acertadas": "Acertadas", "erradas": "Erradas"}[req.tipo]
+    nome = (req.nome or "").strip() or f"{label} — {cad.nome}"
+    novo = CadernoQuestoes(
+        owner_uid=user.id,
+        nome=nome[:512],
+        pasta=cad.pasta,
+        question_ids=ids,
+        total=len(ids),
+    )
+    db.add(novo)
+    await db.commit()
+    await db.refresh(novo)
+    return {
+        "id": novo.id,
+        "nome": novo.nome,
+        "total": novo.total,
+        "redirect": f"/q/caderno/{novo.id}",
+    }
+
+
 @router.get("/cadernos/{caderno_id}")
 async def detalhe_caderno(
     caderno_id: int,
