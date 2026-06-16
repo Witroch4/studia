@@ -200,6 +200,10 @@ app.include_router(billing_router)
 from voucher_router import router as voucher_router  # noqa: E402
 app.include_router(voucher_router)
 
+# Painel admin de assinaturas (gestão Stripe)
+from admin_billing_router import router as admin_billing_router  # noqa: E402
+app.include_router(admin_billing_router)
+
 # Auth: handoff Better Auth → JWT + logout
 from auth_router import router as auth_router  # noqa: E402
 app.include_router(auth_router)
