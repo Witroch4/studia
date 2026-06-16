@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { authClient, useSession } from "@/lib/auth-client";
+import BillingSection from "./BillingSection";
 
 type Notice = { kind: "ok" | "err"; msg: string } | null;
 
@@ -41,6 +42,7 @@ export default function ContaClient() {
       </div>
 
       <div className="space-y-6">
+        <BillingSection />
         <ProfileCard name={user?.name} email={user?.email} />
         <PasswordCard />
         {isAdmin && <CreateUserCard />}
