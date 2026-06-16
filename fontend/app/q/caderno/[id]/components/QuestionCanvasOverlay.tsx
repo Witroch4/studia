@@ -78,40 +78,59 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: CanvasStroke, size: C
   ctx.stroke();
 }
 
-function segmentDistance(point: CanvasPoint, start: CanvasPoint, end: CanvasPoint, size: CanvasSize) {
-  const p = toCanvasPoint(point, size);
-  const a = toCanvasPoint(start, size);
-  const b = toCanvasPoint(end, size);
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const lengthSquared = dx * dx + dy * dy;
-
-  if (lengthSquared === 0) return Math.hypot(p.x - a.x, p.y - a.y);
-
-  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared));
-  const x = a.x + t * dx;
-  const y = a.y + t * dy;
-  return Math.hypot(p.x - x, p.y - y);
+function pointPixelDistance(a: CanvasPoint, b: CanvasPoint, size: CanvasSize) {
+  const pa = toCanvasPoint(a, size);
+  const pb = toCanvasPoint(b, size);
+  return Math.hypot(pa.x - pb.x, pa.y - pb.y);
 }
 
-function distanceToStroke(point: CanvasPoint, stroke: CanvasStroke, size: CanvasSize) {
-  if (stroke.points.length === 0) return Number.POSITIVE_INFINITY;
-  if (stroke.points.length === 1) {
-    const p = toCanvasPoint(point, size);
-    const only = toCanvasPoint(stroke.points[0], size);
-    return Math.hypot(p.x - only.x, p.y - only.y);
-  }
+// Apagamento PARCIAL: remove apenas os pontos do traço que caem dentro do
+// círculo da borracha e parte o traço nos vãos resultantes. Antes a borracha
+// removia o stroke inteiro ao encostar em qualquer parte dele (apagava o
+// "desenho todo" de uma vez).
+function splitStrokeByErase(
+  stroke: CanvasStroke,
+  point: CanvasPoint,
+  size: CanvasSize,
+  eraseRadius: number,
+): CanvasStroke[] {
+  const runs: CanvasPoint[][] = [];
+  let run: CanvasPoint[] = [];
 
-  let shortest = Number.POSITIVE_INFINITY;
-  for (let index = 1; index < stroke.points.length; index += 1) {
-    shortest = Math.min(shortest, segmentDistance(point, stroke.points[index - 1], stroke.points[index], size));
+  for (const p of stroke.points) {
+    if (pointPixelDistance(point, p, size) > eraseRadius) {
+      run.push(p);
+    } else if (run.length > 0) {
+      runs.push(run);
+      run = [];
+    }
   }
-  return shortest;
+  if (run.length > 0) runs.push(run);
+
+  return runs.map((points, index) => ({
+    ...stroke,
+    id: index === 0 ? stroke.id : `${stroke.id}_${index}`,
+    points,
+  }));
 }
 
 function eraseCanvasAtPoint(current: CanvasState, point: CanvasPoint, size: CanvasSize, eraseRadius: number) {
-  const strokes = current.strokes.filter((stroke) => distanceToStroke(point, stroke, size) > eraseRadius);
-  if (strokes.length === current.strokes.length) return current;
+  let changed = false;
+  const strokes: CanvasStroke[] = [];
+
+  for (const stroke of current.strokes) {
+    const pieces = splitStrokeByErase(stroke, point, size, eraseRadius);
+    if (pieces.length === 1 && pieces[0].points.length === stroke.points.length) {
+      strokes.push(stroke);
+    } else {
+      changed = true;
+      for (const piece of pieces) {
+        if (piece.points.length > 0) strokes.push(piece);
+      }
+    }
+  }
+
+  if (!changed) return current;
 
   return {
     version: 1 as const,
