@@ -107,11 +107,10 @@ function PagamentoTransparente({ intervalo, valorHoje, onVoltar }: { intervalo: 
         </button>
         <h2 className="mb-4 text-lg font-bold text-fg-strong">Pagamento</h2>
 
-        {/* Google Pay desligado: dá REQUEST_TIMEOUT no live (provisionamento da
-            conta Stripe, não é o código — o wallet nativo do Stripe falha igual).
-            Apple Pay mantido (mecanismo próprio + domínio registrado). Reabilitar
-            o googlePay quando a Stripe confirmar que está provisionado. */}
-        <PaymentElement options={{ layout: { type: "tabs" }, wallets: { applePay: "auto", googlePay: "never", link: "auto" } }} />
+        {/* Wallets nativos do Payment Element (Apple/Google Pay). O REQUEST_TIMEOUT
+            observado parecia ser página em cache (JS antigo) — após reload o pagamento
+            funcionou. Mantidos em "auto"; investigando a fundo via logs do Stripe. */}
+        <PaymentElement options={{ layout: { type: "tabs" }, wallets: { applePay: "auto", googlePay: "auto", link: "auto" } }} />
         {erroPg && (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-error/40 bg-error/10 px-3 py-2 text-sm text-error">
             <span className="material-symbols-outlined text-[18px]">error</span>
