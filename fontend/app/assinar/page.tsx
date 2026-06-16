@@ -8,7 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/queryKeys";
 import { celebrarPro } from "@/lib/confetti";
 import { loadStripe } from "@stripe/stripe-js";
-import { CheckoutElementsProvider, ExpressCheckoutElement, PaymentElement, useCheckoutElements } from "@stripe/react-stripe-js/checkout";
+import { CheckoutElementsProvider, PaymentElement, useCheckoutElements } from "@stripe/react-stripe-js/checkout";
 import { BENEFICIOS_PRO, BENEFICIOS_FREE, PRECO_ANUAL_EQUIV_MES, ECONOMIA_ANUAL } from "@/app/lib/planos";
 
 type BillingStatus = {
@@ -53,7 +53,6 @@ function PagamentoTransparente({ intervalo, valorHoje, onVoltar }: { intervalo: 
   const checkoutState = useCheckoutElements();
   const [erroPg, setErroPg] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const [walletsReady, setWalletsReady] = useState(false);
   const [indoSite, setIndoSite] = useState(false);
 
   if (checkoutState.type === "loading") {
@@ -107,23 +106,10 @@ function PagamentoTransparente({ intervalo, valorHoje, onVoltar }: { intervalo: 
           <span className="material-symbols-outlined text-[16px]">arrow_back</span> Voltar aos planos
         </button>
         <h2 className="mb-4 text-lg font-bold text-fg-strong">Pagamento</h2>
+        <p className="mb-4 text-xs text-fg-faint">Apple&nbsp;Pay e Google&nbsp;Pay aparecem no topo quando disponíveis no seu dispositivo.</p>
 
-        {/* Fileira expressa de carteiras (Apple Pay / Google Pay). Some quando
-            nenhuma carteira está disponível no dispositivo — sem UI vazia. */}
-        <ExpressCheckoutElement
-          onReady={(e) => setWalletsReady(Boolean(e.availablePaymentMethods))}
-          onConfirm={async () => {
-            setErroPg(null);
-            const r = await checkout.confirm();
-            if (r.type === "error") setErroPg(r.error.message ?? "Não foi possível confirmar o pagamento.");
-          }}
-        />
-        {walletsReady && (
-          <div className="my-4 flex items-center gap-3 text-[11px] uppercase tracking-wide text-fg-faint">
-            <span className="h-px flex-1 bg-border-dark" /> ou com cartão <span className="h-px flex-1 bg-border-dark" />
-          </div>
-        )}
-
+        {/* Wallets (Apple/Google Pay) vêm NATIVOS no Payment Element — integração
+            do Stripe com o Checkout Session, sem onConfirm manual (mais robusto). */}
         <PaymentElement options={{ layout: { type: "tabs" }, wallets: { applePay: "auto", googlePay: "auto", link: "auto" } }} />
         {erroPg && (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-error/40 bg-error/10 px-3 py-2 text-sm text-error">
