@@ -9,6 +9,10 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select, delete as sa_delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import io as io_module
+
+from fastapi.responses import StreamingResponse
+
 from auth import CurrentUser, require_user
 from database import get_db
 from models import (
@@ -18,6 +22,7 @@ from models import (
 import cronograma_core as core
 import logging
 from gemini_service import gerar_temas_discursivas
+from cronograma_xlsx import montar_workbook
 
 _log = logging.getLogger("cronograma")
 
@@ -327,6 +332,47 @@ async def regenerar_discursivas(
     await _popular_discursivas(db, cad, c)
     await db.commit()
     return await _montar_resposta(db, cad, c)
+
+@router.get("/cadernos/{caderno_id}/cronograma/export.xlsx")
+async def exportar_cronograma(
+    caderno_id: int,
+    user: CurrentUser = Depends(require_user), db: AsyncSession = Depends(get_db),
+):
+    cad = await _caderno_do_usuario(db, caderno_id, user)
+    c = await _get_cron(db, caderno_id, user.id)
+    if not c:
+        raise HTTPException(404, "sem cronograma")
+    inicio_efetivo = c.rebaseline_em or c.data_inicio
+    plano = core.gerar_plano(inicio_efetivo, c.data_prova, cad.total or 0,
+                             c.dias_folga or [], c.buffer_dias)
+    discs = (await db.execute(
+        select(CronogramaDiscursiva).where(CronogramaDiscursiva.cronograma_id == c.id)
+        .order_by(CronogramaDiscursiva.data)
+    )).scalars().all()
+    sims = (await db.execute(
+        select(CronogramaSimulado).where(CronogramaSimulado.cronograma_id == c.id)
+        .order_by(CronogramaSimulado.data)
+    )).scalars().all()
+    blob = montar_workbook({
+        "nome_caderno": cad.nome, "total": cad.total or 0,
+        "data_inicio": c.data_inicio, "data_prova": c.data_prova, "plano": plano,
+        "discursivas": [{"data": x.data, "tema": x.tema, "tipo": x.tipo, "qtd": x.qtd,
+                         "status": x.status, "nota": x.nota, "observacoes": x.observacoes}
+                        for x in discs],
+        "simulados": [{"data": s.data, "tipo": s.tipo,
+                       "objetivas_planejadas": s.objetivas_planejadas,
+                       "meta_objetiva": s.meta_objetiva,
+                       "resultado_objetiva": s.resultado_objetiva,
+                       "discursiva_planejada": s.discursiva_planejada,
+                       "resultado_discursiva": s.resultado_discursiva} for s in sims],
+    })
+    nome = f"cronograma_caderno_{caderno_id}.xlsx"
+    return StreamingResponse(
+        io_module.BytesIO(blob),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
+    )
+
 
 @router.delete("/cadernos/{caderno_id}/cronograma")
 async def deletar_cronograma(

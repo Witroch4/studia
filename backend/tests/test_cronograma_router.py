@@ -180,3 +180,15 @@ async def test_patch_discursiva_status(client, db_session, auth_state, monkeypat
     novo = (await client.get(f"/api/q/cadernos/{cad.id}/cronograma")).json()
     alvo = next(d for d in novo["discursivas"] if d["id"] == did)
     assert alvo["status"] == "Feita" and alvo["nota"] == 17.5
+
+
+@pytest.mark.asyncio
+async def test_export_xlsx(client, db_session, auth_state):
+    auth_state["user"] = USER_A
+    cad = await _caderno(db_session)
+    await client.post(f"/api/q/cadernos/{cad.id}/cronograma",
+                      json={"data_prova": "2026-08-16", "data_inicio": "2026-05-25"})
+    r = await client.get(f"/api/q/cadernos/{cad.id}/cronograma/export.xlsx")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/vnd.openxmlformats")
+    assert len(r.content) > 0
