@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { apiJson, apiPost, ApiError } from "@/lib/api";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/queryKeys";
+import ConfirmDialog, { type ConfirmState } from "@/app/components/ConfirmDialog";
 
 type StripeSub = {
   id: string;
@@ -44,7 +45,7 @@ export default function DetalheDrawer({ uid, onClose }: { uid: string; onClose: 
   const queryClient = useQueryClient();
   const [msg, setMsg] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [confirmar, setConfirmar] = useState<(ConfirmState & { run: () => void }) | null>(null);
 
   const [dias, setDias] = useState(365);
   const [editarDias, setEditarDias] = useState(30);
@@ -57,32 +58,43 @@ export default function DetalheDrawer({ uid, onClose }: { uid: string; onClose: 
     queryFn: () => apiJson<Detalhe>(`/api/admin/billing/usuarios/${uid}`),
   });
 
-  async function invalidarTudo() {
-    await Promise.all([
+  function invalidarTudo() {
+    return Promise.all([
       refetch(),
       queryClient.invalidateQueries({ queryKey: ["admin", "assinaturas", "lista"] }),
       queryClient.invalidateQueries({ queryKey: qk.adminAssinaturasOverview() }),
     ]);
   }
 
-  async function acao(fn: () => Promise<unknown>, ok: string) {
-    setErro(null); setMsg(null); setBusy(true);
-    try {
-      const res = await fn();
-      const aviso =
-        res && typeof res === "object" && "stripe_aviso" in res
-          ? (res as { stripe_aviso?: string | null }).stripe_aviso
-          : null;
-      setMsg(aviso ? `${ok} (${aviso})` : ok);
-      await invalidarTudo();
-    } catch (e) {
-      setErro(e instanceof ApiError ? e.message : "Falha na operação.");
-    } finally {
-      setBusy(false);
-    }
+  /**
+   * Fábrica de mutations: cada ação do painel é uma `useMutation`. No sucesso,
+   * invalida o detalhe + lista + overview (atualização em tempo real) e mostra
+   * o aviso do Stripe quando o backend o devolve (`stripe_aviso`).
+   */
+  function useAcao() {
+    return useMutation({
+      mutationFn: (v: { fn: () => Promise<unknown>; ok: string }) => v.fn(),
+      onMutate: () => { setErro(null); setMsg(null); },
+      onSuccess: async (res, v) => {
+        const aviso =
+          res && typeof res === "object" && "stripe_aviso" in res
+            ? (res as { stripe_aviso?: string | null }).stripe_aviso
+            : null;
+        setMsg(aviso ? `${v.ok} (${aviso})` : v.ok);
+        await invalidarTudo();
+      },
+      onError: (e) => setErro(e instanceof ApiError ? e.message : "Falha na operação."),
+    });
   }
 
+  const mConceder = useAcao();
+  const mEditar = useAcao();
+  const mCancelar = useAcao();
+  const mSincronizar = useAcao();
+  const busy = mConceder.isPending || mEditar.isPending || mCancelar.isPending || mSincronizar.isPending;
+
   return (
+    <>
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50" />
       <aside
@@ -109,7 +121,14 @@ export default function DetalheDrawer({ uid, onClose }: { uid: string; onClose: 
               <div className="text-fg-strong text-sm font-medium mb-1">Assinatura (local)</div>
               <div>status: {data.assinatura_local?.status ?? "—"}</div>
               <div>vence: {fmt(data.assinatura_local?.current_period_end ?? null)}</div>
-              <div>cancela no fim: {data.assinatura_local?.cancel_at_period_end ? "sim" : "não"}</div>
+              {data.assinatura_local?.cancel_at_period_end ? (
+                <div className="inline-flex items-center gap-1 mt-1 text-amber-500 font-medium">
+                  <span className="material-symbols-outlined text-sm leading-none">schedule</span>
+                  cancela no fim do período (acesso mantido até o vencimento)
+                </div>
+              ) : (
+                <div>cancela no fim: não</div>
+              )}
               {data.assinatura_local?.cancel_motivo && (
                 <div>motivo cancel.: {data.assinatura_local.cancel_motivo}</div>
               )}
@@ -150,10 +169,10 @@ export default function DetalheDrawer({ uid, onClose }: { uid: string; onClose: 
                 </label>
                 <button
                   disabled={busy}
-                  onClick={() => acao(() => apiPost(`/api/admin/billing/usuarios/${uid}/conceder`, { dias }), "Pro concedido.")}
+                  onClick={() => mConceder.mutate({ fn: () => apiPost(`/api/admin/billing/usuarios/${uid}/conceder`, { dias }), ok: "Pro concedido." })}
                   className="bg-secondary hover:opacity-90 text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-40"
                 >
-                  Conceder
+                  {mConceder.isPending ? "Concedendo…" : "Conceder"}
                 </button>
               </div>
             </section>
@@ -172,16 +191,18 @@ export default function DetalheDrawer({ uid, onClose }: { uid: string; onClose: 
                 </label>
                 <button
                   disabled={busy}
-                  onClick={() => {
-                    const msg = editarDias === 0
-                      ? "Revogar o PRO deste usuário AGORA?"
-                      : `Definir PRO para ${editarDias} dias a partir de agora? (revoga o vigente)`;
-                    if (!window.confirm(msg)) return;
-                    acao(() => apiPost(`/api/admin/billing/usuarios/${uid}/editar-tempo`, { dias: editarDias }), "Tempo atualizado.");
-                  }}
+                  onClick={() => setConfirmar({
+                    titulo: editarDias === 0 ? "Revogar o PRO agora?" : `Definir PRO para ${editarDias} dias?`,
+                    descricao: editarDias === 0
+                      ? "O acesso PRO deste usuário será revogado imediatamente. Não depende do Stripe."
+                      : `O PRO passará a valer por ${editarDias} dias a partir de agora, revogando o período vigente. Não depende do Stripe.`,
+                    confirmLabel: editarDias === 0 ? "Revogar agora" : "Aplicar",
+                    destrutivo: editarDias === 0,
+                    run: () => mEditar.mutate({ fn: () => apiPost(`/api/admin/billing/usuarios/${uid}/editar-tempo`, { dias: editarDias }), ok: "Tempo atualizado." }),
+                  })}
                   className="bg-primary hover:opacity-90 text-on-primary px-4 py-2 rounded text-sm font-semibold disabled:opacity-40"
                 >
-                  Aplicar
+                  {mEditar.isPending ? "Aplicando…" : "Aplicar"}
                 </button>
               </div>
             </section>
@@ -209,30 +230,44 @@ export default function DetalheDrawer({ uid, onClose }: { uid: string; onClose: 
               <button
                 disabled={busy}
                 onClick={() => {
-                  const aviso = modo === "fim_periodo"
+                  const titulo = modo === "fim_periodo"
                     ? "Cancelar no fim do período?"
                     : modo === "imediato_reembolso"
-                    ? "Cancelar AGORA e reembolsar a última cobrança?"
-                    : "Cancelar AGORA, sem reembolso?";
-                  if (!window.confirm(aviso + (banir ? "\nA conta também será banida." : ""))) return;
-                  acao(
-                    () => apiPost(`/api/admin/billing/usuarios/${uid}/cancelar`, { modo, motivo: motivo || null, banir }),
-                    "Assinatura cancelada.",
-                  );
+                    ? "Cancelar agora e reembolsar?"
+                    : "Cancelar agora, sem reembolso?";
+                  const desc = modo === "fim_periodo"
+                    ? "A assinatura segue ativa e o acesso PRO é mantido até o vencimento — só não renova depois. O usuário continua como Pro na lista até lá."
+                    : modo === "imediato_reembolso"
+                    ? "O acesso PRO é revogado imediatamente e a última cobrança é reembolsada."
+                    : "O acesso PRO é revogado imediatamente, sem reembolso.";
+                  const ok = modo === "fim_periodo"
+                    ? "Cancelamento agendado: acesso mantido até o vencimento."
+                    : "Assinatura cancelada.";
+                  setConfirmar({
+                    titulo,
+                    descricao: desc + (banir ? "\nA conta também será banida (login bloqueado)." : ""),
+                    confirmLabel: "Cancelar assinatura",
+                    cancelLabel: "Voltar",
+                    destrutivo: true,
+                    run: () => mCancelar.mutate({
+                      fn: () => apiPost(`/api/admin/billing/usuarios/${uid}/cancelar`, { modo, motivo: motivo || null, banir }),
+                      ok,
+                    }),
+                  });
                 }}
                 className="w-full bg-error hover:opacity-90 text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-40"
               >
-                Cancelar assinatura
+                {mCancelar.isPending ? "Cancelando…" : "Cancelar assinatura"}
               </button>
             </section>
 
             <section className="border-t border-border pt-4">
               <button
                 disabled={busy}
-                onClick={() => acao(() => apiPost(`/api/admin/billing/usuarios/${uid}/sincronizar`, {}), "Sincronizado com o Stripe.")}
+                onClick={() => mSincronizar.mutate({ fn: () => apiPost(`/api/admin/billing/usuarios/${uid}/sincronizar`, {}), ok: "Sincronizado com o Stripe." })}
                 className="w-full bg-page border border-border hover:border-primary text-fg px-4 py-2 rounded text-sm font-semibold disabled:opacity-40"
               >
-                Sincronizar do Stripe
+                {mSincronizar.isPending ? "Sincronizando…" : "Sincronizar do Stripe"}
               </button>
             </section>
 
@@ -242,5 +277,11 @@ export default function DetalheDrawer({ uid, onClose }: { uid: string; onClose: 
         )}
       </aside>
     </div>
+    <ConfirmDialog
+      state={confirmar ? { ...confirmar, carregando: busy } : null}
+      onConfirm={() => { const c = confirmar; setConfirmar(null); c?.run(); }}
+      onCancel={() => setConfirmar(null)}
+    />
+    </>
   );
 }

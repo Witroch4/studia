@@ -182,7 +182,15 @@ export default function AssinaturasAdminPage() {
                     <td className="px-4 py-3 hidden md:table-cell">
                       <span className={`text-xs px-2 py-1 rounded ${pl.cls}`}>{pl.txt}</span>
                     </td>
-                    <td className="px-4 py-3 hidden md:table-cell text-fg-muted">{u.status ?? "—"}</td>
+                    <td className="px-4 py-3 hidden md:table-cell text-fg-muted">
+                      {u.status ?? "—"}
+                      {u.cancel_at_period_end && (
+                        <span className="ml-2 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-500/15 text-amber-500">
+                          <span className="material-symbols-outlined text-xs leading-none">schedule</span>
+                          cancela no fim
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 hidden lg:table-cell text-fg-muted">{fmtData(vence)}</td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => setSel(u.uid)} className="text-primary hover:underline text-xs font-semibold">
