@@ -627,7 +627,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
             <nav className="mt-6 pt-4 border-t border-border/60 flex items-center gap-1 flex-wrap">
               <NavBtn icon="←" title="Anterior (←)" onClick={() => avancar(-1)} disabled={idx === 0} />
               <NavBtn icon="→" title="Próxima (→)" onClick={() => avancar(1)} disabled={idx === caderno.total - 1} />
-              <NavBtn icon="🔀" title="Aleatória (L)" onClick={aleatoria} />
+              <NavBtn icon="🔀" title="Aleatória não resolvida (L)" onClick={aleatoria} />
               <NavBtn icon="→⊟" title="Próxima não resolvida (N)" onClick={proximaNaoResolvida} />
               <NavBtn icon="◀" title="Tópico anterior (Z)" onClick={() => avancar(-1)} />
               <NavBtn icon="▶" title="Tópico seguinte (X)" onClick={() => avancar(1)} />
