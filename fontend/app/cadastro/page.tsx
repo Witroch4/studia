@@ -2,20 +2,18 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import Logo from "@/app/components/Logo";
 import GoogleAuthButton from "@/app/components/GoogleAuthButton";
 
 function CadastroForm() {
-  const router = useRouter();
-
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,15 +23,20 @@ function CadastroForm() {
       return;
     }
     setLoading(true);
-    const { error } = await authClient.signUp.email({ name, email, password });
+    // requireEmailVerification: o signup NÃO cria sessão; manda e-mail de
+    // confirmação (callbackURL = destino após o usuário clicar no link).
+    const { error } = await authClient.signUp.email({
+      name,
+      email,
+      password,
+      callbackURL: "/painel",
+    });
     setLoading(false);
     if (error) {
       setError(error.message || "Não foi possível criar a conta. Tente outro e-mail.");
       return;
     }
-    // Better Auth já cria a sessão no signup → vai direto pro painel.
-    router.push("/painel");
-    router.refresh();
+    setSent(true);
   }
 
   return (
@@ -47,6 +50,27 @@ function CadastroForm() {
         </Link>
 
         <div className="rounded-2xl border border-border-dark bg-surface-dark p-7 shadow-xl">
+          {sent ? (
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/15">
+                <span className="material-symbols-outlined text-primary text-[30px]">mark_email_unread</span>
+              </div>
+              <h1 className="text-xl font-bold text-fg-strong">Confirme seu e-mail</h1>
+              <p className="mt-2 text-sm text-fg-faint">
+                Enviamos um link de confirmação para{" "}
+                <span className="font-medium text-fg-muted">{email}</span>. Clique nele
+                para ativar sua conta e começar a estudar.
+              </p>
+              <p className="mt-4 text-xs text-fg-faint">
+                Não chegou? Veja a caixa de spam ou{" "}
+                <Link href="/login" className="text-primary hover:underline">
+                  faça login
+                </Link>{" "}
+                para reenviar.
+              </p>
+            </div>
+          ) : (
+          <>
           <h1 className="text-xl font-bold text-fg-strong">Criar conta</h1>
           <p className="mt-1 text-sm text-fg-faint">
             Grátis — resolva até 10 questões por dia.
@@ -131,6 +155,8 @@ function CadastroForm() {
           </form>
 
           <GoogleAuthButton callbackURL="/painel" label="Cadastrar com Google" />
+          </>
+          )}
         </div>
 
         <p className="mt-6 text-center text-xs text-fg-faint">

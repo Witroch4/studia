@@ -11,6 +11,11 @@ import { getSessionCookie } from "better-auth/cookies";
  */
 const AUTH_PREFIXES = ["/login", "/cadastro"];
 
+// Públicas, mas SEM o redirect "logado → painel": quem chega aqui pode ter um
+// cookie de sessão antigo e ainda precisar concluir o fluxo (ex.: clicou no
+// link de redefinição de senha que recebeu por e-mail).
+const RESET_PREFIXES = ["/esqueci-senha", "/redefinir-senha"];
+
 // Rotas de metadata que o matcher não exclui por extensão (precisam ser
 // alcançáveis por crawlers sem login). /icon.svg já passa pelo matcher (.svg).
 const SEO_FILES = new Set([
@@ -28,7 +33,8 @@ export default function proxy(request: NextRequest) {
 
   const isLanding = pathname === "/";
   const isAuthPage = AUTH_PREFIXES.some((r) => pathname === r || pathname.startsWith(r + "/"));
-  const isPublic = isLanding || isAuthPage || SEO_FILES.has(pathname);
+  const isResetPage = RESET_PREFIXES.some((r) => pathname === r || pathname.startsWith(r + "/"));
+  const isPublic = isLanding || isAuthPage || isResetPage || SEO_FILES.has(pathname);
 
   // Logado na landing ou nas páginas de auth → vai pro painel (sem flash).
   // Crawler/visitante sem cookie continua vendo a landing normalmente.

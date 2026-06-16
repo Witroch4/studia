@@ -191,6 +191,13 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - NEXT_PUBLIC_GOOGLE_AUTH=${NEXT_PUBLIC_GOOGLE_AUTH:-}
+      # SMTP transacional (confirmação de e-mail + reset de senha). Vazio em dev
+      # → mailer cai no modo "console" (loga o link no terminal em vez de enviar).
+      - SMTP_ADDRESS=${SMTP_ADDRESS:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - MAILER_SENDER_EMAIL=${MAILER_SENDER_EMAIL:-}
     depends_on:
       - backend
     networks:

@@ -17,19 +17,44 @@ function LoginForm() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [needsVerify, setNeedsVerify] = useState(false);
+  const [resendMsg, setResendMsg] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNeedsVerify(false);
+    setResendMsg(null);
     setLoading(true);
     const { error } = await authClient.signIn.email({ email, password });
     setLoading(false);
     if (error) {
+      // 403 EMAIL_NOT_VERIFIED: conta existe mas falta confirmar o e-mail.
+      if (error.status === 403 || error.code === "EMAIL_NOT_VERIFIED") {
+        setNeedsVerify(true);
+        setError("Confirme seu e-mail antes de entrar. Reenviamos o link, se precisar.");
+        return;
+      }
       setError(error.message || "Não foi possível entrar. Verifique e-mail e senha.");
       return;
     }
     router.push(redirect);
     router.refresh();
+  }
+
+  async function handleResend() {
+    setResendMsg(null);
+    if (!email) {
+      setResendMsg("Digite seu e-mail acima primeiro.");
+      return;
+    }
+    const { error } = await authClient.sendVerificationEmail({
+      email,
+      callbackURL: "/painel",
+    });
+    setResendMsg(
+      error ? "Não foi possível reenviar agora. Tente em instantes." : "E-mail de confirmação reenviado!"
+    );
   }
 
   return (
@@ -92,10 +117,33 @@ function LoginForm() {
               </div>
             </div>
 
+            <div className="flex justify-end -mt-1">
+              <Link href="/esqueci-senha" className="text-xs text-fg-faint hover:text-primary transition-colors">
+                Esqueci minha senha
+              </Link>
+            </div>
+
             {error && (
-              <div className="flex items-start gap-2 rounded-lg border border-error/30 bg-error/10 px-3 py-2 text-sm text-error">
-                <span className="material-symbols-outlined text-[18px]">error</span>
-                <span>{error}</span>
+              <div className="flex flex-col gap-2 rounded-lg border border-error/30 bg-error/10 px-3 py-2 text-sm text-error">
+                <div className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[18px]">error</span>
+                  <span>{error}</span>
+                </div>
+                {needsVerify && (
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    className="self-start text-xs font-semibold text-primary hover:underline"
+                  >
+                    Reenviar e-mail de confirmação
+                  </button>
+                )}
+              </div>
+            )}
+
+            {resendMsg && (
+              <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+                {resendMsg}
               </div>
             )}
 

@@ -137,13 +137,26 @@ sync_remote_env() {
   fi
   [[ -n "$pg_pass" ]] || die "senha do Postgres não encontrada (defina PG_PASSWORD ou ajuste PLATFORM_ENV_FILE)"
 
+  # SMTP transacional (confirmação de e-mail + reset de senha): reusa a conta
+  # Zoho compartilhada da WitDev. Fonte de verdade = stack-portainer.env (a mesma
+  # do PG acima). Se a senha for rotacionada lá, o studIA acompanha no próximo
+  # deploy — nunca fica defasado com uma cópia local.
+  local smtp_host smtp_port smtp_user smtp_pass
+  if [[ -f "$PLATFORM_ENV_FILE" ]]; then
+    smtp_host="$(grep -E '^SMTP_ADDRESS=' "$PLATFORM_ENV_FILE" | head -1 | cut -d= -f2-)"
+    smtp_port="$(grep -E '^SMTP_PORT=' "$PLATFORM_ENV_FILE" | head -1 | cut -d= -f2-)"
+    smtp_user="$(grep -E '^SMTP_USERNAME=' "$PLATFORM_ENV_FILE" | head -1 | cut -d= -f2-)"
+    smtp_pass="$(grep -E '^SMTP_PASSWORD=' "$PLATFORM_ENV_FILE" | head -1 | cut -d= -f2-)"
+  fi
+  [[ -n "$smtp_pass" ]] || log_warn "SMTP_* ausente em $PLATFORM_ENV_FILE (e-mail de confirmação/reset ficará desabilitado)"
+
   ssh_prod "mkdir -p $REMOTE_DIR/docker"
 
   # Assembler remoto: lê GEMINI/BETTER/MEILI da env injetada pelo ssh e deriva
   # PG password + MinIO creds dos containers de infra. Grava 0600.
   GEMINI_API_KEY="$gemini" BETTER_AUTH_SECRET="$better_secret" MEILI_KEY="$meili_key" PG_PASS_RAW="$pg_pass" \
   ssh -i "$PROD_SSH_KEY" -o BatchMode=yes -o ConnectTimeout=20 \
-      "$PROD_SSH_HOST" "GEMINI_API_KEY='$gemini' LITELLM_API_KEY='$litellm_key' BETTER_AUTH_SECRET='$better_secret' MEILI_KEY='$meili_key' PG_PASS_RAW='$pg_pass' STRIPE_PUBLISHABLE_KEY='$stripe_pub' STRIPE_SECRET_KEY='$stripe_sec' STRIPE_WEBHOOK_SECRET='$stripe_whsec' STRIPE_PRICE_ID='$stripe_price' STRIPE_PRICE_ID_ANUAL='$stripe_price_anual' STRIPE_PRICE_LABEL_ANUAL='$stripe_label_anual' STRIPE_API_VERSION='$stripe_apiver' GOOGLE_CLIENT_ID='$google_id' GOOGLE_CLIENT_SECRET='$google_secret' bash -s" <<'REMOTE'
+      "$PROD_SSH_HOST" "GEMINI_API_KEY='$gemini' LITELLM_API_KEY='$litellm_key' BETTER_AUTH_SECRET='$better_secret' MEILI_KEY='$meili_key' PG_PASS_RAW='$pg_pass' STRIPE_PUBLISHABLE_KEY='$stripe_pub' STRIPE_SECRET_KEY='$stripe_sec' STRIPE_WEBHOOK_SECRET='$stripe_whsec' STRIPE_PRICE_ID='$stripe_price' STRIPE_PRICE_ID_ANUAL='$stripe_price_anual' STRIPE_PRICE_LABEL_ANUAL='$stripe_label_anual' STRIPE_API_VERSION='$stripe_apiver' GOOGLE_CLIENT_ID='$google_id' GOOGLE_CLIENT_SECRET='$google_secret' SMTP_ADDRESS='$smtp_host' SMTP_PORT='$smtp_port' SMTP_USERNAME='$smtp_user' SMTP_PASSWORD='$smtp_pass' bash -s" <<'REMOTE'
 set -euo pipefail
 ENV_FILE=/opt/studia/.env
 
@@ -208,6 +221,12 @@ umask 077
   [ -n "${STRIPE_API_VERSION:-}" ] && printf 'STRIPE_API_VERSION=%s\n' "$STRIPE_API_VERSION"
   [ -n "${GOOGLE_CLIENT_ID:-}" ] && printf 'GOOGLE_CLIENT_ID=%s\n' "$GOOGLE_CLIENT_ID"
   [ -n "${GOOGLE_CLIENT_SECRET:-}" ] && printf 'GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_CLIENT_SECRET"
+  # SMTP transacional (Zoho compartilhado) — confirmação de e-mail + reset de senha.
+  [ -n "${SMTP_ADDRESS:-}" ] && printf 'SMTP_ADDRESS=%s\n' "$SMTP_ADDRESS"
+  [ -n "${SMTP_PORT:-}" ] && printf 'SMTP_PORT=%s\n' "$SMTP_PORT"
+  [ -n "${SMTP_USERNAME:-}" ] && printf 'SMTP_USERNAME=%s\n' "$SMTP_USERNAME"
+  [ -n "${SMTP_PASSWORD:-}" ] && printf 'SMTP_PASSWORD=%s\n' "$SMTP_PASSWORD"
+  [ -n "${SMTP_USERNAME:-}" ] && printf 'MAILER_SENDER_EMAIL=studIA <%s>\n' "$SMTP_USERNAME"
   echo "BETTER_AUTH_URL=https://studia.witdev.com.br"
   echo "NEXT_PUBLIC_API_URL=https://studia.witdev.com.br"
   echo "NATS_SERVERS=nats://nats:4222"

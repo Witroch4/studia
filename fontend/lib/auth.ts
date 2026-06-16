@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { admin } from "better-auth/plugins/admin";
 import { nextCookies } from "better-auth/next-js";
 import { Pool } from "pg";
+import { sendVerificationEmail, sendResetPasswordEmail } from "./mailer";
 
 /**
  * Better Auth server — studIA (single-tenant).
@@ -41,6 +42,24 @@ export const auth = betterAuth({
     // cadastros recebem role "user" (defaultRole do plugin admin).
     disableSignUp: false,
     minPasswordLength: 6,
+    // Confirmação obrigatória: quem se cadastra por e-mail/senha NÃO loga até
+    // clicar no link enviado. Login via Google já vem verificado pelo Google.
+    requireEmailVerification: true,
+    // "Esqueci minha senha": e-mail com link para /redefinir-senha?token=...
+    sendResetPassword: async ({ user, url }) => {
+      await sendResetPasswordEmail(user.email, url);
+    },
+  },
+
+  emailVerification: {
+    // Dispara o e-mail de confirmação automaticamente no cadastro e quando um
+    // usuário não-verificado tenta logar (Better Auth reenvia nesse caso).
+    sendOnSignUp: true,
+    // Após confirmar, já cria a sessão e manda pro painel — sem novo login.
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendVerificationEmail(user.email, url);
+    },
   },
 
   ...(googleEnabled
