@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import type { CanvasPoint, CanvasState, CanvasStroke, CanvasTool } from "../annotations/types";
 
 interface QuestionCanvasOverlayProps {
@@ -198,6 +198,23 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
     redraw();
   }, [active, redraw]);
 
+  // Cursor da borracha = círculo do tamanho real do raio de apagamento, para
+  // o usuário enxergar exatamente a área que será apagada (antes era um
+  // crosshair minúsculo e parecia que "nada acontecia").
+  const cursor = useMemo(() => {
+    if (!active) return undefined;
+    if (tool !== "eraser") return "crosshair";
+
+    const radius = Math.max(12, width * 1.75);
+    const diameter = Math.ceil(radius * 2 + 4);
+    const center = diameter / 2;
+    const svg =
+      `<svg xmlns='http://www.w3.org/2000/svg' width='${diameter}' height='${diameter}'>` +
+      `<circle cx='${center}' cy='${center}' r='${radius}' fill='rgba(148,163,184,0.25)' stroke='white' stroke-width='1.5'/>` +
+      `</svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${center} ${center}, crosshair`;
+  }, [active, tool, width]);
+
   const pointFromEvent = useCallback((event: PointerEvent<HTMLCanvasElement>): CanvasPoint => {
     const rect = event.currentTarget.getBoundingClientRect();
     return {
@@ -300,8 +317,12 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
   return (
     <canvas
       ref={canvasRef}
+      // Inativo: continua renderizado (rabiscos persistem sobre a questão),
+      // mas sem capturar ponteiro — assim dá pra clicar nas alternativas / V-F
+      // por baixo. Só ocultar com `hidden` apagava as marcações visualmente.
+      style={{ cursor }}
       className={`absolute inset-0 z-20 rounded-lg touch-none ${
-        active ? "cursor-crosshair bg-cyan-500/[0.02]" : "pointer-events-none hidden"
+        active ? "bg-cyan-500/2" : "pointer-events-none"
       }`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

@@ -65,10 +65,16 @@ export function CanvasToolbar({
         Canvas
       </button>
 
-      {active && (
-        <>
-          <div className="flex items-center gap-1 rounded-lg border border-border bg-page/80 p-1">
-            {TOOLS.map((item) => (
+      {/* Bloco de ferramentas SEMPRE montado: quando o canvas está desligado
+          fica `invisible` (some visualmente e sai da ordem de tab) mas continua
+          ocupando o mesmo espaço — assim o toggle Canvas e o botão Calc não
+          pulam de lugar ao ligar/desligar; ficam fixos na posição do modo ativo. */}
+      <div
+        className={`flex flex-wrap items-center gap-2 ${active ? "" : "invisible"}`}
+        aria-hidden={active ? undefined : true}
+      >
+        <div className="flex items-center gap-1 rounded-lg border border-border bg-page/80 p-1">
+          {TOOLS.map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -123,8 +129,7 @@ export function CanvasToolbar({
             <Icon name="delete" size={16} aria-hidden="true" />
             Limpar
           </button>
-        </>
-      )}
+      </div>
 
       <button
         type="button"
