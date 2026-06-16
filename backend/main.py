@@ -192,6 +192,9 @@ app.include_router(guias_router)
 from q_router import router as q_router  # noqa: E402
 app.include_router(q_router)
 
+from cronograma_router import router as cronograma_router  # noqa: E402
+app.include_router(cronograma_router)
+
 # Assinatura / billing (Stripe)
 from billing_router import router as billing_router  # noqa: E402
 app.include_router(billing_router)

@@ -1,0 +1,74 @@
+import pytest
+from datetime import date
+
+from conftest import USER_A, USER_B
+from models import CadernoQuestoes
+
+
+async def _caderno(db, owner="user-A", total=120):
+    cad = CadernoQuestoes(owner_uid=owner, nome="Caderno Teste", total=total,
+                          question_ids=list(range(1, total + 1)))
+    db.add(cad)
+    await db.flush()
+    return cad
+
+
+@pytest.mark.asyncio
+async def test_post_e_get_cronograma(client, db_session, auth_state):
+    auth_state["user"] = USER_A
+    cad = await _caderno(db_session)
+    r = await client.post(f"/api/q/cadernos/{cad.id}/cronograma", json={
+        "data_prova": "2026-08-16", "data_inicio": "2026-06-01",
+        "dias_folga": [6], "buffer_dias": 21,
+        "incluir_discursivas": False, "incluir_simulados": True,
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["config"]["caderno_id"] == cad.id
+    assert len(body["plano"]) >= 1
+    assert body["plano"][-1]["fase"] == "prova"
+    assert body["kpis"]["total"] == 120
+
+    r2 = await client.get(f"/api/q/cadernos/{cad.id}/cronograma")
+    assert r2.status_code == 200
+    assert r2.json()["config"]["data_prova"] == "2026-08-16"
+
+
+@pytest.mark.asyncio
+async def test_get_sem_cronograma_404(client, db_session, auth_state):
+    auth_state["user"] = USER_A
+    cad = await _caderno(db_session)
+    r = await client.get(f"/api/q/cadernos/{cad.id}/cronograma")
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_data_prova_invalida_422(client, db_session, auth_state):
+    auth_state["user"] = USER_A
+    cad = await _caderno(db_session)
+    r = await client.post(f"/api/q/cadernos/{cad.id}/cronograma", json={
+        "data_prova": "2026-05-01", "data_inicio": "2026-06-01",
+    })
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_outro_usuario_nao_acessa(client, db_session, auth_state):
+    auth_state["user"] = USER_A
+    cad = await _caderno(db_session, owner="user-A")
+    await client.post(f"/api/q/cadernos/{cad.id}/cronograma",
+                      json={"data_prova": "2026-08-16", "data_inicio": "2026-06-01"})
+    auth_state["user"] = USER_B
+    r = await client.get(f"/api/q/cadernos/{cad.id}/cronograma")
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_cronograma(client, db_session, auth_state):
+    auth_state["user"] = USER_A
+    cad = await _caderno(db_session)
+    await client.post(f"/api/q/cadernos/{cad.id}/cronograma",
+                      json={"data_prova": "2026-08-16", "data_inicio": "2026-06-01"})
+    r = await client.delete(f"/api/q/cadernos/{cad.id}/cronograma")
+    assert r.status_code == 200
+    assert (await client.get(f"/api/q/cadernos/{cad.id}/cronograma")).status_code == 404
