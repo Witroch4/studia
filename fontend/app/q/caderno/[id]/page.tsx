@@ -178,6 +178,35 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     staleTime: 10 * 60 * 1000,
   });
 
+  // ─── Prefetch inteligente: aquece o cache das próximas prováveis ───
+  // Mata a "engasgada" ao navegar: → ← N (vizinhos) e L (pool aleatório de
+  // não resolvidas) já vêm do cache. prefetchQuery é no-op se já estiver fresco.
+  useEffect(() => {
+    if (!caderno) return;
+    const ids = caderno.question_ids;
+    const warm = (qid?: number) => {
+      if (qid == null) return;
+      void queryClient.prefetchQuery({
+        queryKey: qk.questao(qid),
+        queryFn: () => apiJson(`/api/q/${qid}`),
+        staleTime: 10 * 60 * 1000,
+      });
+    };
+    warm(ids[idx + 1]);
+    warm(ids[idx + 2]);
+    warm(ids[idx - 1]);
+    const resolvidas = new Set(Object.keys(minhasResData?.resolucoes ?? {}).map(Number));
+    const naoResolvidas = ids.filter((qid, i) => i !== idx && !resolvidas.has(qid));
+    const alvo = Math.min(5, naoResolvidas.length);
+    const escolhidas = new Set<number>();
+    let tentativas = 0;
+    while (escolhidas.size < alvo && tentativas < alvo * 4) {
+      escolhidas.add(naoResolvidas[Math.floor(Math.random() * naoResolvidas.length)]);
+      tentativas++;
+    }
+    escolhidas.forEach(warm);
+  }, [caderno, idx, minhasResData, queryClient]);
+
   // ─── Mutation: responder questão ───
   const responderMutation = useMutation({
     mutationFn: async ({
@@ -557,7 +586,10 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
           </div>
 
           {/* ─── Enunciado + alternativas ─── */}
-          <div className="p-5">
+          {/* key={questao.id}: a transição dispara quando a NOVA questão chega
+              (cache hit = instantâneo + fade; cache miss = mantém a anterior e
+              faz fade ao trocar), mascarando o swap sem parecer lag. */}
+          <div key={questao.id} className="p-5 q-swap">
             <QuestionHtml
               as="article"
               onDoubleClick={() => annotations.toggleStrike({ type: "statement-block", index: 0 })}

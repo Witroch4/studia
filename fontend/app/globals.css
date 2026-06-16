@@ -218,6 +218,18 @@ body {
   animation: cc-fade-up var(--dur-entry) var(--ease-out-expo) both;
 }
 
+/* ----- Troca de questão: fade rápido pra mascarar o swap (sem parecer lag) ----- */
+@keyframes q-swap-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.q-swap {
+  animation: q-swap-in var(--dur-fast) var(--ease-out-expo) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .q-swap { animation: none; }
+}
+
 /* ----- Ambient blueprint grid (dashboards / empty states) ----- */
 .cc-grid {
   background-image:
