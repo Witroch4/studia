@@ -479,13 +479,18 @@ class Guia(Base):
     __tablename__ = "guias"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    tc_guia_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    # NULL para guias manuais (montados pelo admin, sem origem no TC).
+    tc_guia_id: Mapped[Optional[int]] = mapped_column(
+        Integer, unique=True, index=True, nullable=True
+    )
     slug: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     nome: Mapped[str] = mapped_column(String(512))
     banca: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     tc_pasta_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="pending")
+    # Guia restrito a contas PRO (assinatura ou voucher). Admin sempre vê.
+    pro_only: Mapped[bool] = mapped_column(Boolean, default=False)
     total_cadernos: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -504,7 +509,10 @@ class GuiaCaderno(Base):
     guia_id: Mapped[int] = mapped_column(
         ForeignKey("guias.id", ondelete="CASCADE"), index=True
     )
-    tc_caderno_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    # NULL quando o caderno do guia não tem origem no TC (guia manual).
+    tc_caderno_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, index=True, nullable=True
+    )
     tc_caderno_base: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     nome: Mapped[str] = mapped_column(String(512))
     disciplina: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)

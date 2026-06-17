@@ -11,6 +11,7 @@ export const qk = {
   cadernos: (pasta?: string | null) => ["q", "cadernos", pasta ?? null] as const,
   guias: () => ["q", "guias"] as const,
   guia: (id: number | string) => ["q", "guias", id] as const,
+  guiasUsuariosPastas: () => ["q", "guias", "usuarios-pastas"] as const,
   coletarJobs: () => ["q", "coletar", "jobs"] as const,
   jobs: () => ["jobs"] as const,
   batchJobs: () => ["batch-jobs"] as const,

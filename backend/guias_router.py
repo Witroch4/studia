@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import CurrentUser, get_current_user_opt, require_admin, require_user
 from database import get_db
+from entitlements import acesso_pro_ativo
 from models import CadernoQuestoes, CadernoSalvo, Guia, GuiaCaderno
 
 router = APIRouter(prefix="/api/q/guias", tags=["guias"])
@@ -66,8 +67,18 @@ class SalvarReq(BaseModel):
     )
 
 
-class RenomearGuiaReq(BaseModel):
-    nome: str = Field(..., min_length=1, max_length=512, description="Novo nome do guia")
+class AtualizarGuiaReq(BaseModel):
+    nome: str | None = Field(None, min_length=1, max_length=512, description="Novo nome")
+    pro_only: bool | None = Field(None, description="Restringir o guia a contas PRO")
+
+
+class CriarGuiaManualReq(BaseModel):
+    nome: str = Field(..., min_length=1, max_length=512)
+    banca: str | None = Field(None, max_length=128)
+    pro_only: bool = Field(False)
+    caderno_ids: list[int] = Field(
+        ..., min_length=1, description="IDs de CadernoQuestoes na ordem de estudo"
+    )
 
 
 # ─── Helpers ─────────────────────────────────────────────
@@ -118,6 +129,7 @@ def _guia_dict(g: Guia) -> dict[str, Any]:
         "banca": g.banca,
         "tc_pasta_id": g.tc_pasta_id,
         "status": g.status,
+        "pro_only": bool(g.pro_only),
         "total_cadernos": g.total_cadernos,
         "created_at": g.created_at.isoformat() if g.created_at else None,
         "updated_at": g.updated_at.isoformat() if g.updated_at else None,
@@ -303,6 +315,171 @@ async def buscar_guias_tc(
     return {"termo": termo, "guias": encontrados}
 
 
+@router.get("/usuarios-pastas")
+async def usuarios_pastas(
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Cadernos de todos os usuários agrupados por dono e por pasta — fonte do
+    Guia Builder (admin). Inclui o catálogo de guias (owner NULL) como grupo
+    'Catálogo'. Nomes/e-mails via tabela `"user"` (best-effort)."""
+    cadernos = (
+        await db.execute(
+            select(
+                CadernoQuestoes.id,
+                CadernoQuestoes.nome,
+                CadernoQuestoes.pasta,
+                CadernoQuestoes.total,
+                CadernoQuestoes.tc_caderno_id,
+                CadernoQuestoes.owner_uid,
+            ).order_by(CadernoQuestoes.nome)
+        )
+    ).all()
+
+    # Quais cadernos já estão em algum guia (informativo; reuso é permitido).
+    em_guia = set(
+        (
+            await db.execute(
+                select(GuiaCaderno.caderno_id).where(GuiaCaderno.caderno_id.isnot(None))
+            )
+        ).scalars().all()
+    )
+
+    # Nomes dos donos (best-effort — a tabela do Better Auth pode não existir).
+    owner_uids = {c.owner_uid for c in cadernos if c.owner_uid}
+    perfis: dict[str, dict[str, str]] = {}
+    if owner_uids and await _table_exists(db, "public.user"):
+        rows = (
+            await db.execute(
+                text('SELECT id, name, email FROM "user" WHERE id IN :ids').bindparams(
+                    bindparam("ids", expanding=True)
+                ),
+                {"ids": list(owner_uids)},
+            )
+        ).mappings().all()
+        perfis = {r["id"]: {"nome": r["name"] or r["email"] or r["id"], "email": r["email"] or ""} for r in rows}
+
+    grupos: dict[str | None, dict[str, Any]] = {}
+    for c in cadernos:
+        uid = c.owner_uid
+        g = grupos.get(uid)
+        if g is None:
+            if uid is None:
+                g = {"uid": None, "nome": "Catálogo (guias)", "email": "", "pastas": {}}
+            else:
+                perfil = perfis.get(uid, {})
+                g = {
+                    "uid": uid,
+                    "nome": perfil.get("nome", uid),
+                    "email": perfil.get("email", ""),
+                    "pastas": {},
+                }
+            grupos[uid] = g
+        pasta = c.pasta or "Sem pasta"
+        g["pastas"].setdefault(pasta, []).append(
+            {
+                "id": c.id,
+                "nome": c.nome,
+                "total": c.total,
+                "tc_caderno_id": c.tc_caderno_id,
+                "em_guia": c.id in em_guia,
+            }
+        )
+
+    # Catálogo primeiro, depois usuários por nome.
+    def _ordem(g: dict[str, Any]) -> tuple[int, str]:
+        return (0 if g["uid"] is None else 1, (g["nome"] or "").lower())
+
+    usuarios = []
+    for g in sorted(grupos.values(), key=_ordem):
+        pastas = [
+            {"nome": nome, "cadernos": cads}
+            for nome, cads in sorted(g["pastas"].items(), key=lambda kv: kv[0].lower())
+        ]
+        total = sum(len(p["cadernos"]) for p in pastas)
+        usuarios.append({**{k: g[k] for k in ("uid", "nome", "email")}, "total_cadernos": total, "pastas": pastas})
+
+    return {"usuarios": usuarios}
+
+
+@router.post("/manual", status_code=status.HTTP_201_CREATED)
+async def criar_guia_manual(
+    req: CriarGuiaManualReq,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Cria um guia montado pelo admin a partir de CadernoQuestoes existentes,
+    por referência (sem duplicar questões), na ordem informada. Cada caderno
+    vira um GuiaCaderno já 'materialized'."""
+    nome = req.nome.strip()
+    if not nome:
+        raise HTTPException(422, "Nome não pode ser vazio")
+    # Preserva a ordem recebida, sem duplicatas.
+    ordem_ids: list[int] = []
+    for cid in req.caderno_ids:
+        if cid not in ordem_ids:
+            ordem_ids.append(cid)
+    cadernos = {
+        c.id: c
+        for c in (
+            await db.execute(
+                select(CadernoQuestoes).where(CadernoQuestoes.id.in_(ordem_ids))
+            )
+        ).scalars().all()
+    }
+    faltando = [cid for cid in ordem_ids if cid not in cadernos]
+    if faltando:
+        raise HTTPException(404, f"Caderno(s) inexistente(s): {faltando}")
+
+    guia = Guia(
+        nome=nome,
+        banca=(req.banca or "").strip() or None,
+        pro_only=req.pro_only,
+        status="done",
+        total_cadernos=len(ordem_ids),
+    )
+    db.add(guia)
+    await db.flush()
+
+    for i, cid in enumerate(ordem_ids):
+        c = cadernos[cid]
+        db.add(
+            GuiaCaderno(
+                guia_id=guia.id,
+                tc_caderno_id=c.tc_caderno_id,
+                nome=c.nome,
+                disciplina=c.nome,
+                total_questoes=c.total or 0,
+                total_capitulos=0,
+                ordem=i,
+                caderno_id=c.id,
+                status="materialized",
+            )
+        )
+    await db.commit()
+    await db.refresh(guia)
+    return {**_guia_dict(guia), "cadernos": len(ordem_ids)}
+
+
+def _col_caderno(c: GuiaCaderno, coletado: dict[int, int]) -> int:
+    """Questões 'coletadas' de um caderno do guia. Cadernos manuais (já
+    materializados, sem membership de coleta TC) contam como o total — o guia
+    manual nasce 100% pronto."""
+    n = coletado.get(c.tc_caderno_id, 0) if c.tc_caderno_id else 0
+    if c.caderno_id and n == 0:
+        return c.total_questoes
+    return n
+
+
+async def _pode_ver_pro(db: AsyncSession, user: CurrentUser | None) -> bool:
+    """Usuário pode acessar conteúdo PRO (admin ou assinatura/voucher vigente)."""
+    if not user:
+        return False
+    if user.is_admin:
+        return True
+    return await acesso_pro_ativo(db, user.id)
+
+
 async def _salvos_do_usuario(
     db: AsyncSession, uid: str | None, caderno_ids: list[int]
 ) -> set[int]:
@@ -350,17 +527,19 @@ async def listar_guias(
     salvos = await _salvos_do_usuario(
         db, user.id if user else None, [gc.caderno_id for gc in rows if gc.caderno_id]
     )
+    pode_pro = await _pode_ver_pro(db, user)
 
     out = []
     for g in guias:
         cads = cadernos_by_guia.get(g.id, [])
         esperado = sum(c.total_questoes for c in cads)
-        col = sum(coletado.get(c.tc_caderno_id, 0) for c in cads)
+        col = sum(_col_caderno(c, coletado) for c in cads)
         materializados = sum(1 for c in cads if c.caderno_id)
         cadernos_salvos = sum(1 for c in cads if c.caderno_id in salvos)
         # Coleta completa: todo caderno com job 'done' ou já coletado o esperado.
         coleta_completa = bool(cads) and all(
-            jobs_all.get(c.tc_caderno_id, {}).get("status") == "done"
+            c.caderno_id
+            or jobs_all.get(c.tc_caderno_id, {}).get("status") == "done"
             or (c.total_questoes > 0 and coletado.get(c.tc_caderno_id, 0) >= c.total_questoes)
             for c in cads
         )
@@ -373,6 +552,7 @@ async def listar_guias(
                 "cadernos_materializados": materializados,
                 "cadernos_salvos": cadernos_salvos,
                 "coleta_completa": coleta_completa,
+                "bloqueado": bool(g.pro_only) and not pode_pro,
                 "pct": round((col / esperado) * 100, 1) if esperado else 0.0,
             }
         )
@@ -406,7 +586,7 @@ async def detalhe_guia(
 
     cadernos_out = []
     for c in cads:
-        col = coletado.get(c.tc_caderno_id, 0)
+        col = _col_caderno(c, coletado)
         job = jobs.get(c.tc_caderno_id, {})
         cadernos_out.append(
             {
@@ -429,9 +609,10 @@ async def detalhe_guia(
         )
 
     esperado = sum(c.total_questoes for c in cads)
-    col_total = sum(coletado.get(c.tc_caderno_id, 0) for c in cads)
+    col_total = sum(_col_caderno(c, coletado) for c in cads)
     coleta_completa = bool(cads) and all(
-        jobs.get(c.tc_caderno_id, {}).get("status") == "done"
+        c.caderno_id
+        or jobs.get(c.tc_caderno_id, {}).get("status") == "done"
         or (c.total_questoes > 0 and coletado.get(c.tc_caderno_id, 0) >= c.total_questoes)
         for c in cads
     )
@@ -441,43 +622,51 @@ async def detalhe_guia(
         "questoes_coletadas": col_total,
         "pct": round((col_total / esperado) * 100, 1) if esperado else 0.0,
         "coleta_completa": coleta_completa,
+        "bloqueado": bool(guia.pro_only) and not await _pode_ver_pro(db, user),
         "cadernos": cadernos_out,
     }
 
 
 @router.patch("/{guia_id}")
-async def renomear_guia(
+async def atualizar_guia(
     guia_id: int,
-    req: RenomearGuiaReq,
+    req: AtualizarGuiaReq,
     _admin: CurrentUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Renomeia o guia (admin). Sincroniza o campo `pasta` dos cadernos já
-    materializados, que herdam o nome do guia (ver `materializar_guia`)."""
+    """Atualiza o guia (admin): renomear e/ou marcar como PRO only. Renomear
+    sincroniza o campo `pasta` dos cadernos já materializados, que herdam o nome
+    do guia (ver `materializar_guia`)."""
     guia = (await db.execute(select(Guia).where(Guia.id == guia_id))).scalar_one_or_none()
     if not guia:
         raise HTTPException(404, "Guia não encontrado")
-    novo = req.nome.strip()
-    if not novo:
-        raise HTTPException(422, "Nome não pode ser vazio")
-    antigo = guia.nome
-    guia.nome = novo
 
-    # Cadernos materializados deste guia usam `guia.nome` como `pasta` — propaga.
-    tc_ids = (
-        await db.execute(
-            select(GuiaCaderno.tc_caderno_id).where(GuiaCaderno.guia_id == guia_id)
-        )
-    ).scalars().all()
-    if tc_ids:
-        await db.execute(
-            CadernoQuestoes.__table__.update()
-            .where(
-                CadernoQuestoes.tc_caderno_id.in_(tc_ids),
-                CadernoQuestoes.pasta == antigo,
+    if req.pro_only is not None:
+        guia.pro_only = req.pro_only
+
+    if req.nome is not None:
+        novo = req.nome.strip()
+        if not novo:
+            raise HTTPException(422, "Nome não pode ser vazio")
+        antigo = guia.nome
+        guia.nome = novo
+        # Cadernos materializados deste guia usam `guia.nome` como `pasta`.
+        cad_ids = (
+            await db.execute(
+                select(GuiaCaderno.caderno_id).where(
+                    GuiaCaderno.guia_id == guia_id, GuiaCaderno.caderno_id.isnot(None)
+                )
             )
-            .values(pasta=novo)
-        )
+        ).scalars().all()
+        if cad_ids:
+            await db.execute(
+                CadernoQuestoes.__table__.update()
+                .where(
+                    CadernoQuestoes.id.in_(cad_ids),
+                    CadernoQuestoes.pasta == antigo,
+                )
+                .values(pasta=novo)
+            )
     await db.commit()
     await db.refresh(guia)
     return _guia_dict(guia)
@@ -633,6 +822,8 @@ async def salvar_guia(
     guia = (await db.execute(select(Guia).where(Guia.id == guia_id))).scalar_one_or_none()
     if not guia:
         raise HTTPException(404, "Guia não encontrado")
+    if guia.pro_only and not await _pode_ver_pro(db, user):
+        raise HTTPException(403, "Guia exclusivo para assinantes PRO.")
     so_caderno = req.tc_caderno_id if req else None
     alvo = await _cadernos_salvaveis(db, guia_id, so_caderno)
     if not alvo:

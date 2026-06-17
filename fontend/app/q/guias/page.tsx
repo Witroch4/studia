@@ -3,17 +3,19 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
-import { apiJson } from "@/lib/api";
-import { useQuery } from "@tanstack/react-query";
+import { apiJson, apiFetch } from "@/lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/queryKeys";
 
 interface GuiaCard {
   id: number;
-  tc_guia_id: number;
+  tc_guia_id: number | null;
   nome: string;
   banca: string | null;
   status: string;
   tc_pasta_id: number | null;
+  pro_only: boolean;
+  bloqueado: boolean;
   cadernos_total: number;
   questoes_esperadas: number;
   questoes_coletadas: number;
@@ -46,8 +48,10 @@ function situacaoGuia(g: GuiaCard, isAdmin: boolean): Situacao {
 }
 
 export default function GuiasPage() {
+  const queryClient = useQueryClient();
   const [isAdmin, setIsAdmin] = useState(false);
   const [busca, setBusca] = useState("");
+  const [togglandoPro, setTogglandoPro] = useState<number | null>(null);
 
   useEffect(() => {
     authClient
@@ -77,6 +81,25 @@ export default function GuiasPage() {
 
   const guias: GuiaCard[] = data?.guias ?? [];
   const erro = error ? (error as Error).message || "Falha ao carregar guias." : null;
+
+  async function togglePro(g: GuiaCard, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setTogglandoPro(g.id);
+    try {
+      const r = await apiFetch(`/api/q/guias/${g.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pro_only: !g.pro_only }),
+      });
+      if (!r.ok) throw new Error((await r.json()).detail || `HTTP ${r.status}`);
+      await queryClient.invalidateQueries({ queryKey: qk.guias() });
+    } catch {
+      // silencioso — o estado volta no próximo refetch
+    } finally {
+      setTogglandoPro(null);
+    }
+  }
 
   const termo = busca.trim().toLowerCase();
   const guiasFiltrados = termo
@@ -124,6 +147,15 @@ export default function GuiasPage() {
               >
                 {carregando ? "Atualizando…" : "Atualizar"}
               </button>
+              {isAdmin && (
+                <Link
+                  href="/q/admin/pastas"
+                  className="text-xs bg-primary hover:bg-primary-600 text-on-primary px-3 py-2 rounded font-semibold whitespace-nowrap inline-flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[16px]">add</span>
+                  Criar guia
+                </Link>
+              )}
             </div>
           </div>
 
@@ -155,11 +187,19 @@ export default function GuiasPage() {
                   className="rounded-xl border border-border bg-surface hover:border-primary transition-colors p-5 flex flex-col gap-3"
                 >
                   <div className="flex flex-col gap-2">
-                    <span
-                      className={`text-[10px] uppercase font-semibold px-2 py-1 rounded border whitespace-nowrap self-start ${sit.classe}`}
-                    >
-                      {sit.label}
-                    </span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className={`text-[10px] uppercase font-semibold px-2 py-1 rounded border whitespace-nowrap ${sit.classe}`}
+                      >
+                        {sit.label}
+                      </span>
+                      {g.pro_only && (
+                        <span className="text-[10px] uppercase font-semibold px-2 py-1 rounded border whitespace-nowrap bg-warning/15 text-warning border-warning/40 inline-flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px]">workspace_premium</span>
+                          PRO
+                        </span>
+                      )}
+                    </div>
                     <div className="min-w-0">
                       <div className="font-semibold text-fg-strong leading-snug">{g.nome}</div>
                       <div className="text-xs text-fg-faint mt-1">
@@ -168,6 +208,25 @@ export default function GuiasPage() {
                       </div>
                     </div>
                   </div>
+
+                  {isAdmin && (
+                    <div
+                      onClick={(e) => void togglePro(g, e)}
+                      className="flex items-center justify-between gap-2 text-xs rounded-lg border border-border bg-surface-2 px-3 py-2 cursor-pointer hover:border-warning/50"
+                    >
+                      <span className="flex items-center gap-1.5 text-fg-muted">
+                        <span className="material-symbols-outlined text-warning text-[16px]">workspace_premium</span>
+                        Exclusivo PRO
+                      </span>
+                      <span
+                        role="switch"
+                        aria-checked={g.pro_only}
+                        className={`relative h-5 w-9 rounded-full transition-colors shrink-0 ${g.pro_only ? "bg-primary" : "bg-surface border border-border"} ${togglandoPro === g.id ? "opacity-60" : ""}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${g.pro_only ? "translate-x-4" : ""}`} />
+                      </span>
+                    </div>
+                  )}
 
                   {isAdmin ? (
                     <div>

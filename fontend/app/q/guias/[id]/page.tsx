@@ -28,11 +28,13 @@ interface CadernoDetalhe {
 
 interface GuiaDetalhe {
   id: number;
-  tc_guia_id: number;
+  tc_guia_id: number | null;
   nome: string;
   banca: string | null;
   status: string;
   tc_pasta_id: number | null;
+  pro_only: boolean;
+  bloqueado: boolean;
   questoes_esperadas: number;
   questoes_coletadas: number;
   pct: number;
@@ -76,6 +78,7 @@ export default function GuiaDetalhePage() {
   const [editandoNome, setEditandoNome] = useState(false);
   const [nomeRascunho, setNomeRascunho] = useState("");
   const [renomeando, setRenomeando] = useState(false);
+  const [togglandoPro, setTogglandoPro] = useState(false);
 
   useEffect(() => {
     authClient
@@ -221,6 +224,26 @@ export default function GuiaDetalhePage() {
     }
   }
 
+  async function togglePro() {
+    if (!guia) return;
+    setTogglandoPro(true);
+    setMsg(null);
+    try {
+      const r = await apiFetch(`/api/q/guias/${guiaId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pro_only: !guia.pro_only }),
+      });
+      if (!r.ok) throw new Error((await r.json()).detail || `HTTP ${r.status}`);
+      await queryClient.invalidateQueries({ queryKey: qk.guia(guiaId) });
+      await queryClient.invalidateQueries({ queryKey: qk.guias() });
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setTogglandoPro(false);
+    }
+  }
+
   async function retomarColeta() {
     setAcao("coletar");
     setMsg(null);
@@ -286,8 +309,14 @@ export default function GuiaDetalhePage() {
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
             <h1 className="text-2xl font-semibold">{guia.nome}</h1>
+            {guia.pro_only && (
+              <span className="text-[10px] uppercase font-semibold px-2 py-1 rounded border bg-warning/15 text-warning border-warning/40 inline-flex items-center gap-1">
+                <span className="material-symbols-outlined text-[12px]">workspace_premium</span>
+                PRO
+              </span>
+            )}
             {isAdmin && (
               <button
                 onClick={() => {
@@ -298,6 +327,24 @@ export default function GuiaDetalhePage() {
                 className="text-fg-faint hover:text-primary p-1 rounded"
               >
                 <span className="material-symbols-outlined text-[20px]">edit</span>
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => void togglePro()}
+                disabled={togglandoPro}
+                title={guia.pro_only ? "Tornar gratuito" : "Restringir a contas PRO"}
+                className="inline-flex items-center gap-1.5 text-xs rounded-lg border border-border-dark bg-surface-dark px-2.5 py-1.5 hover:border-warning/50 disabled:opacity-60"
+              >
+                <span className="material-symbols-outlined text-warning text-[16px]">workspace_premium</span>
+                Exclusivo PRO
+                <span
+                  role="switch"
+                  aria-checked={guia.pro_only}
+                  className={`relative h-4 w-7 rounded-full transition-colors ${guia.pro_only ? "bg-primary" : "bg-surface-2 border border-border-dark"}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white transition-transform ${guia.pro_only ? "translate-x-3" : ""}`} />
+                </span>
               </button>
             )}
           </div>
@@ -329,6 +376,25 @@ export default function GuiaDetalhePage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+        {/* Upsell PRO — guia restrito e usuário sem acesso */}
+        {guia.bloqueado && (
+          <section className="rounded-xl border border-warning/40 bg-warning/10 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2">
+              <span className="material-symbols-outlined text-warning text-[22px]">workspace_premium</span>
+              <div className="text-sm">
+                <div className="font-semibold text-fg-strong">Guia exclusivo para assinantes PRO</div>
+                <div className="text-fg-muted">Assine o studIA Pro para estudar todas as matérias deste guia.</div>
+              </div>
+            </div>
+            <Link
+              href="/assinar"
+              className="text-sm bg-primary hover:bg-primary-600 text-on-primary px-4 py-2 rounded font-semibold whitespace-nowrap self-start sm:self-auto"
+            >
+              Assinar studIA Pro
+            </Link>
+          </section>
+        )}
+
         {/* Barra de progresso global + ações — área de administração */}
         {isAdmin && (
           <section className="rounded-xl border border-border-dark bg-surface-dark p-5">
@@ -374,7 +440,7 @@ export default function GuiaDetalhePage() {
         )}
 
         {/* Salvar nas Minhas Pastas — por usuário (todo aluno logado) */}
-        {materializadas.length > 0 && (
+        {materializadas.length > 0 && !guia.bloqueado && (
           <section className="rounded-xl border border-border-dark bg-surface-dark p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="text-sm flex items-center gap-1.5">
               <span className="material-symbols-outlined text-primary text-[18px]">
@@ -460,7 +526,16 @@ export default function GuiaDetalhePage() {
                       {c.caderno_id ? "Pronto p/ estudo" : "Em breve"}
                     </span>
                   )}
-                  {c.caderno_id ? (
+                  {c.caderno_id && guia.bloqueado ? (
+                    <Link
+                      href="/assinar"
+                      title="Conteúdo exclusivo para assinantes PRO"
+                      className="text-xs bg-warning/15 text-warning border border-warning/40 hover:bg-warning/20 px-3 py-2 rounded font-semibold whitespace-nowrap inline-flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">lock</span>
+                      PRO
+                    </Link>
+                  ) : c.caderno_id ? (
                     <>
                       <button
                         onClick={() => void salvarMateria(c)}

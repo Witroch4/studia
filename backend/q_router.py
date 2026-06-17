@@ -22,7 +22,7 @@ from sqlalchemy.orm import selectinload
 
 from auth import CurrentUser, get_current_user_opt, require_admin, require_user
 from database import get_db
-from entitlements import garantir_pode_resolver, resumo_limite
+from entitlements import acesso_pro_ativo, garantir_pode_resolver, resumo_limite
 from models import (
     Alternativa,
     Banca,
@@ -30,6 +30,7 @@ from models import (
     CadernoQuestoes,
     CadernoSalvo,
     Cargo,
+    Guia,
     GuiaCaderno,
     Materia,
     Orgao,
@@ -126,6 +127,10 @@ async def _caderno_acessivel(
     Acesso = é dono (owner_uid == user.id) OU o caderno faz parte do catálogo
     compartilhado (existe um GuiaCaderno apontando para ele — estudo via aba
     Guias). Caso contrário, 404 (não revela cadernos privados de outros).
+
+    Guias PRO only: se o caderno só aparece em guias pro-only, exige conta PRO
+    (admin/assinatura/voucher); 403 caso contrário. Basta um guia NÃO pro-only
+    conter o caderno para liberar a todos.
     """
     cad = (
         await db.execute(select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id))
@@ -134,14 +139,22 @@ async def _caderno_acessivel(
         raise HTTPException(404, "caderno não encontrado")
     if cad.owner_uid == user.id:
         return cad
-    eh_catalogo = (
+    # Guias do catálogo que contêm este caderno (com a flag pro_only de cada um).
+    pro_flags = (
         await db.execute(
-            select(GuiaCaderno.id).where(GuiaCaderno.caderno_id == caderno_id).limit(1)
+            select(Guia.pro_only)
+            .join(GuiaCaderno, GuiaCaderno.guia_id == Guia.id)
+            .where(GuiaCaderno.caderno_id == caderno_id)
         )
-    ).first()
-    if eh_catalogo:
+    ).scalars().all()
+    if not pro_flags:
+        raise HTTPException(404, "caderno não encontrado")
+    if any(not p for p in pro_flags):
+        return cad  # algum guia livre contém o caderno → liberado a todos
+    # Só guias pro-only: exige PRO (admin sempre passa).
+    if user.is_admin or await acesso_pro_ativo(db, user.id):
         return cad
-    raise HTTPException(404, "caderno não encontrado")
+    raise HTTPException(403, "Conteúdo exclusivo para assinantes PRO.")
 
 
 def _as_date(value: Any) -> date:

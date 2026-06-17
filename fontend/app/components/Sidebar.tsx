@@ -25,6 +25,8 @@ const navItems: NavItem[] = [
   { href: "/q/filtrar", label: "Questões", icon: "fact_check" },
   { href: "/q/cadernos", label: "Minhas Pastas", icon: "folder" },
   { href: "/q/guias", label: "Guias", icon: "menu_book" },
+  // Pastas de usuários: monta guias a partir dos cadernos de qualquer usuário — admin.
+  { href: "/q/admin/pastas", label: "Pastas de usuários", icon: "folder_shared", adminOnly: true },
   // Coleta TC: área de administração — só admin vê e usa (backend também exige admin).
   { href: "/q/coletar", label: "Coletar TC", icon: "cloud_download", adminOnly: true },
   { href: "/concorrencia", label: "Concorrência", icon: "leaderboard" },

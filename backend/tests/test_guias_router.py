@@ -220,3 +220,133 @@ async def test_materializar_sem_coleta_nao_cria_caderno(client, monkeypatch):
     r = await client.post(f"/api/q/guias/{imp['id']}/materializar")
     assert r.status_code == 200
     assert r.json()["total"] == 0  # sem membership coletada, nada a materializar
+
+
+# ─── Guia Builder manual + Pastas de usuários + PRO only ──────────
+
+
+def _u(uid: str, role: str = "user"):
+    from auth import CurrentUser
+
+    return CurrentUser(id=uid, email=f"{uid}@t", name=uid, role=role, banned=False)
+
+
+async def _cadernos(db_session, specs: list[dict]):
+    """Cria CadernoQuestoes e devolve a lista (com ids preenchidos)."""
+    from models import CadernoQuestoes
+
+    objs = [CadernoQuestoes(**s) for s in specs]
+    db_session.add_all(objs)
+    await db_session.commit()
+    return objs
+
+
+@pytest.mark.asyncio
+async def test_criar_guia_manual_referencia_e_ordem(client, db_session, auth_state):
+    cads = await _cadernos(
+        db_session,
+        [
+            {"nome": "Civil", "owner_uid": "user-A", "pasta": "P1", "question_ids": [1, 2], "total": 2},
+            {"nome": "Penal", "owner_uid": "user-B", "pasta": "P2", "question_ids": [3], "total": 1},
+        ],
+    )
+    civil, penal = cads[0].id, cads[1].id
+
+    # ordem invertida de propósito: Penal antes de Civil
+    r = await client.post(
+        "/api/q/guias/manual",
+        json={"nome": "Meu Guia", "banca": "FGV", "caderno_ids": [penal, civil]},
+    )
+    assert r.status_code == 201, r.text
+    gid = r.json()["id"]
+    assert r.json()["cadernos"] == 2
+    assert r.json()["pro_only"] is False
+
+    det = (await client.get(f"/api/q/guias/{gid}")).json()
+    assert det["pct"] == 100.0
+    assert det["questoes_coletadas"] == det["questoes_esperadas"] == 3
+    assert [c["nome"] for c in det["cadernos"]] == ["Penal", "Civil"]  # ordem preservada
+    assert all(c["caderno_id"] for c in det["cadernos"])
+    assert all(c["status"] == "materialized" for c in det["cadernos"])
+
+    # Aluno comum consegue estudar caderno de guia manual (não pro-only).
+    auth_state["user"] = _u("user-Z")
+    r = await client.get(f"/api/q/cadernos/{civil}")
+    assert r.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_criar_guia_manual_validacoes(client, db_session):
+    # lista vazia → 422 (Pydantic min_length)
+    r = await client.post("/api/q/guias/manual", json={"nome": "X", "caderno_ids": []})
+    assert r.status_code == 422
+    # caderno inexistente → 404
+    r = await client.post("/api/q/guias/manual", json={"nome": "X", "caderno_ids": [999999]})
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_usuarios_pastas_agrupa_por_dono(client, db_session):
+    await _cadernos(
+        db_session,
+        [
+            {"nome": "Cat", "owner_uid": None, "pasta": None, "question_ids": [1], "total": 1},
+            {"nome": "A1", "owner_uid": "user-A", "pasta": "Importados", "question_ids": [2], "total": 1},
+            {"nome": "B1", "owner_uid": "user-B", "pasta": "X", "question_ids": [3], "total": 1},
+        ],
+    )
+    r = await client.get("/api/q/guias/usuarios-pastas")
+    assert r.status_code == 200
+    usuarios = r.json()["usuarios"]
+    assert usuarios[0]["uid"] is None  # catálogo primeiro
+    uids = {u["uid"] for u in usuarios}
+    assert {"user-A", "user-B"} <= uids
+    a = next(u for u in usuarios if u["uid"] == "user-A")
+    assert a["total_cadernos"] == 1
+    assert a["pastas"][0]["nome"] == "Importados"
+
+
+@pytest.mark.asyncio
+async def test_guia_pro_only_gate(client, db_session, auth_state):
+    cad = (await _cadernos(
+        db_session,
+        [{"nome": "ProMat", "owner_uid": None, "pasta": None, "question_ids": [1], "total": 1}],
+    ))[0]
+    r = await client.post(
+        "/api/q/guias/manual",
+        json={"nome": "PRO Guia", "pro_only": True, "caderno_ids": [cad.id]},
+    )
+    assert r.status_code == 201
+    gid = r.json()["id"]
+    assert r.json()["pro_only"] is True
+
+    # Não-PRO: caderno bloqueado (403) e não pode salvar o guia (403).
+    auth_state["user"] = _u("user-free")
+    assert (await client.get(f"/api/q/cadernos/{cad.id}")).status_code == 403
+    assert (await client.post(f"/api/q/guias/{gid}/salvar")).status_code == 403
+    det = (await client.get(f"/api/q/guias/{gid}")).json()
+    assert det["bloqueado"] is True
+
+    # Admin sempre acessa.
+    auth_state["user"] = _u("admin-1", "admin")
+    assert (await client.get(f"/api/q/cadernos/{cad.id}")).status_code == 200
+    det = (await client.get(f"/api/q/guias/{gid}")).json()
+    assert det["bloqueado"] is False
+
+
+@pytest.mark.asyncio
+async def test_patch_pro_only_toggle(client, db_session):
+    cad = (await _cadernos(
+        db_session,
+        [{"nome": "M", "owner_uid": None, "pasta": None, "question_ids": [1], "total": 1}],
+    ))[0]
+    gid = (await client.post(
+        "/api/q/guias/manual", json={"nome": "G", "caderno_ids": [cad.id]}
+    )).json()["id"]
+
+    r = await client.patch(f"/api/q/guias/{gid}", json={"pro_only": True})
+    assert r.status_code == 200
+    assert r.json()["pro_only"] is True
+    r = await client.patch(f"/api/q/guias/{gid}", json={"pro_only": False, "nome": "G2"})
+    assert r.json()["pro_only"] is False
+    assert r.json()["nome"] == "G2"
