@@ -229,6 +229,20 @@ async def _with_tc_client(coro_factory, *, relogin: bool = False):
                 return await coro_factory(client2)
 
 
+@api.get("/caderno/{caderno_id}/gabarito")
+async def gabarito_endpoint(caderno_id: int, relogin: bool = False) -> dict[str, Any]:
+    """Gabarito/desempenho do usuário (acertou/errou/alternativa/data por questão).
+
+    Pagina ``GET /api/cadernos/{id}/gabarito`` na sessão TC e devolve a lista
+    agregada. O backend mapeia ``idQuestao`` → questão studIA e grava resoluções.
+    """
+    from app.scrapers.tc_gabarito import fetch_gabarito
+
+    return await _with_tc_client(
+        lambda c: fetch_gabarito(c, caderno_id), relogin=relogin
+    )
+
+
 @api.post("/guia/resolver")
 async def resolver_guia_endpoint(body: ResolverGuiaBody) -> dict[str, Any]:
     """Resolve a URL base/cargo de um guia TC em guiaId + lista de cadernos."""

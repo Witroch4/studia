@@ -1177,6 +1177,157 @@ async def estatisticas_caderno(
     }
 
 
+class ImportarGabaritoReq(BaseModel):
+    # ID do caderno no TEC. Opcional: se o caderno studIA já tem `tc_caderno_id`,
+    # usa esse. Aceita o número puro (a UI extrai de uma URL antes de enviar).
+    tc_caderno_id: int | None = None
+
+
+_ALT_LETRAS = {1: "A", 2: "B", 3: "C", 4: "D", 5: "E"}
+
+
+def _alt_para_resposta(alternativa: Any, tipo: str | None) -> str | None:
+    """Converte a alternativa marcada do TEC (1-5) na resposta studIA.
+
+    Em CERTO_ERRADO o TEC usa 1=Certo, 2=Errado → grava a *palavra* (igual ao
+    formato de `Questao.gabarito`). Em múltipla escolha, 1-5 → A-E.
+    """
+    if alternativa is None:
+        return None
+    if (tipo or "").upper() == "CERTO_ERRADO":
+        return "CERTO" if alternativa == 1 else "ERRADO"
+    return _ALT_LETRAS.get(alternativa)
+
+
+def _parse_data_tc(valor: Any) -> datetime | None:
+    """Parseia "DD/MM/AAAA HH:MM:SS" (ou só a data) do gabarito do TEC."""
+    if not valor or not isinstance(valor, str):
+        return None
+    s = valor.strip()
+    try:
+        return datetime.strptime(s, "%d/%m/%Y %H:%M:%S")
+    except ValueError:
+        pass
+    try:
+        return datetime.strptime(s[:10], "%d/%m/%Y")
+    except ValueError:
+        return None
+
+
+@router.post("/cadernos/{caderno_id}/importar-gabarito")
+async def importar_gabarito_tec(
+    caderno_id: int,
+    req: ImportarGabaritoReq,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Importa o desempenho do usuário no TEC (aba Gabarito) para este caderno.
+
+    Mapeia cada `idQuestao` do TEC → `Questao.id_externo` → grava `Resolucao`
+    (resposta/acertou/data). Dedup por (usuário, caderno, questão): não duplica
+    nem sobrescreve respostas já existentes — re-import é incremental.
+    """
+    cad = await _caderno_acessivel(db, caderno_id, user)
+
+    tc_cid = cad.tc_caderno_id or req.tc_caderno_id
+    if not tc_cid:
+        raise HTTPException(
+            422,
+            "Caderno sem vínculo com o TEC. Informe o ID (ou URL) do caderno no TecConcursos.",
+        )
+    # Vincula o caderno ao TEC se ainda não tinha (só o dono pode gravar).
+    if cad.tc_caderno_id is None and cad.owner_uid == user.id:
+        cad.tc_caderno_id = tc_cid
+
+    # Busca o gabarito no scraper (sessão TC + proxy residencial vivem lá).
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=5, read=180, write=10, pool=185)
+        ) as c:
+            r = await c.get(f"{SCRAPER_URL}/caderno/{tc_cid}/gabarito")
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"scraper indisponível: {exc}") from exc
+    if r.status_code != 200:
+        raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:300]}")
+    payload = r.json()
+    itens: list[dict[str, Any]] = payload.get("itens") or []
+
+    # idQuestao (TEC) → Questao.id (studIA), via id_externo.
+    ids_externos = [it["idQuestao"] for it in itens if it.get("idQuestao") is not None]
+    mapa: dict[int, int] = {}
+    if ids_externos:
+        mapa = dict(
+            (
+                await db.execute(
+                    select(Questao.id_externo, Questao.id).where(
+                        Questao.id_externo.in_(ids_externos)
+                    )
+                )
+            ).all()
+        )
+
+    # Questões que o usuário já tem resolução NESTE caderno (qualquer origem):
+    # não duplicar nem sobrescrever resposta manual.
+    ja_resolvidas: set[int] = set(
+        (
+            await db.execute(
+                select(Resolucao.questao_id).where(
+                    Resolucao.caderno_id == caderno_id,
+                    Resolucao.usuario_uid == user.id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    importadas = acertos = erros = ja_tinha = nao_resolvidas = nao_mapeadas = 0
+    for it in itens:
+        if it.get("acertou") is None:  # não resolvida no TEC
+            nao_resolvidas += 1
+            continue
+        qid = mapa.get(it.get("idQuestao"))
+        if qid is None:  # questão não existe no studIA (caderno não coletado por completo)
+            nao_mapeadas += 1
+            continue
+        if qid in ja_resolvidas:
+            ja_tinha += 1
+            continue
+
+        acertou = bool(it.get("acertou"))
+        kwargs: dict[str, Any] = dict(
+            questao_id=qid,
+            caderno_id=caderno_id,
+            usuario_uid=user.id,
+            resposta=_alt_para_resposta(it.get("alternativa"), it.get("tipoQuestao")),
+            acertou=acertou,
+            tempo_segundos=None,
+        )
+        data = _parse_data_tc(it.get("data"))
+        if data is not None:
+            kwargs["created_at"] = data
+        db.add(Resolucao(**kwargs))
+        ja_resolvidas.add(qid)
+        importadas += 1
+        if acertou:
+            acertos += 1
+        else:
+            erros += 1
+
+    await db.commit()
+    return {
+        "caderno_id": caderno_id,
+        "tc_caderno_id": tc_cid,
+        "total_no_tec": payload.get("total", len(itens)),
+        "importadas": importadas,
+        "acertos": acertos,
+        "erros": erros,
+        "ja_tinha": ja_tinha,
+        "nao_resolvidas_no_tec": nao_resolvidas,
+        "nao_mapeadas": nao_mapeadas,
+    }
+
+
 @router.get("/cadernos/{caderno_id}/stats-detalhe")
 async def stats_detalhe(
     caderno_id: int,

@@ -82,6 +82,7 @@ function PastasView({ pastas }: { pastas: PastaRow[] }) {
 function CadernosView({ pasta }: { pasta: string }) {
   const queryClient = useQueryClient();
   const [desempenho, setDesempenho] = useState<Record<number, Desempenho | "loading">>({});
+  const [importando, setImportando] = useState<Record<number, boolean>>({});
   const [editando, setEditando] = useState<{ id: number; nome: string } | null>(null);
 
   const { data: cadernos, isPending } = useQuery({
@@ -126,6 +127,49 @@ function CadernosView({ pasta }: { pasta: string }) {
         delete resto[id];
         return resto;
       });
+    }
+  }
+
+  async function importarDoTec(id: number) {
+    // Pede o ID/URL do caderno no TEC; vazio = usa o vínculo já salvo no caderno.
+    const entrada = window.prompt(
+      "Importar seu desempenho do TecConcursos.\n\nCole a URL ou o ID do caderno no TEC (deixe vazio se já estiver vinculado):",
+      "",
+    );
+    if (entrada === null) return; // cancelou
+    const m = entrada.trim().match(/(\d{4,})/);
+    const tc_caderno_id = m ? Number(m[1]) : null;
+
+    setImportando((s) => ({ ...s, [id]: true }));
+    try {
+      const r = await apiFetch(`/api/q/cadernos/${id}/importar-gabarito`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tc_caderno_id }),
+      });
+      if (!r.ok) {
+        const erro = await r.json().catch(() => ({}));
+        throw new Error(erro.detail || `falha ${r.status}`);
+      }
+      const res = await r.json();
+      setDesempenho((d) => ({
+        ...d,
+        [id]: { resolvidas: res.importadas + res.ja_tinha, acertos: res.acertos, erros: res.erros },
+      }));
+      window.alert(
+        `Importado do TEC:\n` +
+          `• ${res.importadas} resolvidas novas (${res.acertos} acertos, ${res.erros} erros)\n` +
+          `• ${res.ja_tinha} já estavam no studIA\n` +
+          `• ${res.nao_resolvidas_no_tec} ainda não resolvidas no TEC\n` +
+          (res.nao_mapeadas
+            ? `• ${res.nao_mapeadas} questões não encontradas no studIA (caderno coletado parcialmente)`
+            : ""),
+      );
+    } catch (e) {
+      console.error(e);
+      window.alert(`Não foi possível importar: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setImportando((s) => ({ ...s, [id]: false }));
     }
   }
 
@@ -190,7 +234,7 @@ function CadernosView({ pasta }: { pasta: string }) {
                 {c.created_at && <> · criado em {new Date(c.created_at).toLocaleDateString("pt-BR")}</>}
               </div>
             </div>
-            <div className="text-xs shrink-0">
+            <div className="flex items-center gap-3 text-xs shrink-0">
               {!d && (
                 <button onClick={() => carregarDesempenho(c.id)} className="text-primary hover:underline">
                   Carregar desempenho
@@ -203,6 +247,14 @@ function CadernosView({ pasta }: { pasta: string }) {
                   <span className="text-error">{d.erros} erros</span>
                 </span>
               )}
+              <button
+                onClick={() => importarDoTec(c.id)}
+                disabled={importando[c.id]}
+                title="Importar acertos/erros da aba Gabarito do TecConcursos"
+                className="text-fg-faint hover:text-primary disabled:opacity-50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition whitespace-nowrap"
+              >
+                {importando[c.id] ? "importando…" : "↓ TEC"}
+              </button>
             </div>
           </div>
         );
