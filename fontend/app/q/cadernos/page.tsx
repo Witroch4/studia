@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, apiJson } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
 
@@ -82,11 +82,36 @@ function PastasView({ pastas }: { pastas: PastaRow[] }) {
 function CadernosView({ pasta }: { pasta: string }) {
   const queryClient = useQueryClient();
   const [desempenho, setDesempenho] = useState<Record<number, Desempenho | "loading">>({});
+  const [editando, setEditando] = useState<{ id: number; nome: string } | null>(null);
 
   const { data: cadernos, isPending } = useQuery({
     queryKey: qk.cadernos(pasta),
     queryFn: () => apiJson<CadernoRow[]>(`/api/q/cadernos?pasta=${encodeURIComponent(pasta)}`),
   });
+
+  const renomear = useMutation({
+    mutationFn: ({ id, nome }: { id: number; nome: string }) =>
+      apiJson<{ id: number; nome: string }>(`/api/q/cadernos/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome }),
+      }),
+    onSuccess: (data) => {
+      setEditando(null);
+      // Atualiza a lista local imediatamente e revalida o detalhe.
+      queryClient.setQueryData<CadernoRow[]>(qk.cadernos(pasta), (old) =>
+        old?.map((c) => (c.id === data.id ? { ...c, nome: data.nome } : c)),
+      );
+      queryClient.invalidateQueries({ queryKey: qk.caderno(data.id) });
+    },
+  });
+
+  function salvarEdicao() {
+    if (!editando) return;
+    const nome = editando.nome.trim();
+    if (!nome) return;
+    renomear.mutate({ id: editando.id, nome });
+  }
 
   async function carregarDesempenho(id: number) {
     setDesempenho((d) => ({ ...d, [id]: "loading" }));
@@ -114,26 +139,52 @@ function CadernosView({ pasta }: { pasta: string }) {
         return (
           <div
             key={c.id}
-            className="flex items-center gap-4 px-4 py-3 rounded-lg border border-border/60 bg-surface hover:border-primary/40 transition"
+            className="group flex items-center gap-4 px-4 py-3 rounded-lg border border-border/60 bg-surface hover:border-primary/40 transition"
           >
             <span className="text-fg-faint">🎓</span>
             <div className="flex-1 min-w-0">
-              <Link
-                href={`/q/caderno/${c.id}`}
-                className="text-sm font-medium text-fg hover:text-primary hover:underline truncate block"
-                onMouseEnter={() => queryClient.prefetchQuery({
-                  queryKey: qk.caderno(c.id),
-                  queryFn: () => apiJson(`/api/q/cadernos/${c.id}`),
-                  staleTime: 30_000,
-                })}
-                onFocus={() => queryClient.prefetchQuery({
-                  queryKey: qk.caderno(c.id),
-                  queryFn: () => apiJson(`/api/q/cadernos/${c.id}`),
-                  staleTime: 30_000,
-                })}
-              >
-                {c.nome}
-              </Link>
+              {editando?.id === c.id ? (
+                <input
+                  autoFocus
+                  value={editando.nome}
+                  onChange={(e) => setEditando({ id: c.id, nome: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") salvarEdicao();
+                    if (e.key === "Escape") setEditando(null);
+                  }}
+                  onBlur={() => salvarEdicao()}
+                  disabled={renomear.isPending}
+                  className="w-full bg-page border border-primary/50 rounded px-2 py-1 text-sm font-medium text-fg focus:outline-none focus:border-primary"
+                />
+              ) : (
+                <div className="flex items-center gap-2 min-w-0">
+                  <Link
+                    href={`/q/caderno/${c.id}`}
+                    className="text-sm font-medium text-fg hover:text-primary hover:underline truncate block"
+                    onMouseEnter={() => queryClient.prefetchQuery({
+                      queryKey: qk.caderno(c.id),
+                      queryFn: () => apiJson(`/api/q/cadernos/${c.id}`),
+                      staleTime: 30_000,
+                    })}
+                    onFocus={() => queryClient.prefetchQuery({
+                      queryKey: qk.caderno(c.id),
+                      queryFn: () => apiJson(`/api/q/cadernos/${c.id}`),
+                      staleTime: 30_000,
+                    })}
+                  >
+                    {c.nome}
+                  </Link>
+                  <button
+                    type="button"
+                    title="Renomear caderno"
+                    aria-label="Renomear caderno"
+                    onClick={() => setEditando({ id: c.id, nome: c.nome })}
+                    className="shrink-0 text-fg-faint hover:text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition"
+                  >
+                    <span className="material-symbols-outlined text-[18px] leading-none align-middle">edit</span>
+                  </button>
+                </div>
+              )}
               <div className="text-xs text-fg-faint">
                 {c.total.toLocaleString("pt-BR")} questões
                 {c.created_at && <> · criado em {new Date(c.created_at).toLocaleDateString("pt-BR")}</>}

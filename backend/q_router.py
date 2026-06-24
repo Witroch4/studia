@@ -909,6 +909,32 @@ async def detalhe_caderno(
     }
 
 
+class RenomearCadernoReq(BaseModel):
+    nome: str = Field(min_length=1, max_length=512)
+
+
+@router.patch("/cadernos/{caderno_id}")
+async def renomear_caderno(
+    caderno_id: int,
+    req: RenomearCadernoReq,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Renomeia um caderno. Só o dono (owner_uid) pode; cadernos de catálogo
+    (de guia) não são renomeáveis pelo usuário comum."""
+    cad = (
+        await db.execute(select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id))
+    ).scalar_one_or_none()
+    if not cad or cad.owner_uid != user.id:
+        raise HTTPException(404, "caderno não encontrado")
+    nome = req.nome.strip()
+    if not nome:
+        raise HTTPException(422, "nome não pode ser vazio")
+    cad.nome = nome[:512]
+    await db.commit()
+    return {"id": cad.id, "nome": cad.nome}
+
+
 @router.get("/cadernos")
 async def listar_cadernos(
     pasta: str | None = None,
