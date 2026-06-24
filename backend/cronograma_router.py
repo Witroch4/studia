@@ -177,6 +177,52 @@ async def _popular_discursivas(db: AsyncSession, cad: CadernoQuestoes, c: Cronog
                                     tipo="Treino 20 linhas", qtd=1, status="Pendente",
                                     reescrita=False))
 
+@router.get("/cronogramas")
+async def listar_cronogramas(
+    user: CurrentUser = Depends(require_user), db: AsyncSession = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """Lista os planejamentos (cronogramas) do usuário, com resumo p/ os cards."""
+    hoje = date.today()
+    crons = (await db.execute(
+        select(Cronograma).where(Cronograma.usuario_uid == user.id)
+        .order_by(Cronograma.data_prova)
+    )).scalars().all()
+    if not crons:
+        return []
+    cad_ids = [c.caderno_id for c in crons]
+    cads = {
+        cad.id: cad for cad in (await db.execute(
+            select(CadernoQuestoes).where(CadernoQuestoes.id.in_(cad_ids))
+        )).scalars().all()
+    }
+    out: list[dict[str, Any]] = []
+    for c in crons:
+        cad = cads.get(c.caderno_id)
+        if not cad:
+            continue
+        total = cad.total or 0
+        inicio_efetivo = c.rebaseline_em or c.data_inicio
+        plano = core.gerar_plano(inicio_efetivo, c.data_prova, total,
+                                 c.dias_folga or [], c.buffer_dias)
+        resolvidas, acertos, _ = await _resolucoes_distinct(db, cad.id, c.usuario_uid)
+        kpis = core.calcular_kpis(plano, total, resolvidas, acertos, hoje)
+        out.append({
+            "caderno_id": cad.id,
+            "nome": cad.nome,
+            "pasta": cad.pasta,
+            "total": total,
+            "data_inicio": c.data_inicio.isoformat(),
+            "data_prova": c.data_prova.isoformat(),
+            "dias_para_prova": (c.data_prova - hoje).days,
+            "resolvidas": resolvidas,
+            "pct_conclusao": kpis.pct_conclusao,
+            "pct_acerto": kpis.pct_acerto,
+            "saldo": kpis.saldo,
+            "criado_em": c.created_at.isoformat() if c.created_at else None,
+        })
+    return out
+
+
 @router.post("/cadernos/{caderno_id}/cronograma")
 async def criar_cronograma(
     caderno_id: int, payload: CronogramaIn,
