@@ -39,6 +39,23 @@ USER_A = make_user("user-A")
 USER_B = make_user("user-B")
 
 
+_BETTER_AUTH_USER_DDL = """
+CREATE TABLE IF NOT EXISTS "user" (
+    id              text PRIMARY KEY,
+    name            text NOT NULL,
+    email           text NOT NULL,
+    "emailVerified" boolean NOT NULL DEFAULT false,
+    image           text,
+    "createdAt"     timestamptz NOT NULL DEFAULT now(),
+    "updatedAt"     timestamptz NOT NULL DEFAULT now(),
+    role            text,
+    banned          boolean,
+    "banReason"     text,
+    "banExpires"    timestamptz
+)
+"""
+
+
 @pytest_asyncio.fixture(scope="session")
 async def _engine():
     # NullPool: desabilita reutilização de conexões entre testes.
@@ -48,6 +65,22 @@ async def _engine():
     engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
     yield engine
     await engine.dispose()
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def _create_better_auth_tables(_engine):
+    """Cria a tabela Better Auth "user" no banco de testes.
+
+    Executado UMA vez por sessão de teste (fora de qualquer transação
+    por-teste), com commit próprio, para que a tabela exista antes que
+    qualquer fixture db_session tente inserir nela.  IF NOT EXISTS garante
+    que é no-op caso a tabela já exista (banco de testes persistente).
+    """
+    from sqlalchemy import text
+
+    async with _engine.connect() as conn:
+        await conn.execute(text(_BETTER_AUTH_USER_DDL))
+        await conn.commit()
 
 
 @pytest_asyncio.fixture
