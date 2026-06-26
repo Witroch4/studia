@@ -75,3 +75,49 @@ async def test_forum_count_no_detalhe(client, db_session):
     await db_session.commit()
     r = await client.get("/api/q/99")
     assert r.json()["forum_count"] == 1
+
+
+# ── Task 4: criar comentário e resposta ──────────────────────────────────────
+
+async def test_criar_comentario_raiz(client, db_session):
+    await seed_questao(db_session)
+    r = await client.post("/api/q/questoes/99/forum", json={"texto_md": "olá $x^2$"})
+    assert r.status_code == 201
+    body = r.json()
+    assert body["texto_md"] == "olá $x^2$"
+    assert body["parent_id"] is None
+    assert body["display_name"] == "admin-1"  # usuário default do conftest
+
+
+async def test_criar_resposta(client, db_session):
+    await seed_questao(db_session)
+    raiz = (await client.post("/api/q/questoes/99/forum", json={"texto_md": "raiz"})).json()
+    r = await client.post("/api/q/questoes/99/forum",
+                          json={"texto_md": "resp", "parent_id": raiz["id"]})
+    assert r.status_code == 201
+    assert r.json()["parent_id"] == raiz["id"]
+
+
+async def test_resposta_de_resposta_e_rejeitada(client, db_session):
+    await seed_questao(db_session)
+    raiz = (await client.post("/api/q/questoes/99/forum", json={"texto_md": "raiz"})).json()
+    resp = (await client.post("/api/q/questoes/99/forum",
+                              json={"texto_md": "r1", "parent_id": raiz["id"]})).json()
+    r = await client.post("/api/q/questoes/99/forum",
+                          json={"texto_md": "r2", "parent_id": resp["id"]})
+    assert r.status_code == 400
+
+
+async def test_parent_de_outra_questao_e_rejeitado(client, db_session):
+    await seed_questao(db_session, qid=99)
+    await seed_questao(db_session, qid=88)
+    raiz88 = (await client.post("/api/q/questoes/88/forum", json={"texto_md": "x"})).json()
+    r = await client.post("/api/q/questoes/99/forum",
+                          json={"texto_md": "y", "parent_id": raiz88["id"]})
+    assert r.status_code == 400
+
+
+async def test_texto_vazio_e_rejeitado(client, db_session):
+    await seed_questao(db_session)
+    r = await client.post("/api/q/questoes/99/forum", json={"texto_md": "   "})
+    assert r.status_code == 422

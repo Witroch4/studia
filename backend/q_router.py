@@ -1841,6 +1841,11 @@ async def dashboard(
 MAX_COMENTARIO_CHARS = 20_000
 
 
+class CriarComentarioReq(BaseModel):
+    texto_md: str = Field(..., min_length=1, max_length=MAX_COMENTARIO_CHARS)
+    parent_id: int | None = None
+
+
 def _display_name(c: QuestaoComentario) -> str:
     """studIA: nome real do aluno; TC: pseudônimo estável (nome original nunca vaza)."""
     if c.origem == "tc":
@@ -1928,6 +1933,45 @@ async def listar_forum(
         out.sort(key=lambda d: d["criado_em"] or "", reverse=True)
 
     return {"total": total, "comentarios": out}
+
+
+@router.post("/questoes/{questao_id}/forum", status_code=status.HTTP_201_CREATED)
+async def criar_comentario(
+    questao_id: int,
+    req: CriarComentarioReq,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    texto = req.texto_md.strip()
+    if not texto:
+        raise HTTPException(422, "comentário vazio")
+
+    existe_q = (await db.execute(select(Questao.id).where(Questao.id == questao_id))).scalar_one_or_none()
+    if not existe_q:
+        raise HTTPException(404, "questao não encontrada")
+
+    if req.parent_id is not None:
+        pai = (await db.execute(
+            select(QuestaoComentario).where(QuestaoComentario.id == req.parent_id)
+        )).scalar_one_or_none()
+        if pai is None or pai.questao_id != questao_id:
+            raise HTTPException(400, "comentário pai inválido")
+        if pai.parent_id is not None:
+            raise HTTPException(400, "respostas só podem ser feitas a um comentário raiz")
+
+    c = QuestaoComentario(
+        questao_id=questao_id,
+        origem="studia",
+        owner_uid=user.id,
+        autor_nome=user.name,
+        parent_id=req.parent_id,
+        texto_md=texto,
+        score=0,
+    )
+    db.add(c)
+    await db.commit()
+    await db.refresh(c)
+    return _serializar_comentario(c, meu_voto=0, user=user, respostas=[])
 
 
 @router.get("/{questao_id}")
