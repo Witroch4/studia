@@ -256,7 +256,6 @@ async def test_quadros_isolados_e_contagens(client, db_session):
     from forum_personas import POOL
     persona = POOL[0]
     db_session.add(QuestaoComentario(
-        id=500,
         questao_id=99,
         origem="studia",
         owner_uid="admin-1",
@@ -364,3 +363,33 @@ async def test_resposta_nao_cruza_quadro(client, auth_state, db_session):
     r = await client.post(f"/api/q/questoes/{qid}/forum",
             json={"texto_md": "resp", "quadro": "professores", "parent_id": raiz_aluno})
     assert r.status_code == 400
+
+
+async def test_admin_persona_coerente_raiz_e_resposta(client, auth_state, db_session):
+    """Admin deve aparecer com a MESMA persona ao criar raiz e ao responder, na mesma questão."""
+    from forum_personas import POOL
+    qid = await _criar_questao(db_session)
+    auth_state["user"] = ADMIN_USER
+
+    # Admin cria raiz no quadro professores — recebe uma persona
+    r_raiz = await client.post(
+        f"/api/q/questoes/{qid}/forum",
+        json={"texto_md": "explicação raiz", "quadro": "professores"},
+    )
+    assert r_raiz.status_code == 201
+    persona_raiz = r_raiz.json()["display_name"]
+    assert persona_raiz in POOL
+
+    raiz_id = r_raiz.json()["id"]
+
+    # Admin RESPONDE a raiz no mesmo quadro — deve receber a MESMA persona
+    r_resp = await client.post(
+        f"/api/q/questoes/{qid}/forum",
+        json={"texto_md": "complemento da resposta", "quadro": "professores", "parent_id": raiz_id},
+    )
+    assert r_resp.status_code == 201
+    persona_resp = r_resp.json()["display_name"]
+
+    assert persona_resp == persona_raiz, (
+        f"Persona da resposta ({persona_resp!r}) deve ser igual à da raiz ({persona_raiz!r})"
+    )

@@ -2057,15 +2057,28 @@ async def criar_comentario(
     # Persona: só o admin no quadro professores ganha nome de cientista.
     persona = None
     if req.quadro == "professores" and user.is_admin:
-        usadas = set((await db.execute(
+        # Identidade coerente: reusa a persona que este admin já tem NESTA questão.
+        minha = (await db.execute(
             select(QuestaoComentario.persona_nome).where(
                 QuestaoComentario.questao_id == questao_id,
                 QuestaoComentario.forum_tipo == "professores",
-                QuestaoComentario.parent_id.is_(None),
+                QuestaoComentario.owner_uid == user.id,
                 QuestaoComentario.persona_nome.is_not(None),
-            )
-        )).scalars().all())
-        persona = sortear_persona(usadas)
+            ).limit(1)
+        )).scalar_one_or_none()
+        if minha:
+            persona = minha
+        else:
+            # Primeiro post deste admin na questão: sorteia evitando personas já usadas
+            # por QUALQUER post (raiz ou resposta) no quadro professores desta questão.
+            usadas = set((await db.execute(
+                select(QuestaoComentario.persona_nome).where(
+                    QuestaoComentario.questao_id == questao_id,
+                    QuestaoComentario.forum_tipo == "professores",
+                    QuestaoComentario.persona_nome.is_not(None),
+                )
+            )).scalars().all())
+            persona = sortear_persona(usadas)
 
     c = QuestaoComentario(
         questao_id=questao_id,
@@ -2161,9 +2174,6 @@ async def imagem_forum(key: str) -> RedirectResponse:
 
 
 # ─── Admin: gestão de roles de usuários ───────────────────────────────────
-_ROLES_VALIDOS = ("user", "professor", "admin")
-
-
 class PatchRoleReq(BaseModel):
     role: Literal["user", "professor", "admin"]
 
@@ -2220,7 +2230,7 @@ async def admin_trocar_role(
         {"role": req.role, "id": uid},
     )
     await db.commit()
-    return {"id": uid, "role": req.role}
+    return {"id": uid, "role": req.role, "aviso": "O novo papel só terá efeito após o próximo login do usuário."}
 
 
 @router.get("/{questao_id}")
