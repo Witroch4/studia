@@ -78,6 +78,8 @@ export default function GuiaDetalhePage() {
   const [editandoNome, setEditandoNome] = useState(false);
   const [nomeRascunho, setNomeRascunho] = useState("");
   const [renomeando, setRenomeando] = useState(false);
+  const [editandoCaderno, setEditandoCaderno] = useState<{ id: number; nome: string } | null>(null);
+  const [renomeandoCaderno, setRenomeandoCaderno] = useState(false);
   const [togglandoPro, setTogglandoPro] = useState(false);
 
   useEffect(() => {
@@ -221,6 +223,35 @@ export default function GuiaDetalhePage() {
       setMsg((e as Error).message);
     } finally {
       setRenomeando(false);
+    }
+  }
+
+  // Renomear caderno do guia (admin): muda o catálogo e o caderno
+  // materializado compartilhado — vale para todos que usam o guia.
+  async function salvarNomeCaderno() {
+    if (!editandoCaderno) return;
+    const novo = editandoCaderno.nome.trim();
+    const atual = guia?.cadernos.find((c) => c.id === editandoCaderno.id)?.nome;
+    if (!novo || novo === atual) {
+      setEditandoCaderno(null);
+      return;
+    }
+    setRenomeandoCaderno(true);
+    setMsg(null);
+    try {
+      const r = await apiFetch(`/api/q/guias/${guiaId}/cadernos/${editandoCaderno.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome: novo }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+      await queryClient.invalidateQueries({ queryKey: qk.guia(guiaId) });
+      setEditandoCaderno(null);
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setRenomeandoCaderno(false);
     }
   }
 
@@ -481,10 +512,38 @@ export default function GuiaDetalhePage() {
             {guia.cadernos.map((c) => (
               <div
                 key={c.id}
-                className="rounded-lg border border-border-dark bg-surface-dark p-4 flex flex-col md:flex-row md:items-center gap-3"
+                className="group rounded-lg border border-border-dark bg-surface-dark p-4 flex flex-col md:flex-row md:items-center gap-3"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-fg-strong truncate">{c.nome}</div>
+                  {isAdmin && editandoCaderno?.id === c.id ? (
+                    <input
+                      autoFocus
+                      value={editandoCaderno.nome}
+                      onChange={(e) => setEditandoCaderno({ id: c.id, nome: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void salvarNomeCaderno();
+                        if (e.key === "Escape") setEditandoCaderno(null);
+                      }}
+                      onBlur={() => void salvarNomeCaderno()}
+                      disabled={renomeandoCaderno}
+                      className="w-full bg-page border border-primary/50 rounded px-2 py-1 text-sm font-medium text-fg-strong focus:outline-none focus:border-primary"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium text-fg-strong truncate">{c.nome}</span>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          title="Renomear caderno"
+                          aria-label="Renomear caderno"
+                          onClick={() => setEditandoCaderno({ id: c.id, nome: c.nome })}
+                          className="shrink-0 text-fg-faint hover:text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition"
+                        >
+                          <span className="material-symbols-outlined text-[18px] leading-none align-middle">edit</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <div className="text-xs text-fg-faint mt-0.5">
                     {isAdmin ? (
                       <>

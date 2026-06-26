@@ -350,3 +350,46 @@ async def test_patch_pro_only_toggle(client, db_session):
     r = await client.patch(f"/api/q/guias/{gid}", json={"pro_only": False, "nome": "G2"})
     assert r.json()["pro_only"] is False
     assert r.json()["nome"] == "G2"
+
+
+@pytest.mark.asyncio
+async def test_renomear_caderno_do_guia(client, db_session):
+    """Admin renomeia um caderno do guia: muda o catálogo (GuiaCaderno.nome) e
+    sincroniza o CadernoQuestoes materializado compartilhado."""
+    cad = (await _cadernos(
+        db_session,
+        [{"nome": "Civil", "owner_uid": None, "pasta": None, "question_ids": [1], "total": 1}],
+    ))[0]
+    civil = cad.id
+    gid = (await client.post(
+        "/api/q/guias/manual", json={"nome": "G", "caderno_ids": [civil]}
+    )).json()["id"]
+    det = (await client.get(f"/api/q/guias/{gid}")).json()
+    gc_id = det["cadernos"][0]["id"]
+
+    # renomeia (com espaços, devem ser aparados)
+    r = await client.patch(
+        f"/api/q/guias/{gid}/cadernos/{gc_id}", json={"nome": "  Direito Civil  "}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["nome"] == "Direito Civil"
+
+    # reflete no detalhe do guia (catálogo)
+    det = (await client.get(f"/api/q/guias/{gid}")).json()
+    assert det["cadernos"][0]["nome"] == "Direito Civil"
+
+    # sincroniza o CadernoQuestoes materializado compartilhado
+    nome_cad = (
+        await db_session.execute(
+            text("SELECT nome FROM cadernos_questoes WHERE id = :i"), {"i": civil}
+        )
+    ).scalar()
+    assert nome_cad == "Direito Civil"
+
+    # nome vazio → 422
+    r = await client.patch(f"/api/q/guias/{gid}/cadernos/{gc_id}", json={"nome": "   "})
+    assert r.status_code == 422
+
+    # caderno do guia inexistente → 404
+    r = await client.patch(f"/api/q/guias/{gid}/cadernos/999999", json={"nome": "X"})
+    assert r.status_code == 404

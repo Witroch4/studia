@@ -72,6 +72,10 @@ class AtualizarGuiaReq(BaseModel):
     pro_only: bool | None = Field(None, description="Restringir o guia a contas PRO")
 
 
+class RenomearGuiaCadernoReq(BaseModel):
+    nome: str = Field(..., min_length=1, max_length=512, description="Novo nome do caderno")
+
+
 class CriarGuiaManualReq(BaseModel):
     nome: str = Field(..., min_length=1, max_length=512)
     banca: str | None = Field(None, max_length=128)
@@ -670,6 +674,43 @@ async def atualizar_guia(
     await db.commit()
     await db.refresh(guia)
     return _guia_dict(guia)
+
+
+@router.patch("/{guia_id}/cadernos/{gc_id}")
+async def renomear_caderno_guia(
+    guia_id: int,
+    gc_id: int,
+    req: RenomearGuiaCadernoReq,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Renomeia um caderno do guia no catálogo (admin). Atualiza
+    `GuiaCaderno.nome` e, se já materializado, o `CadernoQuestoes.nome` do
+    caderno compartilhado — cadernos de guia têm `owner_uid` NULL (catálogo),
+    então o novo nome vale para todos que usam o guia."""
+    gc = (
+        await db.execute(
+            select(GuiaCaderno).where(
+                GuiaCaderno.id == gc_id, GuiaCaderno.guia_id == guia_id
+            )
+        )
+    ).scalar_one_or_none()
+    if not gc:
+        raise HTTPException(404, "Caderno do guia não encontrado")
+    novo = req.nome.strip()
+    if not novo:
+        raise HTTPException(422, "Nome não pode ser vazio")
+    gc.nome = novo
+    if gc.caderno_id:
+        cad = (
+            await db.execute(
+                select(CadernoQuestoes).where(CadernoQuestoes.id == gc.caderno_id)
+            )
+        ).scalar_one_or_none()
+        if cad:
+            cad.nome = novo
+    await db.commit()
+    return {"id": gc.id, "nome": gc.nome, "caderno_id": gc.caderno_id}
 
 
 @router.post("/{guia_id}/coletar")
