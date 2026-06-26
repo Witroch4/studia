@@ -36,6 +36,20 @@ def upload_pdf(object_name: str, data: bytes) -> str:
     return f"{BUCKET_NAME}/{object_name}"
 
 
+def upload_bytes(object_name: str, data: bytes, content_type: str) -> str:
+    """Sobe bytes genéricos ao bucket (reusa o bucket dos PDFs com prefixo no nome)."""
+    client = get_minio_client()
+    ensure_bucket()
+    client.put_object(
+        BUCKET_NAME,
+        object_name,
+        io.BytesIO(data),
+        length=len(data),
+        content_type=content_type,
+    )
+    return f"{BUCKET_NAME}/{object_name}"
+
+
 def download_pdf(object_name: str) -> bytes:
     client = get_minio_client()
     response = client.get_object(BUCKET_NAME, object_name)

@@ -13,7 +13,8 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import Integer, bindparam, func, select, text
 from sqlalchemy.exc import IntegrityError
@@ -44,6 +45,8 @@ from models import (
 )
 
 import re as _re
+import uuid as _uuid
+from minio_client import upload_bytes, get_presigned_url
 
 router = APIRouter(prefix="/api/q", tags=["questoes"])
 
@@ -2066,6 +2069,36 @@ async def votar_comentario(
     c.score = int(c.curtidas or 0) + int(soma)
     await db.commit()
     return {"score": c.score, "meu_voto": req.valor}
+
+
+_FORUM_IMG_TIPOS = {
+    "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif",
+}
+_FORUM_IMG_MAX = 5 * 1024 * 1024  # 5 MB
+_FORUM_KEY_RE = _re.compile(r"^forum/[0-9a-f-]{36}\.(png|jpg|webp|gif)$")
+
+
+@router.post("/forum/upload")
+async def upload_imagem_forum(
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(require_user),
+) -> dict[str, Any]:
+    ext = _FORUM_IMG_TIPOS.get((file.content_type or "").lower())
+    if not ext:
+        raise HTTPException(400, "tipo de imagem não suportado (use png, jpg, webp ou gif)")
+    data = await file.read()
+    if len(data) > _FORUM_IMG_MAX:
+        raise HTTPException(400, "imagem acima de 5 MB")
+    key = f"forum/{_uuid.uuid4()}.{ext}"
+    upload_bytes(key, data, file.content_type)
+    return {"url": f"/api/q/forum/imagem/{key}"}
+
+
+@router.get("/forum/imagem/{key:path}")
+async def imagem_forum(key: str) -> RedirectResponse:
+    if not _FORUM_KEY_RE.match(key):
+        raise HTTPException(404, "imagem não encontrada")
+    return RedirectResponse(get_presigned_url(key), status_code=302)
 
 
 @router.get("/{questao_id}")
