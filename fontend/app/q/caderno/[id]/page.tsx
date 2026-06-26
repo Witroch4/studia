@@ -11,6 +11,7 @@ import { QuestionCanvasOverlay } from "./components/QuestionCanvasOverlay";
 import { ScientificCalculator } from "./components/ScientificCalculator";
 import { StrikableAlternative } from "./components/StrikableAlternative";
 import QuestionHtml from "../../../components/QuestionHtml";
+import { ForumPanel } from "./components/ForumPanel";
 import { apiFetch, apiJson, apiPost } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
 
@@ -36,6 +37,7 @@ interface Questao {
   materia: { id: number; nome: string } | null;
   assuntos: { id: number; nome: string }[];
   alternativas: Alternativa[];
+  forum_count?: number;
 }
 
 interface Caderno {
@@ -87,6 +89,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const [canvasColor, setCanvasColor] = useState("#22c55e");
   const [canvasWidth, setCanvasWidth] = useState(5);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [forumAberto, setForumAberto] = useState(false);
   const [paywall, setPaywall] = useState<string | null>(null);
   // limite local: sobrescrito pelo retorno do /responder, sincronizado com a query
   const [limiteLocal, setLimiteLocal] = useState<{
@@ -362,6 +365,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     "0": () => { if (!canvasActive) setFontSize(16); },
     ".": () => { if (!canvasActive) setPausado((p) => !p); },
     "?": () => { if (!canvasActive) setShowAtalhos(true); },
+    f: () => { if (!canvasActive) setForumAberto((v) => !v); },
     Escape: () => setCanvasActive(false),
   }, { enabled: !calculatorOpen });
 
@@ -592,7 +596,18 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               />
               <button title="Comentário (O)" className="hover:text-primary">🎓</button>
               <button title="Teoria" className="hover:text-primary">📕</button>
-              <button title="Fórum (F)" className="hover:text-primary">💬</button>
+              <button
+                title="Fórum (F)"
+                onClick={() => setForumAberto((v) => !v)}
+                className={`relative ${forumAberto ? "text-primary" : "hover:text-primary"}`}
+              >
+                💬
+                {(questao.forum_count ?? 0) > 0 && (
+                  <span className="absolute -right-1 -top-1 rounded-full bg-primary px-1 text-[10px] font-bold leading-tight text-black">
+                    {questao.forum_count}
+                  </span>
+                )}
+              </button>
               <button title="Favoritar (M)" onClick={toggleFavorita} className={fav ? "text-yellow-400" : "hover:text-yellow-400"}>
                 {fav ? "★" : "☆"}
               </button>
@@ -601,6 +616,10 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               <button title="Mais opções" className="hover:text-primary">⋮</button>
             </div>
           </header>
+
+          {forumAberto && currentQid != null && (
+            <ForumPanel questaoId={currentQid} onFechar={() => setForumAberto(false)} />
+          )}
 
           {/* ─── Linha enxuta com código + banca ─── */}
           <div className="px-4 py-2 bg-surface-2 border-b border-border/60 text-xs flex items-center gap-2">
