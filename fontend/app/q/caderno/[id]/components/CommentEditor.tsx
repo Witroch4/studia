@@ -49,15 +49,15 @@ export function CommentEditor({
 
   function aoColar(e: React.ClipboardEvent<HTMLTextAreaElement>) {
     const html = e.clipboardData.getData("text/html");
-    if (!html) return; // sem rich text → comportamento padrão (texto puro)
-    e.preventDefault();
+    if (!html) return; // sem rich text → paste nativo (texto puro)
     let md: string;
     try {
       md = turndown.turndown(html).trim();
     } catch {
-      md = e.clipboardData.getData("text/plain");
+      md = "";
     }
-    if (!md) return;
+    if (!md) return; // conversão vazia/erro → deixa o paste nativo seguir
+    e.preventDefault();
     const el = ref.current;
     const start = el ? el.selectionStart : texto.length;
     const end = el ? el.selectionEnd : texto.length;

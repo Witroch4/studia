@@ -78,7 +78,7 @@ export function useVotar(questaoId: number, ordenar: "recentes" | "pontos") {
     // Otimista: atualiza score e meu_voto na árvore imediatamente.
     onMutate: async ({ id, valor }) => {
       const key = qk.forum(questaoId, ordenar);
-      await qc.cancelQueries({ queryKey: key });
+      await qc.cancelQueries({ queryKey: ["q", "forum", String(questaoId)] });
       const anterior = qc.getQueryData<ForumData>(key);
       if (anterior) {
         const aplica = (c: Comentario): Comentario => {
@@ -97,6 +97,16 @@ export function useVotar(questaoId: number, ordenar: "recentes" | "pontos") {
     },
     onError: (_e, _v, ctx) => {
       if (ctx?.anterior) qc.setQueryData(ctx.key, ctx.anterior);
+    },
+    onSuccess: (data, { id }) => {
+      const key = qk.forum(questaoId, ordenar);
+      const atual = qc.getQueryData<ForumData>(key);
+      if (!atual) return;
+      const aplica = (c: Comentario): Comentario =>
+        c.id === id
+          ? { ...c, score: data.score, meu_voto: data.meu_voto }
+          : { ...c, respostas: c.respostas.map(aplica) };
+      qc.setQueryData<ForumData>(key, { ...atual, comentarios: atual.comentarios.map(aplica) });
     },
   });
 }
