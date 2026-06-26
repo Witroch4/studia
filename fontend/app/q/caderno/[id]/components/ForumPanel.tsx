@@ -1,25 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { useCriarComentario, useForum } from "../../../hooks/useForum";
+import { useCriarComentario, useForum, type Quadro } from "../../../hooks/useForum";
 import { CommentItem } from "./CommentItem";
 import { CommentEditor } from "./CommentEditor";
 
 interface ForumPanelProps {
   questaoId: number;
+  quadro: Quadro;
+  podeEscrever: boolean;
   onFechar: () => void;
 }
 
-export function ForumPanel({ questaoId, onFechar }: ForumPanelProps) {
+export function ForumPanel({ questaoId, quadro, podeEscrever, onFechar }: ForumPanelProps) {
   const [ordenar, setOrdenar] = useState<"recentes" | "pontos">("recentes");
-  const { data, isPending, isError } = useForum(questaoId, ordenar);
-  const criar = useCriarComentario(questaoId);
+  const { data, isPending, isError } = useForum(questaoId, quadro, ordenar);
+  const criar = useCriarComentario(questaoId, quadro);
+
+  const ehProf = quadro === "professores";
+  const titulo = ehProf ? "🎓 Fórum dos professores" : "💬 Fórum de discussão";
 
   return (
     <section className="border-y border-border bg-surface-2/30">
       <header className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-fg">
-          💬 Fórum de discussão
+          {titulo}
           {data ? <span className="text-fg-faint">({data.total})</span> : null}
         </h3>
         <div className="flex items-center gap-3 text-xs text-fg-faint">
@@ -32,22 +37,31 @@ export function ForumPanel({ questaoId, onFechar }: ForumPanelProps) {
         </div>
       </header>
 
-      <div className="px-4 py-3">
-        <CommentEditor
-          submitting={criar.isPending}
-          placeholder="Escreva aqui seu comentário"
-          onSubmit={async (texto) => { await criar.mutateAsync({ texto_md: texto }); }}
-        />
-      </div>
+      {podeEscrever ? (
+        <div className="px-4 py-3">
+          <CommentEditor
+            submitting={criar.isPending}
+            placeholder={ehProf ? "Escreva a explicação do professor" : "Escreva aqui seu comentário"}
+            onSubmit={async (texto) => { await criar.mutateAsync({ texto_md: texto }); }}
+          />
+        </div>
+      ) : ehProf ? (
+        <p className="px-4 py-3 text-xs text-fg-faint">
+          Somente professores podem escrever aqui. Você pode ler e votar nas explicações.
+        </p>
+      ) : null}
 
       <div className="divide-y divide-border/50 px-4 pb-4">
         {isPending && <p className="py-4 text-sm text-fg-faint">Carregando…</p>}
         {isError && <p className="py-4 text-sm text-error">Não foi possível carregar o fórum.</p>}
         {data && data.comentarios.length === 0 && (
-          <p className="py-4 text-sm text-fg-faint">Seja o primeiro a comentar esta questão.</p>
+          <p className="py-4 text-sm text-fg-faint">
+            {ehProf ? "Nenhuma explicação de professor ainda." : "Seja o primeiro a comentar esta questão."}
+          </p>
         )}
         {data?.comentarios.map((c) => (
-          <CommentItem key={c.id} comentario={c} questaoId={questaoId} ordenar={ordenar} podeResponder />
+          <CommentItem key={c.id} comentario={c} questaoId={questaoId} quadro={quadro}
+            ordenar={ordenar} podeResponder={podeEscrever} />
         ))}
       </div>
     </section>

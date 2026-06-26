@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Comentario } from "../../../hooks/useForum";
+import type { Comentario, Quadro } from "../../../hooks/useForum";
 import {
   useCriarComentario, useEditarComentario, useExcluirComentario, useVotar,
 } from "../../../hooks/useForum";
@@ -18,15 +18,16 @@ function dataRelativa(iso: string | null): string {
 interface CommentItemProps {
   comentario: Comentario;
   questaoId: number;
+  quadro: Quadro;
   ordenar: "recentes" | "pontos";
   podeResponder: boolean;
 }
 
-export function CommentItem({ comentario: c, questaoId, ordenar, podeResponder }: CommentItemProps) {
-  const votar = useVotar(questaoId, ordenar);
-  const editar = useEditarComentario(questaoId);
-  const excluir = useExcluirComentario(questaoId);
-  const responder = useCriarComentario(questaoId);
+export function CommentItem({ comentario: c, questaoId, quadro, ordenar, podeResponder }: CommentItemProps) {
+  const votar = useVotar(questaoId, quadro, ordenar);
+  const editar = useEditarComentario(questaoId, quadro);
+  const excluir = useExcluirComentario(questaoId, quadro);
+  const responder = useCriarComentario(questaoId, quadro);
   const [editando, setEditando] = useState(false);
   const [respondendo, setRespondendo] = useState(false);
 
@@ -55,6 +56,9 @@ export function CommentItem({ comentario: c, questaoId, ordenar, podeResponder }
             {c.autor_inicial}
           </span>
           <span className="font-semibold text-fg">{c.display_name}</span>
+          {c.eh_professor && (
+            <span className="rounded bg-secondary/20 px-1.5 py-0.5 text-[10px] font-semibold text-secondary">🎓 Professor</span>
+          )}
           <span className="text-fg-faint">{dataRelativa(c.criado_em)}</span>
           {c.editado && <span className="text-fg-faint">(editado)</span>}
         </div>
@@ -104,7 +108,8 @@ export function CommentItem({ comentario: c, questaoId, ordenar, podeResponder }
         {c.respostas.length > 0 && (
           <div className="mt-2 space-y-0 border-l-2 border-border/50 pl-3">
             {c.respostas.map((r) => (
-              <CommentItem key={r.id} comentario={r} questaoId={questaoId} ordenar={ordenar} podeResponder={false} />
+              <CommentItem key={r.id} comentario={r} questaoId={questaoId} quadro={quadro}
+                ordenar={ordenar} podeResponder={false} />
             ))}
           </div>
         )}
