@@ -25,8 +25,10 @@ export const qk = {
   cadernoSub: (id: string | number, sub: string) => ["q", "caderno", String(id), sub] as const, // indice|gabarito|estatisticas|stats-detalhe
   questao: (id: string | number) => ["q", "questao", String(id)] as const,
   favoritas: () => ["q", "favoritas"] as const,
-  forum: (questaoId: number | string, ordenar: string) =>
-    ["q", "forum", String(questaoId), ordenar] as const,
+  forum: (questaoId: number | string, quadro: string, ordenar: string) =>
+    ["q", "forum", String(questaoId), quadro, ordenar] as const,
+  adminUsuarios: (q: string, page: number) =>
+    ["admin", "usuarios", q, page] as const,
   limite: () => ["q", "limite"] as const,
   categoriasArvore: () => ["q", "categorias-arvore"] as const,
   count: (filtros: unknown) => ["q", "count", filtros] as const,

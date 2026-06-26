@@ -4,10 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, apiJson, apiPost, API_BASE } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
 
+export type Quadro = "alunos" | "professores";
+
 export interface Comentario {
   id: number;
   parent_id: number | null;
   origem: "studia" | "tc";
+  eh_professor: boolean;
   display_name: string;
   autor_inicial: string;
   texto_md: string | null;
@@ -26,30 +29,32 @@ export interface ForumData {
   comentarios: Comentario[];
 }
 
-export function useForum(questaoId: number, ordenar: "recentes" | "pontos", enabled = true) {
+export function useForum(
+  questaoId: number, quadro: Quadro, ordenar: "recentes" | "pontos", enabled = true,
+) {
   return useQuery<ForumData>({
-    queryKey: qk.forum(questaoId, ordenar),
-    queryFn: () => apiJson(`/api/q/questoes/${questaoId}/forum?ordenar=${ordenar}`),
+    queryKey: qk.forum(questaoId, quadro, ordenar),
+    queryFn: () => apiJson(`/api/q/questoes/${questaoId}/forum?quadro=${quadro}&ordenar=${ordenar}`),
     enabled,
   });
 }
 
-function useInvalidarForum(questaoId: number) {
+function useInvalidarForum(questaoId: number, quadro: Quadro) {
   const qc = useQueryClient();
-  return () => qc.invalidateQueries({ queryKey: ["q", "forum", String(questaoId)] });
+  return () => qc.invalidateQueries({ queryKey: ["q", "forum", String(questaoId), quadro] });
 }
 
-export function useCriarComentario(questaoId: number) {
-  const invalidar = useInvalidarForum(questaoId);
+export function useCriarComentario(questaoId: number, quadro: Quadro) {
+  const invalidar = useInvalidarForum(questaoId, quadro);
   return useMutation({
     mutationFn: (body: { texto_md: string; parent_id?: number | null }) =>
-      apiPost<Comentario>(`/api/q/questoes/${questaoId}/forum`, body),
+      apiPost<Comentario>(`/api/q/questoes/${questaoId}/forum`, { ...body, quadro }),
     onSuccess: invalidar,
   });
 }
 
-export function useEditarComentario(questaoId: number) {
-  const invalidar = useInvalidarForum(questaoId);
+export function useEditarComentario(questaoId: number, quadro: Quadro) {
+  const invalidar = useInvalidarForum(questaoId, quadro);
   return useMutation({
     mutationFn: ({ id, texto_md }: { id: number; texto_md: string }) =>
       apiJson<Comentario>(`/api/q/forum/${id}`, {
@@ -61,24 +66,22 @@ export function useEditarComentario(questaoId: number) {
   });
 }
 
-export function useExcluirComentario(questaoId: number) {
-  const invalidar = useInvalidarForum(questaoId);
+export function useExcluirComentario(questaoId: number, quadro: Quadro) {
+  const invalidar = useInvalidarForum(questaoId, quadro);
   return useMutation({
-    mutationFn: (id: number) =>
-      apiJson(`/api/q/forum/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => apiJson(`/api/q/forum/${id}`, { method: "DELETE" }),
     onSuccess: invalidar,
   });
 }
 
-export function useVotar(questaoId: number, ordenar: "recentes" | "pontos") {
+export function useVotar(questaoId: number, quadro: Quadro, ordenar: "recentes" | "pontos") {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, valor }: { id: number; valor: -1 | 0 | 1 }) =>
       apiPost<{ score: number; meu_voto: -1 | 0 | 1 }>(`/api/q/forum/${id}/voto`, { valor }),
-    // Otimista: atualiza score e meu_voto na árvore imediatamente.
     onMutate: async ({ id, valor }) => {
-      const key = qk.forum(questaoId, ordenar);
-      await qc.cancelQueries({ queryKey: ["q", "forum", String(questaoId)] });
+      const key = qk.forum(questaoId, quadro, ordenar);
+      await qc.cancelQueries({ queryKey: ["q", "forum", String(questaoId), quadro] });
       const anterior = qc.getQueryData<ForumData>(key);
       if (anterior) {
         const aplica = (c: Comentario): Comentario => {
@@ -88,10 +91,7 @@ export function useVotar(questaoId: number, ordenar: "recentes" | "pontos") {
           }
           return { ...c, respostas: c.respostas.map(aplica) };
         };
-        qc.setQueryData<ForumData>(key, {
-          ...anterior,
-          comentarios: anterior.comentarios.map(aplica),
-        });
+        qc.setQueryData<ForumData>(key, { ...anterior, comentarios: anterior.comentarios.map(aplica) });
       }
       return { anterior, key };
     },
@@ -99,7 +99,7 @@ export function useVotar(questaoId: number, ordenar: "recentes" | "pontos") {
       if (ctx?.anterior) qc.setQueryData(ctx.key, ctx.anterior);
     },
     onSuccess: (data, { id }) => {
-      const key = qk.forum(questaoId, ordenar);
+      const key = qk.forum(questaoId, quadro, ordenar);
       const atual = qc.getQueryData<ForumData>(key);
       if (!atual) return;
       const aplica = (c: Comentario): Comentario =>
@@ -111,7 +111,6 @@ export function useVotar(questaoId: number, ordenar: "recentes" | "pontos") {
   });
 }
 
-/** Sobe uma imagem e devolve a URL absoluta pronta pra inserir em ![](url). */
 export async function uploadImagemForum(file: File): Promise<string> {
   const fd = new FormData();
   fd.append("file", file);
