@@ -60,9 +60,8 @@ export default function AdminUsuariosClient() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "usuarios"] }),
   });
 
-  if (carregandoSessao || !isAdmin) {
-    return <div className="p-8 text-fg-muted">Carregando…</div>;
-  }
+  if (carregandoSessao) return <div className="p-8 text-fg-muted">Carregando…</div>;
+  if (!isAdmin) return null; // redireciona via useEffect; não mostra conteúdo
 
   return (
     <div className="mx-auto max-w-4xl p-6">
