@@ -17,7 +17,7 @@ import { API_BASE } from "@/lib/api";
  */
 const schema = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), "span", "div"],
+  // span e div já estão em defaultSchema.tagNames; sem override necessário
   attributes: {
     ...defaultSchema.attributes,
     span: [...(defaultSchema.attributes?.span ?? []), ["className", "math", "math-inline", "math-display"]],
@@ -26,9 +26,17 @@ const schema = {
   },
 };
 
+/**
+ * Permite src APENAS se for o endpoint de imagem do fórum:
+ *  - relativo:  /api/q/forum/imagem/...
+ *  - absoluto:  ${API_BASE}/api/q/forum/imagem/... (inserido por uploadImagemForum)
+ * URLs externas arbitrárias são bloqueadas para evitar rastreamento/exfiltração de IP.
+ */
 function imagemPermitida(src: string | undefined): boolean {
   if (!src) return false;
-  return src.includes("/api/q/forum/imagem/");
+  if (src.startsWith("/api/q/forum/imagem/")) return true;
+  if (src.startsWith(`${API_BASE}/api/q/forum/imagem/`)) return true;
+  return false;
 }
 
 const components: Components = {
