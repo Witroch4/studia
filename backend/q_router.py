@@ -1935,6 +1935,59 @@ async def listar_forum(
     return {"total": total, "comentarios": out}
 
 
+class EditarComentarioReq(BaseModel):
+    texto_md: str = Field(..., min_length=1, max_length=MAX_COMENTARIO_CHARS)
+
+
+async def _carregar_comentario(comentario_id: int, db: AsyncSession) -> QuestaoComentario:
+    c = (await db.execute(
+        select(QuestaoComentario).where(QuestaoComentario.id == comentario_id)
+    )).scalar_one_or_none()
+    if c is None or c.deleted_at is not None:
+        raise HTTPException(404, "comentário não encontrado")
+    return c
+
+
+@router.patch("/forum/{comentario_id}")
+async def editar_comentario(
+    comentario_id: int,
+    req: EditarComentarioReq,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    c = await _carregar_comentario(comentario_id, db)
+    if c.origem != "studia" or c.owner_uid != user.id:
+        raise HTTPException(403, "você só pode editar os seus próprios comentários")
+    texto = req.texto_md.strip()
+    if not texto:
+        raise HTTPException(422, "comentário vazio")
+    c.texto_md = texto
+    c.edited_at = func.now()
+    await db.commit()
+    await db.refresh(c)
+    meu = (await db.execute(
+        select(ComentarioVoto.valor).where(
+            ComentarioVoto.comentario_id == c.id, ComentarioVoto.usuario_uid == user.id
+        )
+    )).scalar_one_or_none() or 0
+    return _serializar_comentario(c, meu_voto=meu, user=user, respostas=[])
+
+
+@router.delete("/forum/{comentario_id}")
+async def excluir_comentario(
+    comentario_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    c = await _carregar_comentario(comentario_id, db)
+    dono = c.origem == "studia" and c.owner_uid == user.id
+    if not (dono or user.is_admin):
+        raise HTTPException(403, "sem permissão para excluir")
+    c.deleted_at = func.now()
+    await db.commit()
+    return {"id": comentario_id, "removido": True}
+
+
 @router.post("/questoes/{questao_id}/forum", status_code=status.HTTP_201_CREATED)
 async def criar_comentario(
     questao_id: int,

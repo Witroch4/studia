@@ -121,3 +121,61 @@ async def test_texto_vazio_e_rejeitado(client, db_session):
     await seed_questao(db_session)
     r = await client.post("/api/q/questoes/99/forum", json={"texto_md": "   "})
     assert r.status_code == 422
+
+
+# ── Task 5: editar e excluir ─────────────────────────────────────────────────
+
+async def test_editar_proprio_comentario(client, db_session):
+    await seed_questao(db_session)
+    c = (await client.post("/api/q/questoes/99/forum", json={"texto_md": "v1"})).json()
+    r = await client.patch(f"/api/q/forum/{c['id']}", json={"texto_md": "v2"})
+    assert r.status_code == 200
+    assert r.json()["texto_md"] == "v2"
+    assert r.json()["editado"] is True
+
+
+async def test_editar_de_outro_usuario_proibido(client, db_session, auth_state):
+    await seed_questao(db_session)
+    c = (await client.post("/api/q/questoes/99/forum", json={"texto_md": "v1"})).json()
+    auth_state["user"] = USER_B
+    r = await client.patch(f"/api/q/forum/{c['id']}", json={"texto_md": "hack"})
+    assert r.status_code == 403
+
+
+async def test_nao_edita_comentario_tc(client, db_session):
+    await seed_questao(db_session)
+    db_session.add(QuestaoComentario(id=50, questao_id=99, origem="tc",
+                                     autor_nome="X", autor_tipo="aluno", texto_md="tc"))
+    await db_session.commit()
+    r = await client.patch("/api/q/forum/50", json={"texto_md": "edit"})
+    assert r.status_code == 403
+
+
+async def test_excluir_proprio(client, db_session):
+    await seed_questao(db_session)
+    c = (await client.post("/api/q/questoes/99/forum", json={"texto_md": "v1"})).json()
+    r = await client.delete(f"/api/q/forum/{c['id']}")
+    assert r.status_code == 200
+    # some do feed (folha deletada)
+    assert (await client.get("/api/q/questoes/99/forum")).json()["total"] == 0
+
+
+async def test_admin_exclui_de_qualquer_um(client, db_session, auth_state):
+    await seed_questao(db_session)
+    auth_state["user"] = USER_A
+    c = (await client.post("/api/q/questoes/99/forum", json={"texto_md": "v1"})).json()
+    auth_state["user"] = ADMIN_USER
+    r = await client.delete(f"/api/q/forum/{c['id']}")
+    assert r.status_code == 200
+
+
+async def test_excluir_raiz_com_resposta_vira_placeholder(client, db_session):
+    await seed_questao(db_session)
+    raiz = (await client.post("/api/q/questoes/99/forum", json={"texto_md": "raiz"})).json()
+    await client.post("/api/q/questoes/99/forum", json={"texto_md": "resp", "parent_id": raiz["id"]})
+    await client.delete(f"/api/q/forum/{raiz['id']}")
+    data = (await client.get("/api/q/questoes/99/forum")).json()
+    assert len(data["comentarios"]) == 1
+    assert data["comentarios"][0]["removido"] is True
+    assert data["comentarios"][0]["texto_md"] is None
+    assert len(data["comentarios"][0]["respostas"]) == 1
