@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from auth import CurrentUser, get_current_user_opt, require_admin, require_user
+from forum_pseudonimo import pseudonimo
 from database import get_db
 from entitlements import acesso_pro_ativo, garantir_pode_resolver, resumo_limite
 from models import (
@@ -30,12 +31,14 @@ from models import (
     CadernoQuestoes,
     CadernoSalvo,
     Cargo,
+    ComentarioVoto,
     Guia,
     GuiaCaderno,
     Materia,
     Orgao,
     Questao,
     QuestaoAnotacao,
+    QuestaoComentario,
     QuestaoFavorita,
     Resolucao,
 )
@@ -1834,6 +1837,99 @@ async def dashboard(
     }
 
 
+# ─── Fórum de discussão por questão ───────────────────────────────────────
+MAX_COMENTARIO_CHARS = 20_000
+
+
+def _display_name(c: QuestaoComentario) -> str:
+    """studIA: nome real do aluno; TC: pseudônimo estável (nome original nunca vaza)."""
+    if c.origem == "tc":
+        return pseudonimo(c.autor_nome or str(c.tc_comentario_id or c.id))
+    return c.autor_nome or "Anônimo"
+
+
+def _serializar_comentario(
+    c: QuestaoComentario, *, meu_voto: int, user: CurrentUser, respostas: list[dict[str, Any]]
+) -> dict[str, Any]:
+    removido = c.deleted_at is not None
+    nome = _display_name(c)
+    dono = c.origem == "studia" and c.owner_uid == user.id
+    return {
+        "id": c.id,
+        "parent_id": c.parent_id,
+        "origem": c.origem,
+        "display_name": nome,
+        "autor_inicial": (nome.strip()[:1] or "?").upper(),
+        "texto_md": None if removido else c.texto_md,
+        "score": c.score or 0,
+        "meu_voto": meu_voto,
+        "criado_em": (c.publicado_em or c.created_at).isoformat() if (c.publicado_em or c.created_at) else None,
+        "editado": c.edited_at is not None,
+        "removido": removido,
+        "posso_editar": dono and not removido,
+        "posso_excluir": (dono or user.is_admin) and not removido,
+        "respostas": respostas,
+    }
+
+
+@router.get("/questoes/{questao_id}/forum")
+async def listar_forum(
+    questao_id: int,
+    ordenar: str = "recentes",
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    todos = (
+        await db.execute(
+            select(QuestaoComentario).where(QuestaoComentario.questao_id == questao_id)
+        )
+    ).scalars().all()
+
+    # Votos do usuário atual nesta questão (para `meu_voto`).
+    ids = [c.id for c in todos]
+    meus: dict[int, int] = {}
+    if ids:
+        rows = (
+            await db.execute(
+                select(ComentarioVoto.comentario_id, ComentarioVoto.valor).where(
+                    ComentarioVoto.comentario_id.in_(ids),
+                    ComentarioVoto.usuario_uid == user.id,
+                )
+            )
+        ).all()
+        meus = {cid: val for cid, val in rows}
+
+    # Índice de respostas por pai (1 nível). Respostas deletadas são folhas → descartadas.
+    respostas_por_pai: dict[int, list[QuestaoComentario]] = {}
+    raizes: list[QuestaoComentario] = []
+    for c in todos:
+        if c.parent_id is None:
+            raizes.append(c)
+        elif c.deleted_at is None:
+            respostas_por_pai.setdefault(c.parent_id, []).append(c)
+
+    def _serial(c: QuestaoComentario, respostas: list[dict[str, Any]]) -> dict[str, Any]:
+        return _serializar_comentario(c, meu_voto=meus.get(c.id, 0), user=user, respostas=respostas)
+
+    out: list[dict[str, Any]] = []
+    total = 0
+    for raiz in raizes:
+        filhos = sorted(respostas_por_pai.get(raiz.id, []), key=lambda x: x.created_at or x.id)
+        # Raiz deletada sem filhos vivos → some do feed.
+        if raiz.deleted_at is not None and not filhos:
+            continue
+        respostas = [_serial(f, []) for f in filhos]
+        out.append(_serial(raiz, respostas))
+        total += (0 if raiz.deleted_at is not None else 1) + len(filhos)
+
+    if ordenar == "pontos":
+        out.sort(key=lambda d: (d["score"], d["criado_em"] or ""), reverse=True)
+    else:  # recentes
+        out.sort(key=lambda d: d["criado_em"] or "", reverse=True)
+
+    return {"total": total, "comentarios": out}
+
+
 @router.get("/{questao_id}")
 async def detalhe(questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     stmt = (
@@ -1868,4 +1964,10 @@ async def detalhe(questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[s
             {"id": alt.id, "letra": alt.letra, "texto_md": alt.texto_md, "texto_html": alt.texto_html, "correta": alt.correta, "ordem": alt.ordem}
             for alt in sorted(q.alternativas, key=lambda x: x.ordem or 0)
         ],
+        "forum_count": (await db.execute(
+            select(func.count()).select_from(QuestaoComentario).where(
+                QuestaoComentario.questao_id == questao_id,
+                QuestaoComentario.deleted_at.is_(None),
+            )
+        )).scalar_one(),
     }
