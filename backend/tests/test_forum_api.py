@@ -332,6 +332,29 @@ async def test_aluno_le_e_vota_em_post_de_professor(client, auth_state, db_sessi
     assert v.json()["score"] == 1
 
 
+async def test_admin_posta_no_quadro_professores_recebe_persona(client, auth_state, db_session):
+    """POST do admin no quadro professores => display_name é uma persona do POOL."""
+    from forum_personas import POOL
+    qid = await _criar_questao(db_session)
+    auth_state["user"] = ADMIN_USER
+    r = await client.post(
+        f"/api/q/questoes/{qid}/forum",
+        json={"texto_md": "explicação profunda sobre o tema", "quadro": "professores"},
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["display_name"] in POOL
+    assert body["display_name"] != ADMIN_USER.name
+    assert body["eh_professor"] is True
+
+    # confirma via DB que persona_nome ficou gravado (não nulo)
+    from models import QuestaoComentario
+    stmt = select(QuestaoComentario).where(QuestaoComentario.id == body["id"])
+    row = (await db_session.execute(stmt)).scalar_one()
+    assert row.persona_nome is not None
+    assert row.persona_nome == body["display_name"]
+
+
 async def test_resposta_nao_cruza_quadro(client, auth_state, db_session):
     qid = await _criar_questao(db_session)
     auth_state["user"] = ADMIN_USER
