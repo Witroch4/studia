@@ -2027,6 +2027,47 @@ async def criar_comentario(
     return _serializar_comentario(c, meu_voto=0, user=user, respostas=[])
 
 
+class VotarReq(BaseModel):
+    valor: int = Field(..., ge=-1, le=1)  # -1 | 0 | 1 (0 remove)
+
+
+@router.post("/forum/{comentario_id}/voto")
+async def votar_comentario(
+    comentario_id: int,
+    req: VotarReq,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    c = await _carregar_comentario(comentario_id, db)
+    if c.origem == "studia" and c.owner_uid == user.id:
+        raise HTTPException(400, "você não pode votar no próprio comentário")
+
+    voto = (await db.execute(
+        select(ComentarioVoto).where(
+            ComentarioVoto.comentario_id == comentario_id,
+            ComentarioVoto.usuario_uid == user.id,
+        )
+    )).scalar_one_or_none()
+
+    if req.valor == 0:
+        if voto is not None:
+            await db.delete(voto)
+    elif voto is None:
+        db.add(ComentarioVoto(comentario_id=comentario_id, usuario_uid=user.id, valor=req.valor))
+    else:
+        voto.valor = req.valor
+    await db.flush()
+
+    soma = (await db.execute(
+        select(func.coalesce(func.sum(ComentarioVoto.valor), 0)).where(
+            ComentarioVoto.comentario_id == comentario_id
+        )
+    )).scalar_one()
+    c.score = int(c.curtidas or 0) + int(soma)
+    await db.commit()
+    return {"score": c.score, "meu_voto": req.valor}
+
+
 @router.get("/{questao_id}")
 async def detalhe(questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     stmt = (

@@ -179,3 +179,44 @@ async def test_excluir_raiz_com_resposta_vira_placeholder(client, db_session):
     assert data["comentarios"][0]["removido"] is True
     assert data["comentarios"][0]["texto_md"] is None
     assert len(data["comentarios"][0]["respostas"]) == 1
+
+
+# ── Task 6: votar (toggle/trocar/remover) + recálculo de score ───────────────
+
+async def test_votar_e_recalcular_score(client, db_session, auth_state):
+    await seed_questao(db_session)
+    auth_state["user"] = USER_A
+    c = (await client.post("/api/q/questoes/99/forum", json={"texto_md": "v"})).json()
+    auth_state["user"] = USER_B
+    r = await client.post(f"/api/q/forum/{c['id']}/voto", json={"valor": 1})
+    assert r.status_code == 200
+    assert r.json() == {"score": 1, "meu_voto": 1}
+
+
+async def test_trocar_e_remover_voto(client, db_session, auth_state):
+    await seed_questao(db_session)
+    auth_state["user"] = USER_A
+    c = (await client.post("/api/q/questoes/99/forum", json={"texto_md": "v"})).json()
+    auth_state["user"] = USER_B
+    await client.post(f"/api/q/forum/{c['id']}/voto", json={"valor": 1})
+    r = await client.post(f"/api/q/forum/{c['id']}/voto", json={"valor": -1})
+    assert r.json() == {"score": -1, "meu_voto": -1}
+    r = await client.post(f"/api/q/forum/{c['id']}/voto", json={"valor": 0})
+    assert r.json() == {"score": 0, "meu_voto": 0}
+
+
+async def test_nao_pode_votar_no_proprio(client, db_session):
+    await seed_questao(db_session)
+    c = (await client.post("/api/q/questoes/99/forum", json={"texto_md": "v"})).json()
+    r = await client.post(f"/api/q/forum/{c['id']}/voto", json={"valor": 1})
+    assert r.status_code == 400
+
+
+async def test_voto_soma_curtidas_do_tc(client, db_session, auth_state):
+    await seed_questao(db_session)
+    db_session.add(QuestaoComentario(id=70, questao_id=99, origem="tc", autor_nome="X",
+                                     autor_tipo="aluno", texto_md="tc", curtidas=3, score=3))
+    await db_session.commit()
+    auth_state["user"] = USER_A
+    r = await client.post("/api/q/forum/70/voto", json={"valor": 1})
+    assert r.json()["score"] == 4  # 3 curtidas + 1 voto
