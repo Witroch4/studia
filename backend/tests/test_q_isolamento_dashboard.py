@@ -285,6 +285,7 @@ async def test_dashboard_usuario_novo_tudo_zero(client, auth_state):
     assert body["streak_dias"] == 0
     assert body["por_disciplina"] == []
     assert body["atividade_recente"] == []
+    assert body["ultimas_pastas"] == []
 
 
 async def test_dashboard_exige_login(client, auth_state):
@@ -324,3 +325,42 @@ async def test_dashboard_agrega_e_isola_por_usuario(client, db_session, auth_sta
     assert disc["Direito Constitucional"]["acertos"] == 1
     assert disc["Direito Constitucional"]["erros"] == 1
     assert disc["Direito Constitucional"]["tempo_segundos"] == 50
+
+
+async def test_dashboard_ultimas_pastas_por_recencia(client, db_session, auth_state):
+    """Últimas pastas acessadas = pastas dos cadernos com Resolução mais recente
+    do usuário, ordenadas por recência; isoladas por usuário."""
+    db_session.add(Questao(id=90, enunciado_md="Q90"))
+    db_session.add_all(
+        [
+            CadernoQuestoes(id=100, nome="Const", pasta="OAB", owner_uid="user-A", question_ids=[90], total=1),
+            CadernoQuestoes(id=101, nome="Mat", pasta="ENEM", owner_uid="user-A", question_ids=[90], total=1),
+            CadernoQuestoes(id=102, nome="Solto", pasta=None, owner_uid="user-A", question_ids=[90], total=1),
+        ]
+    )
+    hoje = datetime.now()
+    db_session.add_all(
+        [
+            Resolucao(id=40, questao_id=90, caderno_id=101, usuario_uid="user-A", acertou=True, created_at=hoje - timedelta(days=3)),
+            Resolucao(id=41, questao_id=90, caderno_id=102, usuario_uid="user-A", acertou=True, created_at=hoje - timedelta(days=1)),
+            Resolucao(id=42, questao_id=90, caderno_id=100, usuario_uid="user-A", acertou=True, created_at=hoje),
+            # B em OAB não deve vazar para o de A
+            Resolucao(id=43, questao_id=90, caderno_id=100, usuario_uid="user-B", acertou=True, created_at=hoje),
+            # Resolução avulsa (sem caderno) é ignorada (não tem pasta)
+            Resolucao(id=44, questao_id=90, caderno_id=None, usuario_uid="user-A", acertou=True, created_at=hoje),
+        ]
+    )
+    await db_session.commit()
+
+    auth_state["user"] = A
+    body = (await client.get("/api/q/dashboard")).json()
+    pastas = body["ultimas_pastas"]
+    # OAB (hoje) > sem classificação/None (ontem) > ENEM (3d)
+    assert [p["pasta"] for p in pastas] == ["OAB", None, "ENEM"]
+    assert all(p["cadernos"] == 1 for p in pastas)
+    assert all(p["ultimo_acesso"] for p in pastas)
+
+    # B só enxerga a própria atividade
+    auth_state["user"] = B
+    body_b = (await client.get("/api/q/dashboard")).json()
+    assert [p["pasta"] for p in body_b["ultimas_pastas"]] == ["OAB"]

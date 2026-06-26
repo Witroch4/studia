@@ -1828,6 +1828,29 @@ async def dashboard(
     ).scalars().all()
     streak = _compute_streak({_as_date(d) for d in dias_ativos}, date.today())
 
+    # ─── Últimas pastas acessadas (pela Resolucao mais recente do usuário) ───
+    ultimas_rows = (await db.execute(
+        select(
+            CadernoQuestoes.pasta.label("pasta"),
+            func.max(Resolucao.created_at).label("ultimo"),
+            func.count(func.distinct(Resolucao.caderno_id)).label("cadernos"),
+        )
+        .select_from(Resolucao)
+        .join(CadernoQuestoes, CadernoQuestoes.id == Resolucao.caderno_id)
+        .where(*meu)
+        .group_by(CadernoQuestoes.pasta)
+        .order_by(func.max(Resolucao.created_at).desc())
+        .limit(6)
+    )).all()
+    ultimas_pastas = [
+        {
+            "pasta": r.pasta,
+            "cadernos": int(r.cadernos or 0),
+            "ultimo_acesso": r.ultimo.isoformat() if r.ultimo else None,
+        }
+        for r in ultimas_rows
+    ]
+
     return {
         "total_horas_segundos": int(tempo_total or 0),
         "resolvidas": total,
@@ -1837,6 +1860,7 @@ async def dashboard(
         "por_disciplina": por_disciplina,
         "atividade_recente": atividade_recente,
         "streak_dias": streak,
+        "ultimas_pastas": ultimas_pastas,
     }
 
 

@@ -21,6 +21,12 @@ interface Atividade {
   acertos: number;
 }
 
+interface UltimaPasta {
+  pasta: string | null;
+  cadernos: number;
+  ultimo_acesso: string | null; // ISO
+}
+
 interface Dashboard {
   total_horas_segundos: number;
   resolvidas: number;
@@ -30,6 +36,7 @@ interface Dashboard {
   por_disciplina: Disciplina[];
   atividade_recente: Atividade[];
   streak_dias: number;
+  ultimas_pastas: UltimaPasta[];
 }
 
 function fmtDuracao(seg: number): string {
@@ -42,6 +49,30 @@ function pctColor(pct: number) {
   if (pct >= 80) return "bg-accent-success/20 text-accent-success";
   if (pct >= 70) return "bg-secondary/20 text-secondary";
   return "bg-accent-error/20 text-accent-error";
+}
+
+// Datetimes naive do backend são UTC (containers em UTC); anexa "Z" se faltar.
+function tempoRelativo(iso: string): string {
+  const norm = /[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`;
+  const diff = Date.now() - new Date(norm).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `há ${h}h`;
+  const d = Math.floor(h / 24);
+  if (d === 1) return "ontem";
+  if (d < 30) return `há ${d} dias`;
+  const meses = Math.floor(d / 30);
+  return meses === 1 ? "há 1 mês" : `há ${meses} meses`;
+}
+
+function pastaLabel(pasta: string | null): string {
+  return pasta && pasta.trim() ? pasta : "Sem classificação";
+}
+
+function pastaHref(pasta: string | null): string {
+  return pasta && pasta.trim() ? `/q/cadernos?pasta=${encodeURIComponent(pasta)}` : "/q/cadernos?pasta=";
 }
 
 function ultimosDias(n: number): string[] {
@@ -209,6 +240,43 @@ function PainelDados({ data }: { data: Dashboard }) {
           })}
         </div>
       </div>
+
+      {/* Últimas pastas acessadas */}
+      {data.ultimas_pastas.length > 0 && (
+        <div className="bg-surface p-6 rounded-xl shadow-sm border border-border mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">
+              Últimas pastas acessadas
+            </h3>
+            <Link href="/q/cadernos" className="text-xs text-primary hover:underline">
+              Ver todas
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {data.ultimas_pastas.map((p, i) => (
+              <Link
+                key={`${p.pasta ?? "__none__"}-${i}`}
+                href={pastaHref(p.pasta)}
+                className="group flex items-center gap-3 p-3 rounded-lg bg-surface-2/40 border border-border hover:border-primary/50 hover:bg-surface-2 transition-colors"
+              >
+                <span className="material-symbols-outlined text-primary shrink-0">folder</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-fg-strong truncate group-hover:text-primary">
+                    {pastaLabel(p.pasta)}
+                  </div>
+                  <div className="text-xs text-fg-faint">
+                    {p.cadernos} caderno{p.cadernos === 1 ? "" : "s"}
+                    {p.ultimo_acesso ? ` · ${tempoRelativo(p.ultimo_acesso)}` : ""}
+                  </div>
+                </div>
+                <span className="material-symbols-outlined text-fg-faint text-base shrink-0 group-hover:text-primary">
+                  chevron_right
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Disciplinas */}
       <div className="bg-surface p-6 rounded-xl shadow-sm border border-border">
