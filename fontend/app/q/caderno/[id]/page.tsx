@@ -14,6 +14,7 @@ import QuestionHtml from "../../../components/QuestionHtml";
 import { ForumPanel } from "./components/ForumPanel";
 import { apiFetch, apiJson, apiPost } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
+import { useSession } from "@/lib/auth-client";
 
 interface Alternativa {
   id: number;
@@ -38,6 +39,7 @@ interface Questao {
   assuntos: { id: number; nome: string }[];
   alternativas: Alternativa[];
   forum_count?: number;
+  forum_count_professores?: number;
 }
 
 interface Caderno {
@@ -90,6 +92,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const [canvasWidth, setCanvasWidth] = useState(5);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [forumAberto, setForumAberto] = useState(false);
+  const [forumProfAberto, setForumProfAberto] = useState(false);
   const [paywall, setPaywall] = useState<string | null>(null);
   // limite local: sobrescrito pelo retorno do /responder, sincronizado com a query
   const [limiteLocal, setLimiteLocal] = useState<{
@@ -309,6 +312,10 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     favoritarMutation.mutate(currentQid);
   }, [currentQid, favoritarMutation]);
 
+  const { data: sessao } = useSession();
+  const meuRole = (sessao?.user as { role?: string } | undefined)?.role ?? "user";
+  const souProfOuAdmin = meuRole === "professor" || meuRole === "admin";
+
   const annotations = useQuestionAnnotations(caderno?.id ?? null, currentQid ?? null);
 
   async function mudarIndice(proximoIdx: number) {
@@ -365,7 +372,8 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     "0": () => { if (!canvasActive) setFontSize(16); },
     ".": () => { if (!canvasActive) setPausado((p) => !p); },
     "?": () => { if (!canvasActive) setShowAtalhos(true); },
-    f: () => { if (!canvasActive) setForumAberto((v) => !v); },
+    f: () => { if (!canvasActive) { setForumAberto((v) => !v); setForumProfAberto(false); } },
+    o: () => { if (!canvasActive) { setForumProfAberto((v) => !v); setForumAberto(false); } },
     Escape: () => setCanvasActive(false),
   }, { enabled: !calculatorOpen });
 
@@ -594,11 +602,22 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                 onClear={annotations.clearCanvas}
                 onOpenCalculator={() => setCalculatorOpen(true)}
               />
-              <button title="Comentário (O)" className="hover:text-primary">🎓</button>
+              <button
+                title="Fórum dos professores (O)"
+                onClick={() => { setForumProfAberto((v) => !v); setForumAberto(false); }}
+                className={`relative ${forumProfAberto ? "text-primary" : "hover:text-primary"}`}
+              >
+                🎓
+                {(questao.forum_count_professores ?? 0) > 0 && (
+                  <span className="absolute -right-1 -top-1 rounded-full bg-secondary px-1 text-[10px] font-bold leading-tight text-black">
+                    {questao.forum_count_professores}
+                  </span>
+                )}
+              </button>
               <button title="Teoria" className="hover:text-primary">📕</button>
               <button
                 title="Fórum (F)"
-                onClick={() => setForumAberto((v) => !v)}
+                onClick={() => { setForumAberto((v) => !v); setForumProfAberto(false); }}
                 className={`relative ${forumAberto ? "text-primary" : "hover:text-primary"}`}
               >
                 💬
@@ -618,7 +637,11 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
           </header>
 
           {forumAberto && currentQid != null && (
-            <ForumPanel questaoId={currentQid} onFechar={() => setForumAberto(false)} />
+            <ForumPanel questaoId={currentQid} quadro="alunos" podeEscrever onFechar={() => setForumAberto(false)} />
+          )}
+          {forumProfAberto && currentQid != null && (
+            <ForumPanel questaoId={currentQid} quadro="professores" podeEscrever={souProfOuAdmin}
+              onFechar={() => setForumProfAberto(false)} />
           )}
 
           {/* ─── Linha enxuta com código + banca ─── */}
