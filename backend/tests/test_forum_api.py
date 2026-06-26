@@ -229,3 +229,56 @@ async def test_nao_responde_comentario_removido(client, db_session):
     r = await client.post("/api/q/questoes/99/forum",
                           json={"texto_md": "resp", "parent_id": raiz["id"]})
     assert r.status_code == 400
+
+
+# ── Task 4: GET por quadro, display de persona, eh_professor, contagens ──────
+
+async def test_quadros_isolados_e_contagens(client, db_session):
+    """quadros alunos/professores são isolados; detalhe separa contagens."""
+    await seed_questao(db_session)
+
+    # Semeia 1 comentário de aluno via POST normal (quadro default = alunos)
+    r_aluno = await client.post("/api/q/questoes/99/forum",
+                                json={"texto_md": "post de aluno"})
+    assert r_aluno.status_code == 201
+
+    # Semeia 1 comentário de professor via ORM (POST com quadro é Task 5)
+    from forum_personas import POOL
+    persona = POOL[0]
+    db_session.add(QuestaoComentario(
+        id=500,
+        questao_id=99,
+        origem="studia",
+        owner_uid="admin-1",
+        autor_nome="admin-1",
+        texto_md="post de prof",
+        forum_tipo="professores",
+        persona_nome=persona,
+        score=0,
+    ))
+    await db_session.commit()
+
+    # GET de cada quadro só enxerga o seu
+    a = (await client.get("/api/q/questoes/99/forum?quadro=alunos")).json()
+    p = (await client.get("/api/q/questoes/99/forum?quadro=professores")).json()
+    assert [c["texto_md"] for c in a["comentarios"]] == ["post de aluno"]
+    assert [c["texto_md"] for c in p["comentarios"]] == ["post de prof"]
+
+    # comentário do professor retorna display_name = persona e eh_professor=True
+    pc = p["comentarios"][0]
+    assert pc["display_name"] == persona
+    assert pc["eh_professor"] is True
+
+    # comentário de aluno retorna eh_professor=False
+    ac = a["comentarios"][0]
+    assert ac["eh_professor"] is False
+
+    # detalhe da questão separa as contagens
+    det = (await client.get("/api/q/99")).json()
+    assert det["forum_count"] == 1           # só alunos
+    assert det["forum_count_professores"] == 1
+
+
+async def test_quadro_invalido_422(client):
+    r = await client.get("/api/q/questoes/1/forum?quadro=xpto")
+    assert r.status_code == 422

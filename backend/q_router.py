@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -1874,7 +1874,9 @@ class CriarComentarioReq(BaseModel):
 
 
 def _display_name(c: QuestaoComentario) -> str:
-    """studIA: nome real do aluno; TC: pseudônimo estável (nome original nunca vaza)."""
+    """Persona (admin no quadro professores) > pseudônimo TC > nome real do studIA."""
+    if c.persona_nome:
+        return c.persona_nome
     if c.origem == "tc":
         return pseudonimo(c.autor_nome or str(c.tc_comentario_id or c.id))
     return c.autor_nome or "Anônimo"
@@ -1898,6 +1900,7 @@ def _serializar_comentario(
         "criado_em": (c.publicado_em or c.created_at).isoformat() if (c.publicado_em or c.created_at) else None,
         "editado": c.edited_at is not None,
         "removido": removido,
+        "eh_professor": c.forum_tipo == "professores",
         "posso_editar": dono and not removido,
         "posso_excluir": (dono or user.is_admin) and not removido,
         "respostas": respostas,
@@ -1908,12 +1911,16 @@ def _serializar_comentario(
 async def listar_forum(
     questao_id: int,
     ordenar: str = "recentes",
+    quadro: Literal["alunos", "professores"] = "alunos",
     user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     todos = (
         await db.execute(
-            select(QuestaoComentario).where(QuestaoComentario.questao_id == questao_id)
+            select(QuestaoComentario).where(
+                QuestaoComentario.questao_id == questao_id,
+                QuestaoComentario.forum_tipo == quadro,
+            )
         )
     ).scalars().all()
 
@@ -2168,6 +2175,14 @@ async def detalhe(questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[s
         "forum_count": (await db.execute(
             select(func.count()).select_from(QuestaoComentario).where(
                 QuestaoComentario.questao_id == questao_id,
+                QuestaoComentario.forum_tipo == "alunos",
+                QuestaoComentario.deleted_at.is_(None),
+            )
+        )).scalar_one(),
+        "forum_count_professores": (await db.execute(
+            select(func.count()).select_from(QuestaoComentario).where(
+                QuestaoComentario.questao_id == questao_id,
+                QuestaoComentario.forum_tipo == "professores",
                 QuestaoComentario.deleted_at.is_(None),
             )
         )).scalar_one(),
