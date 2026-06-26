@@ -13,6 +13,7 @@ from sqlalchemy import (
     Index,
     Integer,
     JSON,
+    SmallInteger,
     String,
     Table,
     Text,
@@ -663,6 +664,36 @@ class QuestaoComentario(Base):
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    # ─── Campos do fórum studIA (feed unificado local + TC anonimizado) ───
+    origem: Mapped[str] = mapped_column(
+        String(16), default="studia", server_default="studia", index=True
+    )  # "studia" (aluno) | "tc" (importado, exibido com pseudônimo)
+    owner_uid: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    parent_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("questao_comentarios.id", ondelete="CASCADE"), nullable=True, index=True
+    )  # resposta a um post raiz (1 nível só)
+    score: Mapped[int] = mapped_column(Integer, default=0, server_default="0", index=True)
+    edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ComentarioVoto(Base):
+    """Voto (+1/-1) de um usuário em um comentário do fórum. Um por (comentário, usuário)."""
+
+    __tablename__ = "comentario_votos"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    comentario_id: Mapped[int] = mapped_column(
+        ForeignKey("questao_comentarios.id", ondelete="CASCADE"), index=True
+    )
+    usuario_uid: Mapped[str] = mapped_column(String(64), index=True)
+    valor: Mapped[int] = mapped_column(SmallInteger)  # +1 | -1
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("comentario_id", "usuario_uid", name="uq_voto_comentario_usuario"),
+    )
 
 
 # ─── Cronograma ────────────────────────────────────────────
