@@ -209,9 +209,9 @@ function CreateUserCard() {
         <NoticeBox notice={notice} />
         <PrimaryBtn loading={loading}>Criar usuário</PrimaryBtn>
       </form>
-      <a href="/q/admin/usuarios" className="mt-3 block text-sm text-primary hover:underline">
+      <Link href="/q/admin/usuarios" className="mt-3 block text-sm text-primary hover:underline">
         Gerenciar usuários e papéis →
-      </a>
+      </Link>
     </SectionCard>
   );
 }

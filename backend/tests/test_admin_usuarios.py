@@ -35,7 +35,9 @@ async def test_patch_role_promove_professor(client, auth_state, db_session):
     auth_state["user"] = ADMIN_USER
     r = await client.patch("/api/q/admin/usuarios/alvo-2/role", json={"role": "professor"})
     assert r.status_code == 200
-    assert r.json()["role"] == "professor"
+    body = r.json()
+    assert body["role"] == "professor"
+    assert "aviso" in body, "A resposta deve conter a chave 'aviso'"
     row = (await db_session.execute(
         text('SELECT role FROM "user" WHERE id = :id'), {"id": "alvo-2"}
     )).scalar_one()
