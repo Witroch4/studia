@@ -32,15 +32,21 @@ Falta apenas a fonte (buscar no TC e gravar).
 
 ## Decisões de design (do brainstorm)
 
-1. **Híbrido**: coleta **sob demanda (lazy)** por padrão **+** botão de **coleta em
-   massa** por caderno. Os dois compartilham o mesmo armazenamento e dedup.
-2. **Imagens** dos comentários → **re-hospedadas no MinIO** (a sessão autenticada do
+1. **Híbrido em 2 fases**: **Fase 1 (MVP)** = coleta **sob demanda (lazy)** por aba.
+   **Fase 2** = botão de **coleta em massa** por caderno. Ambas no plano; a Fase 2 é
+   a próxima fase logo após a Fase 1 estar de pé. As duas compartilham o mesmo
+   armazenamento, marcador e dedup (ver seção "Fases").
+2. **Copy do frontend (obrigatória)**: nenhuma string visível ao usuário pode citar
+   "TC", "TecConcursos", "tec" ou similar. A origem da coleta é detalhe interno
+   (backend/scraper), **nunca** exposto na UI. Termos neutros: *"Buscando…"*,
+   *"Importar comentários"*, *"Comentários da comunidade"*.
+3. **Imagens** dos comentários → **re-hospedadas no MinIO** (a sessão autenticada do
    scraper baixa, backend sobe via `upload_bytes`, reescreve a URL). Sem isso, os
    comentários que são só imagem ficam vazios.
-3. **Abas separadas espelhando o TC**: 🎓 = resolução do professor, 💬 = fórum dos
-   alunos. Já implementado no front; cada aba coleta sua própria fonte.
-4. **Match por `id_externo`** (= `idQuestao` do TC), igual ao import de gabarito.
-5. **Pacing do lote**: delay aleatório **5–15s por questão** (simulação humana,
+4. **Abas separadas** espelhando o layout de origem: 🎓 = resolução do professor,
+   💬 = fórum dos alunos. Já implementado no front; cada aba coleta sua própria fonte.
+5. **Match por `id_externo`** (= `idQuestao` do TC), igual ao import de gabarito.
+6. **Pacing do lote**: delay aleatório **5–15s por questão** (simulação humana,
    anti-bot-booster) — distinto do modo-humano genérico do scraper.
 
 ## Passo 0 (bloqueador) — descobrir os 2 endpoints do TC
@@ -57,6 +63,19 @@ implementação:
   login; será configurado fora do git.
 - Se o passo 0 falhar (comentário server-rendered, exige captcha, etc.), o design
   muda — reavaliar antes de seguir.
+
+## Fases
+
+A entrega é sequenciada. Ambas estão no plano; a Fase 2 começa assim que a Fase 1
+estiver de pé.
+
+- **Fase 1 (MVP) — coleta sob demanda (lazy).** Passo 0 (descoberta) + 2 fetch no
+  scraper + re-host de imagem no MinIO + endpoint de upsert + marcador anti-rescrape
+  + spinner *"Buscando…"* no `ForumPanel`. Entrega valor estudando questão a questão.
+- **Fase 2 — coleta em massa por caderno.** Job background (NATS) varrendo todas as
+  questões do caderno, delay 5–15s/questão, com botão neutro **"💬 Importar"** na
+  lista de cadernos + progresso/cancelamento. Reusa 100% da lógica de upsert,
+  marcador e dedup da Fase 1 — é só orquestração em lote por cima.
 
 ## Arquitetura
 
@@ -122,12 +141,15 @@ dispara a coleta.
 ### Frontend
 
 **`ForumPanel`** (já recebe `quadro`): ao abrir, se `tc_importado === false`, chama
-`POST …/importar-comentarios-tc?quadro=`, mostra spinner *"buscando no TC…"*, e
-invalida a query do fórum ao concluir. Zero mudança de layout.
+`POST …/importar-comentarios-tc?quadro=`, mostra spinner **"Buscando…"** (sem citar
+a origem), e invalida a query do fórum ao concluir. Zero mudança de layout.
 
-**Lista de cadernos** (`fontend/app/q/cadernos/page.tsx`): botão **"💬 TEC"** ao lado
-do **"↓ TEC"** existente, no mesmo padrão (hover, estado de loading por caderno).
-Dispara a coleta em massa do caderno (job background) e reflete o progresso.
+**Lista de cadernos** (Fase 2 — `fontend/app/q/cadernos/page.tsx`): botão neutro
+**"💬 Importar"** (label sem "TEC"/"TC") ao lado do botão de gabarito existente, no
+mesmo padrão (hover, estado de loading por caderno). Dispara a coleta em massa do
+caderno (job background) e reflete o progresso. Nota: o botão de gabarito atual
+exibe **"↓ TEC"** — viola a regra de copy; **renomear para algo neutro** (ex.:
+**"↓ Desempenho"**) entra como ajuste junto da Fase 2.
 
 ## Casos de borda
 
