@@ -677,6 +677,12 @@ class QuestaoComentario(Base):
     edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # ─── Fórum dos professores (mesmo quadro de comentários, segregado) ───
+    forum_tipo: Mapped[str] = mapped_column(
+        String(16), default="alunos", server_default="alunos", index=True
+    )  # "alunos" | "professores"
+    persona_nome: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+
 
 class ComentarioVoto(Base):
     """Voto (+1/-1) de um usuário em um comentário do fórum. Um por (comentário, usuário)."""
