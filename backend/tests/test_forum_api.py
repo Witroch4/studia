@@ -220,3 +220,12 @@ async def test_voto_soma_curtidas_do_tc(client, db_session, auth_state):
     auth_state["user"] = USER_A
     r = await client.post("/api/q/forum/70/voto", json={"valor": 1})
     assert r.json()["score"] == 4  # 3 curtidas + 1 voto
+
+
+async def test_nao_responde_comentario_removido(client, db_session):
+    await seed_questao(db_session)
+    raiz = (await client.post("/api/q/questoes/99/forum", json={"texto_md": "raiz"})).json()
+    await client.delete(f"/api/q/forum/{raiz['id']}")
+    r = await client.post("/api/q/questoes/99/forum",
+                          json={"texto_md": "resp", "parent_id": raiz["id"]})
+    assert r.status_code == 400

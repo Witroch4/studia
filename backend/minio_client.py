@@ -24,16 +24,7 @@ def ensure_bucket():
 
 
 def upload_pdf(object_name: str, data: bytes) -> str:
-    client = get_minio_client()
-    ensure_bucket()
-    client.put_object(
-        BUCKET_NAME,
-        object_name,
-        io.BytesIO(data),
-        length=len(data),
-        content_type="application/pdf",
-    )
-    return f"{BUCKET_NAME}/{object_name}"
+    return upload_bytes(object_name, data, "application/pdf")
 
 
 def upload_bytes(object_name: str, data: bytes, content_type: str) -> str:

@@ -2036,6 +2036,8 @@ async def criar_comentario(
         )).scalar_one_or_none()
         if pai is None or pai.questao_id != questao_id:
             raise HTTPException(400, "comentário pai inválido")
+        if pai.deleted_at is not None:
+            raise HTTPException(400, "não é possível responder a um comentário removido")
         if pai.parent_id is not None:
             raise HTTPException(400, "respostas só podem ser feitas a um comentário raiz")
 
@@ -2065,7 +2067,11 @@ async def votar_comentario(
     user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    c = await _carregar_comentario(comentario_id, db)
+    c = (await db.execute(
+        select(QuestaoComentario).where(QuestaoComentario.id == comentario_id).with_for_update()
+    )).scalar_one_or_none()
+    if c is None or c.deleted_at is not None:
+        raise HTTPException(404, "comentário não encontrado")
     if c.origem == "studia" and c.owner_uid == user.id:
         raise HTTPException(400, "você não pode votar no próprio comentário")
 
