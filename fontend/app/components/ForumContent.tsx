@@ -56,6 +56,9 @@ const components: Components = {
   code: ({ children }) => (
     <code className="bg-black/30 px-1.5 py-0.5 rounded text-primary font-mono text-xs">{children}</code>
   ),
+  blockquote: ({ children }) => (
+    <blockquote className="border-l-4 border-primary/40 pl-3 my-2 text-fg-muted italic">{children}</blockquote>
+  ),
   img: ({ src, alt }) => {
     const url = typeof src === "string" ? src : "";
     if (!imagemPermitida(url)) {

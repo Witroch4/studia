@@ -1,8 +1,18 @@
 "use client";
 
 import { useRef, useState } from "react";
+import TurndownService from "turndown";
 import ForumContent from "../../../../components/ForumContent";
 import { uploadImagemForum } from "../../../hooks/useForum";
+
+// Converte HTML colado (chat do Gemini, Word, páginas) em markdown, preservando
+// títulos, negrito/itálico, listas numeradas e citações — como o editor do TC.
+const turndown = new TurndownService({
+  headingStyle: "atx",
+  bulletListMarker: "-",
+  codeBlockStyle: "fenced",
+  emDelimiter: "_",
+});
 
 interface CommentEditorProps {
   onSubmit: (texto: string) => Promise<void> | void;
@@ -35,6 +45,29 @@ export function CommentEditor({
     const el = ref.current;
     const pos = el ? el.selectionStart : texto.length;
     setTexto(texto.slice(0, pos) + trecho + texto.slice(pos));
+  }
+
+  function aoColar(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const html = e.clipboardData.getData("text/html");
+    if (!html) return; // sem rich text → comportamento padrão (texto puro)
+    e.preventDefault();
+    let md: string;
+    try {
+      md = turndown.turndown(html).trim();
+    } catch {
+      md = e.clipboardData.getData("text/plain");
+    }
+    if (!md) return;
+    const el = ref.current;
+    const start = el ? el.selectionStart : texto.length;
+    const end = el ? el.selectionEnd : texto.length;
+    const novo = texto.slice(0, start) + md + texto.slice(end);
+    setTexto(novo);
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      el.selectionStart = el.selectionEnd = start + md.length;
+    });
   }
 
   async function aoEscolherImagem(e: React.ChangeEvent<HTMLInputElement>) {
@@ -83,6 +116,7 @@ export function CommentEditor({
           value={texto}
           autoFocus={autoFocus}
           onChange={(e) => setTexto(e.target.value)}
+          onPaste={aoColar}
           placeholder={placeholder}
           rows={4}
           className="w-full resize-y bg-transparent px-3 py-2 text-sm text-fg outline-none placeholder:text-fg-faint"
