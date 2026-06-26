@@ -174,7 +174,7 @@ function CreateUserCard() {
     e.preventDefault();
     setLoading(true);
     setNotice(null);
-    const { error } = await authClient.admin.createUser({ name, email, password, role: role as "user" | "admin" });
+    const { error } = await authClient.admin.createUser({ name, email, password, role: role as "user" | "professor" | "admin" });
     setLoading(false);
     if (error) {
       setNotice({ kind: "err", msg: error.message || "Erro ao criar usuário." });
@@ -201,12 +201,16 @@ function CreateUserCard() {
             className="w-full rounded-lg border border-border-dark bg-bg-dark py-2.5 px-3 text-sm text-fg-strong outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           >
             <option value="user">user</option>
+            <option value="professor">professor</option>
             <option value="admin">admin</option>
           </select>
         </label>
         <NoticeBox notice={notice} />
         <PrimaryBtn loading={loading}>Criar usuário</PrimaryBtn>
       </form>
+      <a href="/q/admin/usuarios" className="mt-3 block text-sm text-primary hover:underline">
+        Gerenciar usuários e papéis →
+      </a>
     </SectionCard>
   );
 }
