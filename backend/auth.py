@@ -44,6 +44,11 @@ class CurrentUser:
     def is_admin(self) -> bool:
         return self.role == "admin"
 
+    @property
+    def is_professor(self) -> bool:
+        # admin é superset de professor (pode tudo que o professor pode)
+        return self.role in ("professor", "admin")
+
 
 def _extrair_token(request: Request) -> Optional[str]:
     """Pega o token cru do cookie de sessão (parte antes da assinatura)."""
@@ -119,4 +124,13 @@ async def require_admin(
     """Exige role admin; 403 caso contrário."""
     if not user.is_admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "acesso restrito a administradores")
+    return user
+
+
+async def require_professor(
+    user: CurrentUser = Depends(require_user),
+) -> CurrentUser:
+    """Exige role professor ou admin; 403 caso contrário."""
+    if not user.is_professor:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "acesso restrito a professores")
     return user
