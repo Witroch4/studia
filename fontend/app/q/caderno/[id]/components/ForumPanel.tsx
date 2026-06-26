@@ -36,7 +36,7 @@ export function ForumPanel({ questaoId, onFechar }: ForumPanelProps) {
         <CommentEditor
           submitting={criar.isPending}
           placeholder="Escreva aqui seu comentário"
-          onSubmit={(texto) => void criar.mutateAsync({ texto_md: texto })}
+          onSubmit={async (texto) => { await criar.mutateAsync({ texto_md: texto }); }}
         />
       </div>
 
