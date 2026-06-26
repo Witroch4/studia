@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import select
 
-from conftest import ADMIN_USER, USER_A, USER_B
+from conftest import ADMIN_USER, USER_A, USER_B, make_user
 from models import ComentarioVoto, Questao, QuestaoComentario
 
 pytestmark = pytest.mark.asyncio
@@ -13,6 +13,16 @@ async def seed_questao(db_session, qid=99):
                 enunciado_html="<p>E</p>", gabarito="A", status="ATIVA")
     )
     await db_session.commit()
+
+
+async def _criar_questao(db_session) -> int:
+    """Cria uma questão sem id fixo (autoincrement) e retorna seu id."""
+    q = Questao(tipo="MULTIPLA_ESCOLHA", enunciado_html="<p>Q</p>",
+                gabarito="A", status="ATIVA")
+    db_session.add(q)
+    await db_session.commit()
+    await db_session.refresh(q)
+    return q.id
 
 
 async def test_forum_vazio_retorna_lista_vazia(client, db_session):
@@ -282,3 +292,52 @@ async def test_quadros_isolados_e_contagens(client, db_session):
 async def test_quadro_invalido_422(client):
     r = await client.get("/api/q/questoes/1/forum?quadro=xpto")
     assert r.status_code == 422
+
+
+# ── Task 5: POST com quadro, gate de escrita e persona ───────────────────────
+
+async def test_aluno_nao_escreve_no_quadro_professores(client, auth_state, db_session):
+    qid = await _criar_questao(db_session)
+    auth_state["user"] = USER_A  # role "user"
+    r = await client.post(f"/api/q/questoes/{qid}/forum",
+                          json={"texto_md": "tentativa", "quadro": "professores"})
+    assert r.status_code == 403
+
+
+async def test_professor_real_posta_com_nome_real(client, auth_state, db_session):
+    qid = await _criar_questao(db_session)
+    prof = make_user("prof-1", role="professor")
+    auth_state["user"] = prof
+    r = await client.post(f"/api/q/questoes/{qid}/forum",
+                          json={"texto_md": "explicação do prof", "quadro": "professores"})
+    assert r.status_code == 201
+    # professor real => nome real, sem persona
+    assert r.json()["display_name"] == prof.name
+    assert r.json()["eh_professor"] is True
+
+
+async def test_aluno_le_e_vota_em_post_de_professor(client, auth_state, db_session):
+    qid = await _criar_questao(db_session)
+    auth_state["user"] = ADMIN_USER
+    r = await client.post(f"/api/q/questoes/{qid}/forum",
+                          json={"texto_md": "resposta expert", "quadro": "professores"})
+    cid = r.json()["id"]
+    # aluno lê
+    auth_state["user"] = USER_A
+    lista = (await client.get(f"/api/q/questoes/{qid}/forum?quadro=professores")).json()
+    assert lista["total"] == 1
+    # aluno vota
+    v = await client.post(f"/api/q/forum/{cid}/voto", json={"valor": 1})
+    assert v.status_code == 200
+    assert v.json()["score"] == 1
+
+
+async def test_resposta_nao_cruza_quadro(client, auth_state, db_session):
+    qid = await _criar_questao(db_session)
+    auth_state["user"] = ADMIN_USER
+    raiz_aluno = (await client.post(f"/api/q/questoes/{qid}/forum",
+                  json={"texto_md": "raiz aluno", "quadro": "alunos"})).json()["id"]
+    # responder no quadro professores apontando p/ raiz do quadro alunos => 400
+    r = await client.post(f"/api/q/questoes/{qid}/forum",
+            json={"texto_md": "resp", "quadro": "professores", "parent_id": raiz_aluno})
+    assert r.status_code == 400

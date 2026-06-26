@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from auth import CurrentUser, get_current_user_opt, require_admin, require_user
+from forum_personas import sortear_persona
 from forum_pseudonimo import pseudonimo
 from database import get_db
 from entitlements import acesso_pro_ativo, garantir_pode_resolver, resumo_limite
@@ -1871,6 +1872,7 @@ MAX_COMENTARIO_CHARS = 20_000
 class CriarComentarioReq(BaseModel):
     texto_md: str = Field(..., min_length=1, max_length=MAX_COMENTARIO_CHARS)
     parent_id: int | None = None
+    quadro: Literal["alunos", "professores"] = "alunos"
 
 
 def _display_name(c: QuestaoComentario) -> str:
@@ -2029,6 +2031,10 @@ async def criar_comentario(
     user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
+    # Gate de escrita: só professor/admin escrevem no quadro dos professores.
+    if req.quadro == "professores" and not user.is_professor:
+        raise HTTPException(403, "apenas professores podem escrever no fórum dos professores")
+
     texto = req.texto_md.strip()
     if not texto:
         raise HTTPException(422, "comentário vazio")
@@ -2041,18 +2047,34 @@ async def criar_comentario(
         pai = (await db.execute(
             select(QuestaoComentario).where(QuestaoComentario.id == req.parent_id)
         )).scalar_one_or_none()
-        if pai is None or pai.questao_id != questao_id:
+        if pai is None or pai.questao_id != questao_id or pai.forum_tipo != req.quadro:
             raise HTTPException(400, "comentário pai inválido")
         if pai.deleted_at is not None:
             raise HTTPException(400, "não é possível responder a um comentário removido")
         if pai.parent_id is not None:
             raise HTTPException(400, "respostas só podem ser feitas a um comentário raiz")
 
+    # Persona: só o admin no quadro professores ganha nome de cientista.
+    persona = None
+    if req.quadro == "professores" and user.is_admin:
+        usadas = set((await db.execute(
+            select(QuestaoComentario.persona_nome).where(
+                QuestaoComentario.questao_id == questao_id,
+                QuestaoComentario.forum_tipo == "professores",
+                QuestaoComentario.parent_id.is_(None),
+                QuestaoComentario.persona_nome.is_not(None),
+            )
+        )).scalars().all())
+        persona = sortear_persona(usadas)
+
     c = QuestaoComentario(
         questao_id=questao_id,
         origem="studia",
         owner_uid=user.id,
         autor_nome=user.name,
+        autor_tipo="professor" if req.quadro == "professores" else None,
+        forum_tipo=req.quadro,
+        persona_nome=persona,
         parent_id=req.parent_id,
         texto_md=texto,
         score=0,
