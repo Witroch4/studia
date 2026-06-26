@@ -2160,6 +2160,69 @@ async def imagem_forum(key: str) -> RedirectResponse:
     return RedirectResponse(get_presigned_url(key), status_code=302)
 
 
+# ─── Admin: gestão de roles de usuários ───────────────────────────────────
+_ROLES_VALIDOS = ("user", "professor", "admin")
+
+
+class PatchRoleReq(BaseModel):
+    role: Literal["user", "professor", "admin"]
+
+
+@router.get("/admin/usuarios")
+async def admin_listar_usuarios(
+    q: str = "",
+    page: int = 1,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    page = max(1, page)
+    por_pagina = 30
+    termo = f"%{q.strip()}%"
+    rows = (await db.execute(
+        text(
+            'SELECT id, email, name, COALESCE(role, \'user\') AS role, '
+            'COALESCE(banned, false) AS banned, "createdAt" '
+            'FROM "user" '
+            "WHERE (:q = '' OR email ILIKE :termo OR name ILIKE :termo) "
+            'ORDER BY "createdAt" DESC '
+            "LIMIT :lim OFFSET :off"
+        ),
+        {"q": q.strip(), "termo": termo, "lim": por_pagina + 1, "off": (page - 1) * por_pagina},
+    )).mappings().all()
+    tem_mais = len(rows) > por_pagina
+    usuarios = [
+        {
+            "id": r["id"], "email": r["email"], "name": r["name"],
+            "role": r["role"], "banned": bool(r["banned"]),
+            "created_at": r["createdAt"].isoformat() if r["createdAt"] else None,
+        }
+        for r in rows[:por_pagina]
+    ]
+    return {"usuarios": usuarios, "page": page, "tem_mais": tem_mais}
+
+
+@router.patch("/admin/usuarios/{uid}/role")
+async def admin_trocar_role(
+    uid: str,
+    req: PatchRoleReq,
+    admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    if uid == admin.id:
+        raise HTTPException(400, "você não pode alterar o seu próprio papel")
+    existe = (await db.execute(
+        text('SELECT 1 FROM "user" WHERE id = :id'), {"id": uid}
+    )).scalar_one_or_none()
+    if not existe:
+        raise HTTPException(404, "usuário não encontrado")
+    await db.execute(
+        text('UPDATE "user" SET role = :role, "updatedAt" = now() WHERE id = :id'),
+        {"role": req.role, "id": uid},
+    )
+    await db.commit()
+    return {"id": uid, "role": req.role}
+
+
 @router.get("/{questao_id}")
 async def detalhe(questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     stmt = (
