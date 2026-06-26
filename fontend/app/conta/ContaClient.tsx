@@ -174,7 +174,8 @@ function CreateUserCard() {
     e.preventDefault();
     setLoading(true);
     setNotice(null);
-    const { error } = await authClient.admin.createUser({ name, email, password, role: role as "user" | "professor" | "admin" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await authClient.admin.createUser({ name, email, password, role: role as any });
     setLoading(false);
     if (error) {
       setNotice({ kind: "err", msg: error.message || "Erro ao criar usuário." });
