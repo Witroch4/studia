@@ -42,6 +42,7 @@ from models import (
     QuestaoAnotacao,
     QuestaoComentario,
     QuestaoFavorita,
+    QuestaoTcImport,
     Resolucao,
 )
 
@@ -1995,6 +1996,99 @@ async def listar_forum(
         out.sort(key=lambda d: d["criado_em"] or "", reverse=True)
 
     return {"total": total, "comentarios": out}
+
+
+@router.post("/questoes/{questao_id}/importar-comentarios-tc")
+async def importar_comentarios_tc(
+    questao_id: int,
+    quadro: Literal["alunos", "professores"] = "alunos",
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Importa (sob demanda) os comentários do TC para (questão, quadro).
+
+    Idempotente: o marcador `QuestaoTcImport` impede re-scrape; o upsert por
+    `tc_comentario_id` impede duplicar. Origem nunca exposta ao usuário.
+    """
+    q = (await db.execute(
+        select(Questao.id_externo).where(Questao.id == questao_id)
+    )).scalar_one_or_none()
+    if q is None:
+        raise HTTPException(404, "questão não encontrada")
+    if q == 0:  # sem id_externo → não veio do TC
+        return {"importados": 0, "count": 0, "ja_importado": False}
+    id_externo = q
+
+    ja = (await db.execute(
+        select(QuestaoTcImport).where(
+            QuestaoTcImport.questao_id == questao_id,
+            QuestaoTcImport.quadro == quadro,
+        )
+    )).scalar_one_or_none()
+    if ja is not None:
+        return {"importados": 0, "count": ja.count, "ja_importado": True}
+
+    # Busca no scraper (sessão TC + proxy vivem lá).
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=5, read=120, write=10, pool=125)
+        ) as c:
+            r = await c.get(
+                f"{SCRAPER_URL}/questao/{id_externo}/comentarios", params={"quadro": quadro}
+            )
+            if r.status_code != 200:
+                raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:200]}")
+            coments = (r.json() or {}).get("comentarios") or []
+
+            # tc_comentario_id já presentes (dedup global por unique).
+            tc_ids = [x["tc_comentario_id"] for x in coments if x.get("tc_comentario_id")]
+            existentes: set[int] = set()
+            if tc_ids:
+                existentes = set((await db.execute(
+                    select(QuestaoComentario.tc_comentario_id).where(
+                        QuestaoComentario.tc_comentario_id.in_(tc_ids))
+                )).scalars().all())
+
+            # 1ª passada: raízes; 2ª: respostas (mapeia tc_parent → id local).
+            tc_para_local: dict[int, int] = {}
+            importados = 0
+            for passada in ("raiz", "resposta"):
+                for x in coments:
+                    tcid = x.get("tc_comentario_id")
+                    if not tcid or tcid in existentes:
+                        continue
+                    eh_raiz = x.get("tc_parent_id") is None
+                    if (passada == "raiz") != eh_raiz:
+                        continue
+                    md = await _rehost_imagens_tc(x.get("md"), x.get("imagens") or [], c)
+                    parent_local = (None if eh_raiz
+                                    else tc_para_local.get(x["tc_parent_id"]))
+                    com = QuestaoComentario(
+                        questao_id=questao_id, origem="tc", forum_tipo=quadro,
+                        tc_comentario_id=tcid, tc_parent_id=x.get("tc_parent_id"),
+                        parent_id=parent_local,
+                        autor_nome=x.get("autor_nome"), autor_tipo=x.get("autor_tipo"),
+                        curtidas=int(x.get("curtidas") or 0),
+                        score=int(x.get("curtidas") or 0), texto_md=md,
+                    )
+                    db.add(com)
+                    await db.flush()
+                    tc_para_local[tcid] = com.id
+                    existentes.add(tcid)
+                    importados += 1
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"fonte indisponível: {exc}") from exc
+
+    total = (await db.execute(
+        select(func.count()).select_from(QuestaoComentario).where(
+            QuestaoComentario.questao_id == questao_id,
+            QuestaoComentario.forum_tipo == quadro,
+            QuestaoComentario.origem == "tc",
+        )
+    )).scalar_one()
+    db.add(QuestaoTcImport(questao_id=questao_id, quadro=quadro, count=int(total)))
+    await db.commit()
+    return {"importados": importados, "count": int(total), "ja_importado": False}
 
 
 class EditarComentarioReq(BaseModel):
