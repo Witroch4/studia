@@ -27,6 +27,7 @@ export interface Comentario {
 export interface ForumData {
   total: number;
   comentarios: Comentario[];
+  tc_importado: boolean;
 }
 
 export function useForum(
@@ -49,6 +50,16 @@ export function useCriarComentario(questaoId: number, quadro: Quadro) {
   return useMutation({
     mutationFn: (body: { texto_md: string; parent_id?: number | null }) =>
       apiPost<Comentario>(`/api/q/questoes/${questaoId}/forum`, { ...body, quadro }),
+    onSuccess: invalidar,
+  });
+}
+
+export function useImportarComentariosTc(questaoId: number, quadro: Quadro) {
+  const invalidar = useInvalidarForum(questaoId, quadro);
+  return useMutation({
+    mutationFn: () =>
+      apiPost<{ importados: number; count: number; ja_importado: boolean }>(
+        `/api/q/questoes/${questaoId}/importar-comentarios-tc?quadro=${quadro}`, {}),
     onSuccess: invalidar,
   });
 }

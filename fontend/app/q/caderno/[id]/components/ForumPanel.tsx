@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useCriarComentario, useForum, type Quadro } from "../../../hooks/useForum";
+import { useEffect, useRef, useState } from "react";
+import { useCriarComentario, useForum, useImportarComentariosTc, type Quadro } from "../../../hooks/useForum";
 import { CommentItem } from "./CommentItem";
 import { CommentEditor } from "./CommentEditor";
 
@@ -16,6 +16,14 @@ export function ForumPanel({ questaoId, quadro, podeEscrever, onFechar }: ForumP
   const [ordenar, setOrdenar] = useState<"recentes" | "pontos">("recentes");
   const { data, isPending, isError } = useForum(questaoId, quadro, ordenar);
   const criar = useCriarComentario(questaoId, quadro);
+  const importar = useImportarComentariosTc(questaoId, quadro);
+  const jaDisparou = useRef(false);
+  useEffect(() => {
+    if (!jaDisparou.current && data && data.tc_importado === false && !importar.isPending) {
+      jaDisparou.current = true;
+      importar.mutate();
+    }
+  }, [data, importar]);
 
   const ehProf = quadro === "professores";
   const titulo = ehProf ? "🎓 Fórum dos professores" : "💬 Fórum de discussão";
@@ -52,7 +60,9 @@ export function ForumPanel({ questaoId, quadro, podeEscrever, onFechar }: ForumP
       ) : null}
 
       <div className="divide-y divide-border/50 px-4 pb-4">
-        {isPending && <p className="py-4 text-sm text-fg-faint">Carregando…</p>}
+        {(isPending || importar.isPending) && (
+          <p className="py-4 text-sm text-fg-faint">Buscando…</p>
+        )}
         {isError && <p className="py-4 text-sm text-error">Não foi possível carregar o fórum.</p>}
         {data && data.comentarios.length === 0 && (
           <p className="py-4 text-sm text-fg-faint">
