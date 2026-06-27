@@ -550,6 +550,41 @@ async def listar_jobs_coleta(
     return {"jobs": jobs}
 
 
+@router.get("/coletar/comentario-jobs")
+async def listar_comentario_jobs(
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Jobs de coleta de comentários para a UI acompanhar. (admin)"""
+    rows = (await db.execute(text(
+        """
+        SELECT j.id AS job_id, CAST(j.external_id AS INTEGER) AS caderno_id,
+               j.status, COALESCE(j.paused_by_user,false) AS paused,
+               j.total_units, j.done_units, j.failed_units, j.blocked_units, j.updated_at,
+               COALESCE(SUM(CASE WHEN u.status='pending' THEN 1 ELSE 0 END),0) AS pending_units,
+               COALESCE(SUM(CASE WHEN u.status='queued'  THEN 1 ELSE 0 END),0) AS queued_units,
+               COALESCE(SUM(CASE WHEN u.status='running' THEN 1 ELSE 0 END),0) AS running_units,
+               COALESCE(SUM(u.coments_alunos + u.coments_professores),0) AS coments_total
+        FROM tc_jobs j
+        LEFT JOIN tc_comentario_units u ON u.job_id = j.id
+        WHERE j.kind='comentarios'
+          AND j.status IN ('pending','running','blocked','done')
+        GROUP BY j.id, j.external_id, j.status, j.paused_by_user,
+                 j.total_units, j.done_units, j.failed_units, j.blocked_units, j.updated_at
+        ORDER BY j.updated_at DESC, j.id DESC
+        """
+    ))).mappings().all()
+    jobs = []
+    for r in rows:
+        total = r["total_units"] or 0
+        pct = round((r["done_units"] or 0) / total * 100, 2) if total else 0.0
+        jobs.append({**{k: r[k] for k in (
+            "job_id", "caderno_id", "status", "paused", "total_units", "done_units",
+            "failed_units", "blocked_units", "pending_units", "queued_units",
+            "running_units", "coments_total")}, "pct_units_done": pct})
+    return {"jobs": jobs}
+
+
 class MaterializarCadernoReq(BaseModel):
     nome: str | None = None
     forcar: bool = False
