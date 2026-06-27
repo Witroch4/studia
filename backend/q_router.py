@@ -356,6 +356,43 @@ async def coletar(req: ColetarReq, _admin: CurrentUser = Depends(require_admin))
     }
 
 
+@router.post("/cadernos/{caderno_id}/importar-comentarios-tc", status_code=status.HTTP_202_ACCEPTED)
+async def importar_comentarios_caderno(
+    caderno_id: int,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Enfileira a coleta em massa de comentários do caderno no scraper (admin)."""
+    cad = (await db.execute(
+        select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id)
+    )).scalar_one_or_none()
+    if cad is None:
+        raise HTTPException(404, "caderno não encontrado")
+    qids = list(cad.question_ids or [])
+    if not qids:
+        raise HTTPException(422, "caderno sem questões")
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=3, read=15, write=5, pool=20)
+        ) as c:
+            r = await c.post(
+                f"{SCRAPER_URL}/enqueue/comentarios",
+                json={"caderno_id": caderno_id, "questao_ids": qids},
+            )
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"scraper indisponível: {exc}") from exc
+    if r.status_code != 200:
+        raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:300]}")
+    job = r.json()
+    return {
+        "caderno_id": caderno_id,
+        "job_id": job["job_id"],
+        "status": job["status"],
+        "total_units": job["total_units"],
+        "enqueued_units": job["enqueued_units"],
+    }
+
+
 @router.get("/coletar/jobs")
 async def listar_jobs_coleta(
     caderno_id: int | None = None,
