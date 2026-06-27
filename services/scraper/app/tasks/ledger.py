@@ -551,7 +551,7 @@ async def set_caderno_job_paused(
             """
             UPDATE tc_jobs
             SET paused_by_user = :paused, updated_at = now()
-            WHERE id = :job_id AND kind = 'caderno'
+            WHERE id = :job_id
             """
         ),
         {"paused": paused, "job_id": job_id},
@@ -588,6 +588,38 @@ async def release_unit_to_pending(session: AsyncSession, *, unit_id: int) -> Non
             UPDATE tc_caderno_units
             SET status = 'pending', leased_until = NULL, task_id = NULL, updated_at = now()
             WHERE id = :unit_id AND status IN ('running', 'queued')
+            """
+        ),
+        {"unit_id": unit_id},
+    )
+
+
+async def is_comentario_paused(session: AsyncSession, *, caderno_id: int) -> bool:
+    """True se o job ativo de comentários deste caderno está pausado."""
+    row = (
+        await session.execute(
+            text(
+                """
+                SELECT paused_by_user FROM tc_jobs
+                WHERE kind = 'comentarios' AND external_id = :cid
+                  AND status IN ('pending', 'running', 'blocked')
+                ORDER BY id DESC LIMIT 1
+                """
+            ),
+            {"cid": str(caderno_id)},
+        )
+    ).scalar_one_or_none()
+    return bool(row)
+
+
+async def release_comentario_unit_to_pending(session: AsyncSession, *, unit_id: int) -> None:
+    """Devolve uma unit de comentários em voo pra 'pending' (sem perder progresso)."""
+    await session.execute(
+        text(
+            """
+            UPDATE tc_comentario_units
+            SET status = 'pending', leased_until = NULL, task_id = NULL, updated_at = now()
+            WHERE id = :unit_id
             """
         ),
         {"unit_id": unit_id},
