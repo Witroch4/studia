@@ -29,12 +29,15 @@ def _page_alunos(payload: Any) -> dict:
 def _normalizar_alunos(payload: Any) -> list[dict]:
     out: list[dict] = []
     for it in _page_alunos(payload).get("list") or []:
+        tcid = it.get("id")
+        if tcid is None:  # M-2: item sem id é ignorado defensivamente
+            continue
         corpo = it.get("comentario")
         tipo = ("professor" if it.get("professor")
                 else "administrador" if it.get("administrador") else "aluno")
         dp = it.get("dataPublicacao") or {}
         out.append({
-            "tc_comentario_id": int(it["id"]),
+            "tc_comentario_id": int(tcid),
             "tc_parent_id": None,  # fórum do TC é flat (sem thread no payload)
             "autor_nome": it.get("apelidoUsuario"),
             "autor_tipo": tipo,
@@ -95,6 +98,8 @@ async def fetch_comentarios(client: TcClient, id_questao: int, quadro: str) -> d
         client._check(r)
         data = r.json()
         pagina_itens = normalizar_comentarios(data, "alunos")
+        if not pagina_itens:  # M-7: página vazia encerra a paginação
+            break
         coments.extend(pagina_itens)
         pg = _page_alunos(data)
         page_size = int(pg.get("pageSize") or 50)

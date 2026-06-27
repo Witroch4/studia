@@ -1,4 +1,5 @@
 import pytest, httpx
+from datetime import datetime, timezone
 from sqlalchemy import select
 import q_router
 from models import Questao, QuestaoComentario, QuestaoTcImport
@@ -68,3 +69,43 @@ async def test_questao_inexistente_retorna_404(client):
     """ID que não existe no banco deve retornar HTTP 404."""
     r = await client.post("/api/q/questoes/99999/importar-comentarios-tc?quadro=alunos")
     assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_persiste_publicado_em_aluno(db_session, client, monkeypatch):
+    """I-1: publicado_em no formato aluno (DD/MM/AAAA HH:MM:SS) deve ser persistido."""
+    db_session.add(Questao(id=30, id_externo=9000001, enunciado_md="x"))
+    await db_session.commit()
+    _mock_scraper(monkeypatch, [
+        {"tc_comentario_id": 701, "tc_parent_id": None, "autor_nome": "Aluno",
+         "autor_tipo": "aluno", "curtidas": 0, "md": "texto", "imagens": [],
+         "publicado_em": "02/12/2023 20:09:16"},
+    ])
+    r = await client.post("/api/q/questoes/30/importar-comentarios-tc?quadro=alunos")
+    assert r.status_code == 200 and r.json()["importados"] == 1
+
+    com = (await db_session.execute(
+        select(QuestaoComentario).where(QuestaoComentario.tc_comentario_id == 701)
+    )).scalar_one()
+    expected = datetime(2023, 12, 2, 20, 9, 16, tzinfo=timezone.utc)
+    assert com.publicado_em == expected, f"got {com.publicado_em!r}"
+
+
+@pytest.mark.asyncio
+async def test_persiste_publicado_em_professor(db_session, client, monkeypatch):
+    """I-1: publicado_em no formato professor (AAAA-MM-DD) deve ser persistido."""
+    db_session.add(Questao(id=31, id_externo=9000002, enunciado_md="y"))
+    await db_session.commit()
+    _mock_scraper(monkeypatch, [
+        {"tc_comentario_id": -9000002, "tc_parent_id": None, "autor_nome": "Prof",
+         "autor_tipo": "professor", "curtidas": 0, "md": "explicação", "imagens": [],
+         "publicado_em": "2024-04-28"},
+    ])
+    r = await client.post("/api/q/questoes/31/importar-comentarios-tc?quadro=professores")
+    assert r.status_code == 200 and r.json()["importados"] == 1
+
+    com = (await db_session.execute(
+        select(QuestaoComentario).where(QuestaoComentario.tc_comentario_id == -9000002)
+    )).scalar_one()
+    expected = datetime(2024, 4, 28, tzinfo=timezone.utc)
+    assert com.publicado_em == expected, f"got {com.publicado_em!r}"

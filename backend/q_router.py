@@ -9,7 +9,7 @@ Proxy fino sobre Meilisearch + Postgres. Replicam o padrão arquitetural do TC:
 from __future__ import annotations
 
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Literal
 
 import httpx
@@ -1208,18 +1208,22 @@ def _alt_para_resposta(alternativa: Any, tipo: str | None) -> str | None:
 
 
 def _parse_data_tc(valor: Any) -> datetime | None:
-    """Parseia "DD/MM/AAAA HH:MM:SS" (ou só a data) do gabarito do TEC."""
+    """Parseia datas do TEC em datetime UTC-aware.
+
+    Formatos suportados:
+    - "DD/MM/AAAA HH:MM:SS" — fórum de alunos (ex.: "02/12/2023 20:09:16")
+    - "DD/MM/AAAA" — gabarito
+    - "AAAA-MM-DD" — comentário do professor (ex.: "2024-04-28")
+    """
     if not valor or not isinstance(valor, str):
         return None
     s = valor.strip()
-    try:
-        return datetime.strptime(s, "%d/%m/%Y %H:%M:%S")
-    except ValueError:
-        pass
-    try:
-        return datetime.strptime(s[:10], "%d/%m/%Y")
-    except ValueError:
-        return None
+    for fmt in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    return None
 
 
 @router.post("/cadernos/{caderno_id}/importar-gabarito")
@@ -2057,6 +2061,10 @@ async def importar_comentarios_tc(
                 )).scalars().all())
 
             # 1ª passada: raízes; 2ª: respostas (mapeia tc_parent → id local).
+            # Nota: tc_parent_id é resolvido APENAS contra raízes importadas nesta
+            # execução. O fórum do TC observado é flat (tc_parent_id sempre None),
+            # portanto reimport incremental de threads aninhadas está fora do escopo
+            # da Fase 1.
             tc_para_local: dict[int, int] = {}
             importados = 0
             for passada in ("raiz", "resposta"):
@@ -2077,6 +2085,7 @@ async def importar_comentarios_tc(
                         autor_nome=x.get("autor_nome"), autor_tipo=x.get("autor_tipo"),
                         curtidas=int(x.get("curtidas") or 0),
                         score=int(x.get("curtidas") or 0), texto_md=md,
+                        publicado_em=_parse_data_tc(x.get("publicado_em")),
                     )
                     db.add(com)
                     await db.flush()
@@ -2085,16 +2094,26 @@ async def importar_comentarios_tc(
                     importados += 1
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"fonte indisponível: {exc}") from exc
+    except IntegrityError:
+        # Corrida concorrente: outra requisição venceu no commit (UNIQUE collision).
+        await db.rollback()
+        return {"importados": 0, "count": 0, "ja_importado": True}
 
-    total = (await db.execute(
-        select(func.count()).select_from(QuestaoComentario).where(
-            QuestaoComentario.questao_id == questao_id,
-            QuestaoComentario.forum_tipo == quadro,
-            QuestaoComentario.origem == "tc",
-        )
-    )).scalar_one()
-    db.add(QuestaoTcImport(questao_id=questao_id, quadro=quadro, count=int(total)))
-    await db.commit()
+    try:
+        total = (await db.execute(
+            select(func.count()).select_from(QuestaoComentario).where(
+                QuestaoComentario.questao_id == questao_id,
+                QuestaoComentario.forum_tipo == quadro,
+                QuestaoComentario.origem == "tc",
+            )
+        )).scalar_one()
+        db.add(QuestaoTcImport(questao_id=questao_id, quadro=quadro, count=int(total)))
+        await db.commit()
+    except IntegrityError:
+        # Outra requisição já gravou o marcador QuestaoTcImport entre o flush e o commit.
+        await db.rollback()
+        total = 0
+        return {"importados": 0, "count": 0, "ja_importado": True}
     return {"importados": importados, "count": int(total), "ja_importado": False}
 
 

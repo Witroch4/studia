@@ -243,7 +243,17 @@ async def gabarito_endpoint(caderno_id: int, relogin: bool = False) -> dict[str,
     )
 
 
-_TC_IMG_HOSTS = ("tecconcursos.com.br", "s3-sa-east-1.amazonaws.com")  # do contrato (Task 1)
+# Domínios TC: aceita subdomínios (.tecconcursos.com.br) mas S3 deve ser EXATO
+# (evita SSRF via evil.s3-sa-east-1.amazonaws.com).
+_TC_SUBDOM_HOSTS = ("tecconcursos.com.br",)   # match exato OU subdomínio
+_TC_EXACT_HOSTS  = ("s3-sa-east-1.amazonaws.com",)  # somente match exato
+
+
+def _host_permitido(host: str) -> bool:
+    return (
+        any(host == h or host.endswith("." + h) for h in _TC_SUBDOM_HOSTS)
+        or host in _TC_EXACT_HOSTS
+    )
 
 
 @api.get("/questao/{id_questao}/comentarios")
@@ -263,7 +273,7 @@ async def tc_imagem_endpoint(u: str) -> Response:
     """Baixa uma imagem do TC pela sessão autenticada (proxy p/ re-host no MinIO)."""
     from urllib.parse import urlparse
     host = (urlparse(u).hostname or "").lower()
-    if not any(host == h or host.endswith("." + h) for h in _TC_IMG_HOSTS):
+    if not _host_permitido(host):
         raise HTTPException(400, "host de imagem não permitido")
 
     async def _baixar(client: TcClient) -> Response:

@@ -29,3 +29,26 @@ def test_normaliza_professor_objeto_unico():
     assert c["autor_nome"] == "Camila Rosa Vaz"
     assert c["publicado_em"] == "2024-04-28"
     assert c["md"] and "764" in c["md"]  # corpo convertido p/ markdown
+
+
+def test_normaliza_alunos_item_sem_id_e_ignorado():
+    """M-2: item da lista de alunos sem 'id' deve ser pulado sem KeyError."""
+    payload = {
+        "comentarios": {
+            "pageComentarios": {
+                "list": [
+                    # item sem 'id' — deve ser ignorado defensivamente
+                    {"comentario": "<p>sem id</p>", "apelidoUsuario": "x",
+                     "quantidadeVoto": 0, "dataPublicacao": {}},
+                    # item válido — deve ser normalizado normalmente
+                    {"id": 99, "comentario": "<p>ok</p>", "apelidoUsuario": "y",
+                     "quantidadeVoto": 2, "dataPublicacao": {"$": "01/01/2024 10:00:00"}},
+                ],
+                "pageSize": 50,
+                "totalPages": 1,
+            }
+        }
+    }
+    out = normalizar_comentarios(payload, "alunos")
+    assert len(out) == 1
+    assert out[0]["tc_comentario_id"] == 99
