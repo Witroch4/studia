@@ -97,8 +97,9 @@ class Settings(BaseSettings):
     meili_url: str | None = None
     meili_key: str | None = None
 
-    # Futuro: integração com platform-api
-    backend_url: str | None = None
+    # Integração com o backend studIA (import de comentários TC)
+    backend_url: str = "http://studia-backend:8000"  # DNS interno do swarm
+    studia_internal_token: str = ""       # header X-Internal-Token p/ chamar o backend
     platform_api_key: str | None = None
 
     # ─── Residential Proxy WitDev (para rodar em SSH/datacenter) ──────
@@ -106,6 +107,10 @@ class Settings(BaseSettings):
     # Doc: /home/wital/witdev-platform-core/proxy-residencial/docs/WITDEV-PROXY-API.md
     # Formato canônico: socks5h://tc-scraper:${RP_SERVICE_SECRET}@residential-proxy:1080
     residential_proxy_url: str | None = None
+
+    # ─── Comentários TC: pacing entre questões (anti-bot) ───────────────
+    comentario_pause_min: float = 5.0     # seg entre questões (mín) — simulação humana
+    comentario_pause_max: float = 15.0    # seg entre questões (máx)
 
     # ─── /imprimir scraper safety (anti-403/429) ──────────────────────
     # Defaults conservadores. Pode subir mais via env vars na produção.
