@@ -362,7 +362,13 @@ async def importar_comentarios_caderno(
     _admin: CurrentUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Enfileira a coleta em massa de comentários do caderno no scraper (admin)."""
+    """Enfileira a coleta em massa de comentários do caderno no scraper (admin).
+
+    Comportamento idempotente intencional: re-despachar um caderno cujo job de
+    comentários já está "done" retorna status="done", enqueued_units=0 sem 409.
+    O índice UNIQUE sobre job ativo e as unidades já "done" garantem que nada
+    novo é enfileirado — não é bug, é dedup pelo scraper.
+    """
     cad = (await db.execute(
         select(CadernoQuestoes).where(CadernoQuestoes.id == caderno_id)
     )).scalar_one_or_none()

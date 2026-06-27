@@ -43,7 +43,7 @@ async def test_admin_enfileira_comentarios(db_session, client, monkeypatch):
     )
 
     r = await client.post("/api/q/cadernos/300/importar-comentarios-tc")
-    assert r.status_code in (200, 202)
+    assert r.status_code == 202
     assert r.json()["job_id"] == 9
     assert "enqueue/comentarios" in captured["url"]
 

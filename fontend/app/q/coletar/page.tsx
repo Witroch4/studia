@@ -66,17 +66,16 @@ interface ColetarJobsResponse {
 interface ComentarioJob {
   job_id: number;
   caderno_id: number;
-  caderno_nome: string | null;
   status: string;
   paused: boolean;
   total_units: number;
   done_units: number;
+  failed_units: number;
+  blocked_units: number;
   pending_units: number;
   queued_units: number;
   running_units: number;
-  failed_units: number;
-  questoes_ok_done: number;
-  expected_total: number;
+  coments_total: number;
   pct_units_done: number;
   updated_at: string;
 }
@@ -661,16 +660,9 @@ export default function ColetarPage() {
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
                         <div className="text-sm font-semibold text-fg-strong">
-                          {job.caderno_nome ? (
-                            <span className="text-primary">{job.caderno_nome}</span>
-                          ) : (
-                            <>Caderno #{job.caderno_id}</>
-                          )}
+                          Caderno #{job.caderno_id}
                           <span className="ml-2 text-primary">Job #{job.job_id}</span>
                         </div>
-                        {job.caderno_nome && (
-                          <div className="text-[11px] text-fg-faint">Caderno #{job.caderno_id}</div>
-                        )}
                         <div className="mt-1 text-xs text-fg-muted">
                           Status: {statusTexto(job.status)}
                           {job.paused && (
@@ -678,7 +670,7 @@ export default function ColetarPage() {
                               <span className="material-symbols-outlined text-[12px]">pause</span> Pausado
                             </span>
                           )}
-                          {" · "}{job.questoes_ok_done.toLocaleString("pt-BR")} / {job.expected_total.toLocaleString("pt-BR")} questões · {job.done_units}/{job.total_units} faixas
+                          {" · "}{job.done_units}/{job.total_units} questões · {job.coments_total.toLocaleString("pt-BR")} comentários coletados
                         </div>
                         {job.status !== "done" && (
                           <div className="mt-2">
