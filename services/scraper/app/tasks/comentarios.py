@@ -103,9 +103,14 @@ async def _enqueue_next(*, caderno_id: int) -> None:
                 s, caderno_id=caderno_id, limit=1
             )
         for u in units:
+            # isolated_broker: enfileirar de DENTRO da task do worker exige um broker
+            # próprio (a conexão de consumo não publica → ConnectionClosedError mata o
+            # worker e a cadeia só anda por redelivery ~ack_wait). Espelha o worker de
+            # caderno (caderno.py _enqueue_next_caderno_unit).
             await enqueue(
                 coletar_comentarios_questao,
                 priority="default",
+                isolated_broker=True,
                 questao_id=u["questao_id"],
                 caderno_id=caderno_id,
             )
