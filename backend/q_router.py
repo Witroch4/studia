@@ -1909,6 +1909,32 @@ def _serializar_comentario(
     }
 
 
+_EXT_POR_CT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif"}
+
+
+async def _rehost_imagens_tc(
+    md: str | None, imagens: list[str], client: httpx.AsyncClient
+) -> str | None:
+    """Baixa cada imagem do TC (via proxy do scraper) → MinIO → reescreve o md."""
+    if not md or not imagens:
+        return md
+    for url in dict.fromkeys(imagens):  # dedup preservando ordem
+        if url not in md:
+            continue
+        try:
+            r = await client.get(f"{SCRAPER_URL}/tc/imagem", params={"u": url})
+            if r.status_code != 200:
+                continue
+            ct = r.headers.get("content-type", "image/png").split(";")[0].strip()
+            ext = _EXT_POR_CT.get(ct, "png")
+            key = f"forum/{_uuid.uuid4()}.{ext}"
+            upload_bytes(key, r.content, ct)
+            md = md.replace(url, f"/api/q/forum/imagem/{key}")
+        except httpx.HTTPError:
+            continue
+    return md
+
+
 @router.get("/questoes/{questao_id}/forum")
 async def listar_forum(
     questao_id: int,
