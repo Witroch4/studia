@@ -171,3 +171,119 @@ exibe **"↓ TEC"** — viola a regra de copy; **renomear para algo neutro** (ex
 A chamada lazy é 1 request por quadro. Para não herdar as pausas longas do
 modo-humano de varredura, o caminho interativo usa pacing leve (resposta em
 segundos, com spinner). O delay 5–15s é só do **lote**.
+
+---
+
+# Fase 2 — Arquitetura detalhada (coleta em massa por caderno)
+
+**Status:** Fase 1 (lazy) NO AR (deploy 2026-06-27). Esta seção detalha a Fase 2,
+aprovada no brainstorm de 2026-06-27.
+
+## Princípio: reusar a Fase 1, durabilidade no scraper
+
+A lógica de import (fetch + upsert + re-host de imagem + marcador) já existe e está
+testada no **backend** (`POST /api/q/questoes/{id}/importar-comentarios-tc?quadro=`).
+A Fase 2 **não reimplementa nada disso** — ela orquestra um job durável no scraper
+(ledger NATS, igual à coleta de questões) que, por questão, **chama esse endpoint**.
+Lazy e massa convergem no mesmo marcador/dedup: uma questão já trazida pelo lazy é
+pulada (o endpoint devolve `ja_importado`).
+
+## Decisões (do brainstorm)
+
+1. **Reuso via HTTP interno:** o worker do scraper chama o endpoint da Fase 1 (não
+   duplica upsert/re-host). 
+2. **Unit = 1 questão**, cobrindo os 2 quadros (alunos + professores) — 2 chamadas
+   ao endpoint por unit. O **delay 5–15s** aplica-se **por questão** e **só após
+   chamadas que realmente bateram no TC** (quando o endpoint devolve
+   `ja_importado=false`); se ambos os quadros já estavam importados, sem sleep.
+3. **Disparo no card do caderno** (`/q/cadernos`), **admin-only**, ao lado do
+   gabarito. Label neutro **"💬 Importar"**; o "↓ TEC" do gabarito é renomeado para
+   **"↓ Desempenho"** (regra de copy: sem "TC"/"tec" na UI).
+4. **Progresso/controle no painel admin `/q/coletar`** (reusa barra + pausar/retomar
+   + polling 15s já existentes), estendido para `kind='comentarios'`.
+
+## Componentes
+
+### Scraper — ledger (`app/tasks/ledger.py`)
+
+- Novo `kind='comentarios'` em `tc_jobs` (o índice único de job ativo tem cláusula
+  `WHERE kind='caderno'`, então não há conflito; criar um índice análogo
+  `WHERE kind='comentarios'` para "1 job de comentários ativo por caderno").
+- **Nova tabela `tc_comentario_units`**: `id`, `job_id` (FK tc_jobs), `caderno_id`,
+  `questao_id` (id studIA), `status` (pending|queued|running|blocked|done|failed),
+  `attempts`, `leased_until`, `coments_alunos`, `coments_professores`, `http_status`,
+  `block_reason`, `blocked_until`. `UNIQUE(job_id, questao_id)`.
+- Funções análogas às de caderno: `upsert_comentario_job(session, *, caderno_id,
+  questao_ids, requested_by)` (cria job + 1 unit/questão via ON CONFLICT DO NOTHING),
+  `list_enqueueable_comentario_units`, `lease_comentario_unit`,
+  `mark_comentario_unit_done/blocked/failed`, `refresh_comentario_job_status`,
+  `list_active_comentario_jobs`. `set_caderno_job_paused`/`get_caderno_job` já são
+  kind-agnósticos (operam em `tc_jobs` por id) — reusar.
+
+### Scraper — worker (`app/tasks/comentarios.py`)
+
+- `coletar_comentarios_questao(questao_id, caderno_id)` (broker default).
+- Por unit: lease atômico → checa pausa (`paused_by_user`) → para cada
+  `quadro in (alunos, professores)`: `POST {BACKEND_URL}/api/q/questoes/{questao_id}/
+  importar-comentarios-tc?quadro=` com header `X-Internal-Token`. Se a resposta tem
+  `ja_importado=false` (bateu no TC), dorme `random.uniform(comentario_pause_min,
+  comentario_pause_max)` = **5–15s**; se `ja_importado=true`, sem sleep.
+- Marca unit done (contadores = `importados` por quadro) → enfileira a próxima unit
+  elegível (chain). Erros de bloqueio (o endpoint devolve 502 por sessão queimada
+  irreparável) → `mark_comentario_unit_blocked` com cooldown; outras exceções →
+  `failed`. (Sessão expirada comum se auto-cura no fetch via relogin+proxy — não
+  falha a unit.)
+- Config nova em `config.py`: `comentario_pause_min=5.0`, `comentario_pause_max=15.0`.
+
+### Scraper — API (`app/main.py`)
+
+- `POST /enqueue/comentarios` body `{caderno_id, questao_ids: [int], requested_by?}`
+  → `ensure_ledger_schema` → `upsert_comentario_job` → enfileira a 1ª unit →
+  devolve `{job_id, status, total_units, enqueued_units}`.
+
+### Backend (`backend/q_router.py`)
+
+- **Auth de serviço:** dependência que aceita **sessão de usuário OU**
+  `X-Internal-Token == STUDIA_INTERNAL_TOKEN` (env, injetado pelo build.sh). Aplicada
+  ao endpoint `importar-comentarios-tc` (para o worker poder chamá-lo). O token é
+  segredo forte (o endpoint é roteável via Traefik).
+- `POST /api/q/cadernos/{caderno_id}/importar-comentarios-tc` (**admin**): lê
+  `CadernoQuestoes.question_ids`, chama `POST {SCRAPER_URL}/enqueue/comentarios` com a
+  lista, devolve `{job_id, status, total_units, ...}`.
+- `GET /api/q/coletar/jobs` estendido (ou sibling `comentario-jobs`) para incluir
+  `kind='comentarios'` com os contadores/progresso (`pct_units_done`). Pausar/retomar
+  já funcionam (proxies `/job/{id}/pause|resume`, kind-agnósticos).
+
+### Scraper — supervisor
+
+- `_queue_supervisor_loop` estendido para também listar `list_active_comentario_jobs`
+  e re-enfileirar units elegíveis (recupera de bloqueio/cooldown e units órfãs). Sem
+  isso, um bloqueio duro pararia o chain até reinício.
+
+### Frontend (`fontend/app/q/cadernos/page.tsx`)
+
+- Botão **"💬 Importar"** no card (hover, ao lado do gabarito), **admin-only** (gate
+  pelo papel já disponível no front). Ao clicar: `POST /api/q/cadernos/{id}/importar-
+  comentarios-tc`, mostra "coletando…" brevemente, toast "coleta iniciada — acompanhe
+  em Coletar". Renomeia o `"↓ TEC"` existente → **"↓ Desempenho"**.
+- Painel `/q/coletar` (`fontend/app/q/coletar/page.tsx`): renderiza também os jobs de
+  comentários (mesma barra/pausar), via a query estendida.
+
+## Casos de borda (Fase 2)
+
+- Caderno sem `question_ids` (vazio) → job com 0 units, status done imediato.
+- Questão sem `id_externo` → o endpoint da Fase 1 já faz no-op; a unit conclui sem
+  bater no TC e sem sleep.
+- Re-disparo no mesmo caderno com job ativo → o índice único bloqueia 2º job ativo;
+  devolve o job existente. Re-disparo após done → recria units (idempotente; questões
+  já marcadas pulam rápido).
+- Pausar no meio → `paused_by_user=true`; o worker libera a unit corrente para
+  `pending` e para; retomar volta o chain.
+- Token de serviço ausente/errado → 401 no endpoint; o worker marca a unit failed e
+  loga (não vaza dado).
+
+## Fora de escopo (Fase 2)
+
+- Barra de progresso inline no card do caderno (fica no painel `/q/coletar`).
+- Agendamento horário / janela de execução.
+- Coleta de comentário em vídeo.
