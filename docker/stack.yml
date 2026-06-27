@@ -50,7 +50,9 @@ services:
     # falha visível, nunca 500 silencioso em produção.
     command: sh -c "python -m scripts.db_prepare && exec uvicorn main:app --host 0.0.0.0 --port 8000"
     networks:
-      - minha_rede
+      minha_rede:
+        aliases:
+          - studia-backend
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\""]
       interval: 30s
