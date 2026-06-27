@@ -408,6 +408,50 @@ async def enqueue_caderno(body: EnqueueCadernoBody) -> EnqueueCadernoResponse:
         await engine.dispose()
 
 
+class EnqueueComentariosBody(BaseModel):
+    caderno_id: int
+    questao_ids: list[int]
+    requested_by: int | None = None
+
+
+@api.post("/enqueue/comentarios", response_model=EnqueueCadernoResponse)
+async def enqueue_comentarios(body: EnqueueComentariosBody) -> EnqueueCadernoResponse:
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.tasks.comentarios import coletar_comentarios_questao
+    from app.tasks.enqueue import enqueue
+    from app.tasks.ledger import (
+        ensure_ledger_schema,
+        get_caderno_job,
+        list_enqueueable_comentario_units,
+        upsert_comentario_job,
+    )
+
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url)
+    try:
+        async with engine.begin() as conn:
+            await ensure_ledger_schema(conn)
+        Session = async_sessionmaker(engine, expire_on_commit=False)
+        async with Session.begin() as session:
+            job = await upsert_comentario_job(
+                session, caderno_id=body.caderno_id,
+                questao_ids=body.questao_ids, requested_by=body.requested_by)
+            units = await list_enqueueable_comentario_units(
+                session, caderno_id=body.caderno_id, limit=1)
+        enqueued = 0
+        for u in units:
+            await enqueue(coletar_comentarios_questao, priority="default",
+                          questao_id=u["questao_id"], caderno_id=body.caderno_id)
+            enqueued += 1
+        async with Session.begin() as session:
+            job = await get_caderno_job(session, job_id=job.id)
+        return EnqueueCadernoResponse(job_id=job.id, status=job.status,
+                                      total_units=job.total_units, enqueued_units=enqueued)
+    finally:
+        await engine.dispose()
+
+
 async def _set_job_paused(job_id: int, paused: bool) -> dict[str, Any]:
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
