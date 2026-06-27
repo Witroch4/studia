@@ -21,7 +21,12 @@
 
 ---
 
-### Task 1: Descobrir os 2 endpoints do TC (Passo 0 — bloqueador)
+### Task 1: Descobrir os 2 endpoints do TC (Passo 0 — bloqueador) ✅ CONCLUÍDA
+
+> **CONCLUÍDA** (commit `d41cdba`) via DevTools/MCP (questão 2272394, logado). Contrato em
+> `services/scraper/discovery/comentarios_contract.md`; fixtures reais em
+> `services/scraper/tests/fixtures/coment_alunos_sample.json` e `coment_professor_sample.json`.
+> Tasks 2 e 3 já refletem os shapes reais. Os passos abaixo ficam como registro histórico.
 
 Captura, via sessão autenticada do scraper, as 2 requisições XHR que a página da questão dispara ao abrir 💬 (fórum dos alunos) e 🎓 ("Comentário em Texto" do professor). Produz um contrato escrito + 2 amostras JSON reais que servem de fixture pro Task 2.
 
@@ -151,19 +156,28 @@ FIX = Path(__file__).parent / "fixtures"
 def _carrega(nome):
     return json.loads((FIX / nome).read_text())
 
-def test_normaliza_alunos_estrutura():
+def test_normaliza_alunos_valores_reais():
     out = normalizar_comentarios(_carrega("coment_alunos_sample.json"), "alunos")
-    assert isinstance(out, list) and len(out) >= 1
+    assert len(out) == 3
     c = out[0]
     assert set(c) == {"tc_comentario_id", "tc_parent_id", "autor_nome",
                       "autor_tipo", "curtidas", "md", "imagens", "publicado_em"}
-    assert isinstance(c["tc_comentario_id"], int)
-    assert isinstance(c["curtidas"], int)
-    assert isinstance(c["imagens"], list)
+    assert c["tc_comentario_id"] == 1984253
+    assert c["autor_nome"] == "concurseirolol"
+    assert c["autor_tipo"] == "aluno"
+    assert c["curtidas"] == 1
+    assert c["publicado_em"] == "02/12/2023 20:09:16"
+    # 1º comentário é só uma imagem (s3) + texto
+    assert any("amazonaws.com" in u or "tecconcursos" in u for u in c["imagens"])
 
-def test_normaliza_professor_marca_tipo():
+def test_normaliza_professor_objeto_unico():
     out = normalizar_comentarios(_carrega("coment_professor_sample.json"), "professores")
-    assert out and out[0]["autor_tipo"] == "professor"
+    assert len(out) == 1
+    c = out[0]
+    assert c["autor_tipo"] == "professor"
+    assert c["autor_nome"] == "Camila Rosa Vaz"
+    assert c["publicado_em"] == "2024-04-28"
+    assert c["md"] and "764" in c["md"]  # corpo convertido p/ markdown
 ```
 
 - [ ] **Step 2: Rodar e ver falhar**
@@ -173,10 +187,14 @@ Expected: FAIL com `ModuleNotFoundError: app.scrapers.tc_comentarios`.
 
 - [ ] **Step 3: Implementar o normalizador + fetch**
 
+Shapes reais (ver `discovery/comentarios_contract.md` + fixtures). São DOIS formatos
+distintos: alunos = lista paginada em `comentarios.pageComentarios.list`; professor =
+objeto único em `comentario`, sem id (sintetizar `-id_questao`).
+
 ```python
 # services/scraper/app/scrapers/tc_comentarios.py
 """Comentários de uma questão no TC: fórum dos alunos (💬) e comentário do
-professor (🎓). URLs e chaves vêm do contrato em discovery/comentarios_contract.md.
+professor (🎓). Shapes em discovery/comentarios_contract.md.
 """
 from __future__ import annotations
 import asyncio
@@ -188,26 +206,8 @@ from app.observability import get_logger
 
 log = get_logger(__name__)
 
-# >>> Confirmar contra discovery/comentarios_contract.md (Task 1). <<<
-# Endpoints (use {id} = id_externo da questão):
-ENDPOINT = {
-    "alunos": "/api/questoes/{id}/comentarios",
-    "professores": "/api/questoes/{id}/comentario-professor",
-}
-# Caminho de cada campo no item JSON (ajustar os nomes ao contrato):
-K = {
-    "id": "id", "pai": "idComentarioPai", "autor": "nomeUsuario",
-    "curtidas": "curtidas", "corpo": "corpoHtml", "data": "dataPublicacao",
-}
 DELAY_S = 1.2
-
-
-def _itens(payload: Any) -> list[dict]:
-    if isinstance(payload, list):
-        return payload
-    if isinstance(payload, dict):
-        return payload.get("list") or payload.get("comentarios") or payload.get("itens") or []
-    return []
+MAX_PAGINAS = 40  # trava de segurança (50/pág); questões reais têm pouquíssimos
 
 
 def _imagens_de(html: str | None) -> list[str]:
@@ -217,36 +217,90 @@ def _imagens_de(html: str | None) -> list[str]:
     return [img["src"] for img in soup.find_all("img") if img.get("src")]
 
 
-def normalizar_comentarios(payload: Any, quadro: str) -> list[dict]:
+def _page_alunos(payload: Any) -> dict:
+    return ((payload or {}).get("comentarios") or {}).get("pageComentarios") or {}
+
+
+def _normalizar_alunos(payload: Any) -> list[dict]:
     out: list[dict] = []
-    for it in _itens(payload):
-        corpo = it.get(K["corpo"])
+    for it in _page_alunos(payload).get("list") or []:
+        corpo = it.get("comentario")
+        tipo = ("professor" if it.get("professor")
+                else "administrador" if it.get("administrador") else "aluno")
+        dp = it.get("dataPublicacao") or {}
         out.append({
-            "tc_comentario_id": int(it[K["id"]]),
-            "tc_parent_id": (int(it[K["pai"]]) if it.get(K["pai"]) else None),
-            "autor_nome": it.get(K["autor"]),
-            "autor_tipo": "professor" if quadro == "professores" else "aluno",
-            "curtidas": int(it.get(K["curtidas"]) or 0),
+            "tc_comentario_id": int(it["id"]),
+            "tc_parent_id": None,  # fórum do TC é flat (sem thread no payload)
+            "autor_nome": it.get("apelidoUsuario"),
+            "autor_tipo": tipo,
+            "curtidas": int(it.get("quantidadeVoto") or 0),
             "md": html_to_md(corpo),
             "imagens": _imagens_de(corpo),
-            "publicado_em": it.get(K["data"]),
+            "publicado_em": (dp.get("$") if isinstance(dp, dict) else None),
         })
     return out
 
 
+def _normalizar_professor(payload: Any) -> list[dict]:
+    c = (payload or {}).get("comentario") or {}
+    corpo = c.get("textoComentario")
+    if not corpo:
+        return []
+    return [{
+        "tc_comentario_id": None,  # TC não dá id; fetch_comentarios sintetiza -id_questao
+        "tc_parent_id": None,
+        "autor_nome": c.get("nomeProfessor"),
+        "autor_tipo": "professor",
+        "curtidas": 0,
+        "md": html_to_md(corpo),
+        "imagens": _imagens_de(corpo),
+        "publicado_em": c.get("dataFormatadaParaHtml5"),
+    }]
+
+
+def normalizar_comentarios(payload: Any, quadro: str) -> list[dict]:
+    return (_normalizar_professor(payload) if quadro == "professores"
+            else _normalizar_alunos(payload))
+
+
 async def fetch_comentarios(client: TcClient, id_questao: int, quadro: str) -> dict:
     """Busca os comentários de uma questão (caminho leve, sem human-mode)."""
-    path = ENDPOINT[quadro].format(id=id_questao)
     referer = f"https://www.tecconcursos.com.br/questoes/{id_questao}"
-    await asyncio.sleep(DELAY_S)
-    r = await client._client.get(path, headers=client._build_headers(referer, None))
-    client._check(r)
-    coments = normalizar_comentarios(r.json(), quadro)
+
+    if quadro == "professores":
+        await asyncio.sleep(DELAY_S)
+        path = f"/api/questoes/{id_questao}/comentario?tokenPreVisualizacao="
+        r = await client._client.get(path, headers=client._build_headers(referer, None))
+        client._check(r)
+        coments = normalizar_comentarios(r.json(), "professores")
+        for c in coments:  # sintetiza id determinístico (1 comentário/questão)
+            if c["tc_comentario_id"] is None:
+                c["tc_comentario_id"] = -id_questao
+        log.info("tc.comentarios.fetched", id_questao=id_questao, quadro=quadro, n=len(coments))
+        return {"comentarios": coments}
+
+    # alunos: paginado (pageSize 50)
+    coments: list[dict] = []
+    pagina = 1
+    while pagina <= MAX_PAGINAS:
+        await asyncio.sleep(DELAY_S)
+        path = (f"/api/discussoes/{id_questao}/comentarios-alunos"
+                f"?ordenarPor=data&pagina={pagina}")
+        r = await client._client.get(path, headers=client._build_headers(referer, None))
+        client._check(r)
+        data = r.json()
+        pagina_itens = normalizar_comentarios(data, "alunos")
+        coments.extend(pagina_itens)
+        pg = _page_alunos(data)
+        page_size = int(pg.get("pageSize") or 50)
+        total_pages = int(pg.get("totalPages") or 0)
+        if len(pagina_itens) < page_size or (total_pages and pagina >= total_pages):
+            break
+        pagina += 1
+
     log.info("tc.comentarios.fetched", id_questao=id_questao, quadro=quadro, n=len(coments))
     return {"comentarios": coments}
 ```
-
-Ajuste `ENDPOINT` e `K` conforme o contrato do Task 1 até o teste passar (a fixture é a resposta real — se uma chave não casar, o teste acusa).
 
 - [ ] **Step 4: Rodar e ver passar**
 
@@ -281,7 +335,7 @@ Expõe o fetch e um proxy autenticado de imagem (pro backend re-hospedar sem ter
 # services/scraper/app/main.py — após gabarito_endpoint (~L243)
 from fastapi import Response  # garantir no topo dos imports do FastAPI
 
-_TC_IMG_HOSTS = ("tecconcursos.com.br",)  # ajustar c/ host de CDN do contrato (Task 1)
+_TC_IMG_HOSTS = ("tecconcursos.com.br", "s3-sa-east-1.amazonaws.com")  # do contrato (Task 1)
 
 
 @api.get("/questao/{id_questao}/comentarios")
