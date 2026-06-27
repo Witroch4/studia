@@ -33,3 +33,38 @@ async def test_importa_e_e_idempotente(db_session, client, monkeypatch):
     m = (await db_session.execute(select(QuestaoTcImport).where(
         QuestaoTcImport.questao_id == 10, QuestaoTcImport.quadro == "alunos"))).scalar_one()
     assert m.count == 1
+
+
+@pytest.mark.asyncio
+async def test_sem_id_externo_retorna_noop(db_session, client, monkeypatch):
+    """Questão existente mas sem id_externo (guia manual) deve retornar 200 sem scrape."""
+    db_session.add(Questao(id=20, id_externo=None, enunciado_md="questão manual"))
+    await db_session.commit()
+
+    # Garante que o scraper NÃO é chamado (monkeypatch levanta se for)
+    def scraper_nao_deve_ser_chamado(req):
+        raise AssertionError("scraper não deveria ser chamado para questão sem id_externo")
+    real = httpx.AsyncClient
+    def fake_client(*a, **k):
+        k["transport"] = httpx.MockTransport(scraper_nao_deve_ser_chamado)
+        return real(*a, **k)
+    monkeypatch.setattr(q_router.httpx, "AsyncClient", fake_client)
+
+    r = await client.post("/api/q/questoes/20/importar-comentarios-tc?quadro=alunos")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["importados"] == 0
+    assert body["ja_importado"] is False
+
+    # Nenhum comentário deve ter sido criado
+    comentarios = (await db_session.execute(
+        select(QuestaoComentario).where(QuestaoComentario.questao_id == 20)
+    )).scalars().all()
+    assert len(comentarios) == 0
+
+
+@pytest.mark.asyncio
+async def test_questao_inexistente_retorna_404(client):
+    """ID que não existe no banco deve retornar HTTP 404."""
+    r = await client.post("/api/q/questoes/99999/importar-comentarios-tc?quadro=alunos")
+    assert r.status_code == 404

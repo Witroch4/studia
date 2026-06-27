@@ -2010,14 +2010,14 @@ async def importar_comentarios_tc(
     Idempotente: o marcador `QuestaoTcImport` impede re-scrape; o upsert por
     `tc_comentario_id` impede duplicar. Origem nunca exposta ao usuário.
     """
-    q = (await db.execute(
-        select(Questao.id_externo).where(Questao.id == questao_id)
-    )).scalar_one_or_none()
-    if q is None:
+    row = (await db.execute(
+        select(Questao.id, Questao.id_externo).where(Questao.id == questao_id)
+    )).one_or_none()
+    if row is None:
         raise HTTPException(404, "questão não encontrada")
-    if q == 0:  # sem id_externo → não veio do TC
+    if row.id_externo is None:  # sem id_externo → não veio do TC (ex.: guia manual)
         return {"importados": 0, "count": 0, "ja_importado": False}
-    id_externo = q
+    id_externo = row.id_externo
 
     ja = (await db.execute(
         select(QuestaoTcImport).where(
