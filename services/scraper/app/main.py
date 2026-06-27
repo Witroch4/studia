@@ -674,6 +674,13 @@ async def _queue_supervisor_loop(
             else:
                 image_enqueued = 0
 
+            async def _eq(questao_id, caderno_id):
+                from app.tasks.comentarios import coletar_comentarios_questao
+                await enqueue(coletar_comentarios_questao, priority="default",
+                              questao_id=questao_id, caderno_id=caderno_id)
+
+            comentarios_enqueued = await _supervisor_tick_comentarios(Session, _eq)
+
             log.info(
                 "queue_supervisor.tick",
                 caderno_jobs=len(jobs),
@@ -681,11 +688,36 @@ async def _queue_supervisor_loop(
                 images_discovered=images_discovered,
                 image_assets_upserted=image_assets_upserted,
                 image_enqueued=image_enqueued,
+                comentarios_enqueued=comentarios_enqueued,
                 interval=interval,
             )
             await asyncio.sleep(max(interval, 1))
     finally:
         await engine.dispose()
+
+
+async def _supervisor_tick_comentarios(Session, enqueue_fn) -> int:
+    from app.tasks.ledger import (
+        list_active_comentario_jobs,
+        list_enqueueable_comentario_units,
+        refresh_comentario_job_status,
+    )
+
+    enfileiradas = 0
+    async with Session.begin() as session:
+        jobs = await list_active_comentario_jobs(session)
+        for job in jobs:
+            await refresh_comentario_job_status(session, job_id=job.id)
+        jobs = await list_active_comentario_jobs(session)
+    for job in jobs:
+        async with Session.begin() as session:
+            units = await list_enqueueable_comentario_units(
+                session, caderno_id=job.caderno_id, limit=1
+            )
+        for u in units:
+            await enqueue_fn(questao_id=u["questao_id"], caderno_id=job.caderno_id)
+            enfileiradas += 1
+    return enfileiradas
 
 
 if __name__ == "__main__":
