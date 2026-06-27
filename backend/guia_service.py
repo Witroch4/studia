@@ -143,3 +143,125 @@ async def pular_fila(db: AsyncSession, fila_id: int, *, agora: datetime) -> bool
     e.finalizado_em = agora
     await db.flush()
     return True
+
+
+# ─── Ops de guia (reuso do pipeline existente) ───────────
+
+
+async def resolver_e_salvar(
+    db: AsyncSession, *, url: str, relogin: bool, page_size: int
+) -> tuple[Any, list[dict]]:
+    """Resolve a URL do guia, faz upsert de Guia + GuiaCaderno e salva os
+    cadernos no TC. NÃO enfileira coleta e NÃO commita (chamador commita).
+    Retorna (guia, cadernos). Reusa os helpers de `guias_router`."""
+    from sqlalchemy import select as _select
+
+    import guias_router as gr
+    from models import Guia, GuiaCaderno
+
+    resolved = await gr._scraper_post(
+        "/guia/resolver", {"url": url, "relogin": relogin}, gr._RESOLVE_TIMEOUT
+    )
+    tc_guia_id = int(resolved["tc_guia_id"])
+    cadernos_in = resolved.get("cadernos", [])
+
+    guia = (
+        await db.execute(_select(Guia).where(Guia.tc_guia_id == tc_guia_id))
+    ).scalar_one_or_none()
+    if guia is None:
+        guia = Guia(tc_guia_id=tc_guia_id)
+        db.add(guia)
+    guia.slug = resolved.get("slug")
+    guia.url = resolved.get("url") or url
+    guia.nome = resolved.get("nome") or f"Guia {tc_guia_id}"
+    guia.banca = resolved.get("banca")
+    guia.status = "saving"
+    await db.flush()
+
+    saved = await gr._scraper_post(
+        "/guia/salvar-cadernos", {"tc_guia_id": tc_guia_id}, gr._SAVE_TIMEOUT
+    )
+    pasta_id = saved.get("pasta_id")
+    if pasta_id:
+        guia.tc_pasta_id = int(pasta_id)
+
+    cadernos = gr._merge_cadernos(saved.get("itens") or [], cadernos_in)
+    if not cadernos:
+        from fastapi import HTTPException
+
+        raise HTTPException(502, "Não foi possível obter os cadernos do guia (pasta vazia).")
+    guia.total_cadernos = len(cadernos)
+
+    existing = {
+        gc.tc_caderno_id: gc
+        for gc in (
+            await db.execute(_select(GuiaCaderno).where(GuiaCaderno.guia_id == guia.id))
+        )
+        .scalars()
+        .all()
+    }
+    for c in cadernos:
+        tc_caderno_id = int(c["tc_caderno_id"])
+        gc = existing.get(tc_caderno_id)
+        if gc is None:
+            gc = GuiaCaderno(guia_id=guia.id, tc_caderno_id=tc_caderno_id)
+            db.add(gc)
+        gc.tc_caderno_base = c.get("caderno_base_id")
+        gc.nome = c["nome"]
+        gc.disciplina = c["nome"]
+        gc.total_questoes = int(c.get("total_questoes") or 0)
+        gc.total_capitulos = int(c.get("total_capitulos") or 0)
+        gc.ordem = c.get("ordem")
+        if gc.status not in {"materialized"}:
+            gc.status = "pending"
+    await db.flush()
+    return guia, cadernos
+
+
+async def enqueue_cadernos_do_guia(
+    db: AsyncSession, guia_id: int, *, page_size: int
+) -> tuple[int, list[int]]:
+    """Enfileira a coleta de cada caderno do guia. Retorna (enfileirados, falhas)."""
+    from sqlalchemy import select as _select
+
+    import guias_router as gr
+    from models import GuiaCaderno
+
+    cads = (
+        await db.execute(_select(GuiaCaderno).where(GuiaCaderno.guia_id == guia_id))
+    ).scalars().all()
+    enq = 0
+    falhas: list[int] = []
+    for c in cads:
+        if c.tc_caderno_id is None:
+            continue
+        res = await gr._enqueue_caderno(c.tc_caderno_id, c.total_questoes, page_size)
+        if res.get("enqueued_units", 0) > 0 or res.get("job_id"):
+            enq += 1
+        else:
+            falhas.append(c.tc_caderno_id)
+    return enq, falhas
+
+
+async def guia_coleta_completa(db: AsyncSession, guia_id: int) -> bool:
+    """True quando todo caderno do guia está materializado, com job 'done', ou
+    com coletado ≥ esperado (mesma regra de `listar_guias`)."""
+    from sqlalchemy import select as _select
+
+    import guias_router as gr
+    from models import GuiaCaderno
+
+    cads = (
+        await db.execute(_select(GuiaCaderno).where(GuiaCaderno.guia_id == guia_id))
+    ).scalars().all()
+    if not cads:
+        return False
+    tc_ids = [c.tc_caderno_id for c in cads if c.tc_caderno_id]
+    coletado = await gr._coletado_por_caderno(db, tc_ids)
+    jobs = await gr._jobs_por_caderno(db, tc_ids)
+    return all(
+        c.caderno_id
+        or jobs.get(c.tc_caderno_id, {}).get("status") == "done"
+        or (c.total_questoes > 0 and coletado.get(c.tc_caderno_id, 0) >= c.total_questoes)
+        for c in cads
+    )

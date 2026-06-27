@@ -62,3 +62,60 @@ async def test_remover_e_pular(db_session):
     assert await guia_service.pular_fila(db_session, e2.id, agora=agora) is True
     await db_session.refresh(e2)
     assert e2.status == "skipped" and e2.finalizado_em == agora
+
+
+from sqlalchemy import func as safunc
+from models import Guia, GuiaCaderno
+
+_RESOLVE = {
+    "tc_guia_id": 7777,
+    "slug": "x/y",
+    "url": "https://www.tecconcursos.com.br/guias/x/y/-",
+    "nome": "Guia X",
+    "banca": "FGV",
+    "cadernos": [
+        {"tc_caderno_id": 111, "nome": "Mat A", "total_questoes": 10, "total_capitulos": 0, "ordem": 1},
+    ],
+}
+_SAVE = {"pasta_id": 9001, "itens": [{"id": 111, "nome": "Mat A", "quantidadeItens": 10}]}
+
+
+def _patch_scraper(monkeypatch):
+    """Patcha guias_router.httpx (resolver_e_salvar usa _scraper_post de lá)."""
+    from test_guias_router import _fake_scraper
+
+    return _fake_scraper(
+        monkeypatch, resolve=_RESOLVE, save=_SAVE,
+        enqueue={"job_id": 1, "status": "pending", "total_units": 1, "enqueued_units": 1},
+    )
+
+
+@pytest.mark.asyncio
+async def test_resolver_e_salvar_cria_guia_e_cadernos(db_session, monkeypatch):
+    _patch_scraper(monkeypatch)
+    guia, cadernos = await guia_service.resolver_e_salvar(
+        db_session, url="x", relogin=False, page_size=200
+    )
+    await db_session.commit()
+    assert guia.tc_guia_id == 7777
+    assert len(cadernos) == 1
+    n = (await db_session.execute(select(safunc.count()).select_from(GuiaCaderno))).scalar()
+    assert n == 1
+
+
+@pytest.mark.asyncio
+async def test_guia_coleta_completa_sem_jobs_e_false(db_session, monkeypatch):
+    _patch_scraper(monkeypatch)
+    guia, _ = await guia_service.resolver_e_salvar(db_session, url="x", relogin=False, page_size=200)
+    await db_session.commit()
+    assert await guia_service.guia_coleta_completa(db_session, guia.id) is False
+
+
+@pytest.mark.asyncio
+async def test_enqueue_cadernos_do_guia(db_session, monkeypatch):
+    calls = _patch_scraper(monkeypatch)
+    guia, _ = await guia_service.resolver_e_salvar(db_session, url="x", relogin=False, page_size=200)
+    await db_session.commit()
+    enq, falhas = await guia_service.enqueue_cadernos_do_guia(db_session, guia.id, page_size=200)
+    assert enq == 1 and falhas == []
+    assert sum(1 for c in calls if c["url"].endswith("/enqueue/caderno")) == 1
