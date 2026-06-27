@@ -68,6 +68,24 @@ DEFAULT_FACETS = [
     "area", "formacao", "escolaridade", "regiao",
 ]
 
+MEILI_INDEX = "questoes"
+
+# Grupos de facetas para disjunctive faceting (padrão TC): a contagem de cada
+# grupo é calculada IGNORANDO os filtros do próprio grupo (mas respeitando os
+# demais). Sem isso, marcar 1 assunto zera todas as outras matérias/bancas.
+# `tipo` e `status_excluir` NÃO entram em nenhum grupo → ficam globais (o radio
+# objetivas/discursivas e "remover anuladas" valem para todas as contagens).
+FACET_GROUPS: dict[str, list[str]] = {
+    "materia_assunto": ["materia", "assuntos"],  # a árvore ignora ambos
+    "banca": ["banca"],
+    "orgao_cargo": ["orgao", "cargo"],
+    "ano": ["ano"],
+    "area": ["area"],
+    "escolaridade": ["escolaridade"],
+    "formacao": ["formacao"],
+    "regiao": ["regiao"],
+}
+
 # Pasta padrão onde cadernos avulsos importados do TC são montados.
 PASTA_IMPORTADOS = "Importados do TC"
 
@@ -200,12 +218,58 @@ def _compute_streak(active_days: set[date], today: date) -> int:
 async def _meili_search(payload: dict[str, Any]) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=10.0) as c:
         r = await c.post(
-            f"{MEILI_URL}/indexes/questoes/search",
+            f"{MEILI_URL}/indexes/{MEILI_INDEX}/search",
             headers={"Authorization": f"Bearer {MEILI_KEY}"},
             json=payload,
         )
         r.raise_for_status()
         return r.json()
+
+
+async def _meili_multi_search(queries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=10.0) as c:
+        r = await c.post(
+            f"{MEILI_URL}/multi-search",
+            headers={"Authorization": f"Bearer {MEILI_KEY}"},
+            json={"queries": queries},
+        )
+        r.raise_for_status()
+        return r.json().get("results", [])
+
+
+def _build_count_queries(
+    filtros: dict[str, list], q: str, fav_filter: str | None
+) -> list[dict[str, Any]]:
+    """Monta as queries do `/multi-search` para contagem com disjunctive faceting.
+
+    - Query 0 = base: filtro completo, `limit:0`, sem facets → `total`.
+    - Demais = 1 por grupo de `FACET_GROUPS`, removendo do filtro os campos do
+      próprio grupo (mantendo `tipo`/`status_excluir`/favoritas/`q` globais) e
+      pedindo só as facetas daquele grupo. Cada grupo conta ignorando seus
+      próprios filtros — assim selecionar um assunto não zera as outras matérias.
+    """
+    def _filtro(drop: set[str]) -> str | None:
+        sub = {k: v for k, v in filtros.items() if k not in drop}
+        f = _to_meili_filter(sub)
+        if fav_filter:
+            f = f"{f} AND {fav_filter}" if f else fav_filter
+        return f
+
+    base: dict[str, Any] = {"indexUid": MEILI_INDEX, "q": q, "limit": 0}
+    base_filter = _filtro(set())
+    if base_filter:
+        base["filter"] = base_filter
+    queries = [base]
+
+    for campos in FACET_GROUPS.values():
+        sub: dict[str, Any] = {
+            "indexUid": MEILI_INDEX, "q": q, "limit": 0, "facets": campos,
+        }
+        sub_filter = _filtro(set(campos))
+        if sub_filter:
+            sub["filter"] = sub_filter
+        queries.append(sub)
+    return queries
 
 
 # ─── Dependência de auth: sessão OU token de serviço ─────
@@ -237,25 +301,33 @@ async def count(
     user: CurrentUser | None = Depends(get_current_user_opt),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Padrão TC: contagem leve + facetas para painel UI."""
-    payload = {
-        "q": req.q,
-        "limit": 0,  # NÃO traz hits
-        "facets": DEFAULT_FACETS,
-    }
-    f = _to_meili_filter(req.filtros)
+    """Padrão TC: contagem leve + facetas (disjunctive) para painel UI.
+
+    Usa `/multi-search`: o `total` vem da query base (todos os filtros) e cada
+    grupo de facetas é contado ignorando os filtros do próprio grupo. Assim
+    marcar um assunto não zera as outras matérias/bancas na árvore.
+    """
+    fav_filter: str | None = None
     if req.favoritas:
-        fav = await _filtro_favoritas(db, user.id) if user else None
-        if fav is None:
+        fav_filter = await _filtro_favoritas(db, user.id) if user else None
+        if fav_filter is None:
             return {"total": 0, "facets": {}, "ms": 0}
-        f = f"{f} AND {fav}" if f else fav
-    if f:
-        payload["filter"] = f
-    data = await _meili_search(payload)
+
+    queries = _build_count_queries(req.filtros, req.q, fav_filter)
+    results = await _meili_multi_search(queries)
+    if not results:
+        return {"total": 0, "facets": {}, "ms": 0}
+
+    facets: dict[str, Any] = {}
+    ms = 0
+    for res in results:
+        ms = max(ms, res.get("processingTimeMs", 0))
+        for campo, dist in (res.get("facetDistribution") or {}).items():
+            facets[campo] = dist
     return {
-        "total": data.get("estimatedTotalHits", 0),
-        "facets": data.get("facetDistribution", {}),
-        "ms": data.get("processingTimeMs", 0),
+        "total": results[0].get("estimatedTotalHits", 0),
+        "facets": facets,
+        "ms": ms,
     }
 
 

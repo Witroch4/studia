@@ -213,11 +213,18 @@ export default function FiltrarPage() {
     if (!busca) return arvore;
     const lower = busca.toLowerCase();
     return arvore
-      .map((m) => ({
-        ...m,
-        assuntos: m.assuntos.filter((a) => a.nome.toLowerCase().includes(lower)),
-        match: m.nome.toLowerCase().includes(lower),
-      }))
+      .map((m) => {
+        // Se a MATÉRIA casa com a busca, mostra todos os seus assuntos (não os
+        // filtra pelo termo) — senão "portu" esconderia 69 dos 71 temas de PT.
+        const materiaMatch = m.nome.toLowerCase().includes(lower);
+        return {
+          ...m,
+          assuntos: materiaMatch
+            ? m.assuntos
+            : m.assuntos.filter((a) => a.nome.toLowerCase().includes(lower)),
+          match: materiaMatch,
+        };
+      })
       .filter((m) => m.match || m.assuntos.length > 0);
   }, [arvore, busca]);
 
