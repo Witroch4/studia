@@ -537,6 +537,38 @@ class GuiaCaderno(Base):
     )
 
 
+class GuiaFila(Base):
+    """Fila FIFO de coleta de guias. Garante 1 guia coletando por vez + cooldown
+    entre guias (o supervisor `scripts/guia_supervisor.py` consome esta tabela).
+
+    Ciclo de status: queued → resolving → collecting → done/skipped/error.
+    `finalizado_em` do último terminado é a referência do cooldown.
+    """
+
+    __tablename__ = "guia_fila"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # URL colada do guia. NULL em re-coleta (já tem guia_id).
+    url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="queued", default="queued", index=True
+    )
+    guia_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("guias.id", ondelete="SET NULL"), nullable=True
+    )
+    iniciado_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finalizado_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    tentativas: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0", default=0
+    )
+    erro: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    requested_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class Alternativa(Base):
     __tablename__ = "alternativas"
 
