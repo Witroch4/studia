@@ -34,6 +34,7 @@ x-on-manager: &on-manager
 services:
   backend:
     image: *backend-image
+    hostname: studia-backend
     env_file:
       - ${STUDIA_ENV_FILE:-/opt/studia/.env}
     environment:

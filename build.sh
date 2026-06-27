@@ -176,6 +176,14 @@ if [ -f "$ENV_FILE" ]; then
 fi
 [ -n "$STUDIA_JWT_SECRET" ] || STUDIA_JWT_SECRET=$(python3 -c 'import secrets;print(secrets.token_hex(32))')
 
+# Token interno worker→backend (X-Internal-Token). Mesma mecânica do JWT:
+# preserva o existente no primeiro deploy, gera novo se ausente.
+STUDIA_INTERNAL_TOKEN=""
+if [ -f "$ENV_FILE" ]; then
+  STUDIA_INTERNAL_TOKEN=$(grep -E '^STUDIA_INTERNAL_TOKEN=' "$ENV_FILE" | head -1 | cut -d= -f2- || true)
+fi
+[ -n "$STUDIA_INTERNAL_TOKEN" ] || STUDIA_INTERNAL_TOKEN=$(python3 -c 'import secrets;print(secrets.token_hex(32))')
+
 pg_pass_url=$(PG_PASS="$PG_PASS_RAW" python3 -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["PG_PASS"],safe=""))')
 
 mn_cid=$(docker ps --filter label=com.docker.swarm.service.name=minio_minio -q | head -1)
@@ -212,6 +220,8 @@ umask 077
   echo "LITELLM_BASE_URL=http://platform-litellm:4000"
   printf 'BETTER_AUTH_SECRET=%s\n' "$BETTER_AUTH_SECRET"
   printf 'STUDIA_JWT_SECRET=%s\n' "$STUDIA_JWT_SECRET"
+  printf 'STUDIA_INTERNAL_TOKEN=%s\n' "$STUDIA_INTERNAL_TOKEN"
+  echo "BACKEND_URL=http://studia-backend:8000"
   [ -n "${STRIPE_PUBLISHABLE_KEY:-}" ] && printf 'STRIPE_PUBLISHABLE_KEY=%s\n' "$STRIPE_PUBLISHABLE_KEY"
   [ -n "${STRIPE_SECRET_KEY:-}" ] && printf 'STRIPE_SECRET_KEY=%s\n' "$STRIPE_SECRET_KEY"
   [ -n "${STRIPE_WEBHOOK_SECRET:-}" ] && printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$STRIPE_WEBHOOK_SECRET"
