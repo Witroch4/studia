@@ -75,40 +75,25 @@ ENQUEUE = {"job_id": 1, "status": "pending", "total_units": 1, "enqueued_units":
 
 
 @pytest.mark.asyncio
-async def test_importar_guia_persiste_e_enfileira(client, db_session, monkeypatch):
+async def test_importar_guia_default_vai_pra_fila(client, db_session, monkeypatch):
+    from sqlalchemy import func as safunc, select
+    from models import GuiaFila
+
     calls = _fake_scraper(monkeypatch, resolve=RESOLVE, save=SAVE, enqueue=ENQUEUE)
-
-    r = await client.post(
-        "/api/q/guias/importar",
-        json={"url": "https://www.tecconcursos.com.br/guias/oab-2026"},
-    )
+    r = await client.post("/api/q/guias/importar", json={"url": "https://tc/guias/oab"})
     assert r.status_code == 202
-    body = r.json()
-    assert body["tc_guia_id"] == 6818
-    assert body["banca"] == "FGV"
-    assert body["cadernos"] == 2
-    assert body["enqueued"] == 2
-    assert body["tc_pasta_id"] == 7024498
-    assert body["status"] == "collecting"
-
-    # Resolver + salvar + 2 enqueues
-    assert any(c["url"].endswith("/guia/resolver") for c in calls)
-    assert any(c["url"].endswith("/guia/salvar-cadernos") for c in calls)
-    assert sum(1 for c in calls if c["url"].endswith("/enqueue/caderno")) == 2
-
-    # Persistência
-    guia_count = (await db_session.execute(text("SELECT COUNT(*) FROM guias"))).scalar()
-    cad_count = (await db_session.execute(text("SELECT COUNT(*) FROM guia_cadernos"))).scalar()
-    assert guia_count == 1
-    assert cad_count == 2
+    assert r.json()["status"] == "queued"
+    assert calls == []  # preguiçoso: não resolve no import
+    n = (await db_session.execute(select(safunc.count()).select_from(GuiaFila))).scalar()
+    assert n == 1
 
 
 @pytest.mark.asyncio
 async def test_importar_guia_idempotente(client, db_session, monkeypatch):
     _fake_scraper(monkeypatch, resolve=RESOLVE, save=SAVE, enqueue=ENQUEUE)
 
-    await client.post("/api/q/guias/importar", json={"url": "x", "iniciar_coleta": False})
-    await client.post("/api/q/guias/importar", json={"url": "x", "iniciar_coleta": False})
+    await client.post("/api/q/guias/importar", json={"url": "x", "apenas_catalogar": True})
+    await client.post("/api/q/guias/importar", json={"url": "x", "apenas_catalogar": True})
 
     guia_count = (await db_session.execute(text("SELECT COUNT(*) FROM guias"))).scalar()
     cad_count = (await db_session.execute(text("SELECT COUNT(*) FROM guia_cadernos"))).scalar()
@@ -121,7 +106,7 @@ async def test_listar_e_detalhe_guia(client, monkeypatch):
     _fake_scraper(monkeypatch, resolve=RESOLVE, save=SAVE, enqueue=ENQUEUE)
     imp = (
         await client.post(
-            "/api/q/guias/importar", json={"url": "x", "iniciar_coleta": False}
+            "/api/q/guias/importar", json={"url": "x", "apenas_catalogar": True}
         )
     ).json()
     guia_id = imp["id"]
@@ -143,7 +128,7 @@ async def test_renomear_guia(client, db_session, monkeypatch):
     _fake_scraper(monkeypatch, resolve=RESOLVE, save=SAVE, enqueue=ENQUEUE)
     imp = (
         await client.post(
-            "/api/q/guias/importar", json={"url": "x", "iniciar_coleta": False}
+            "/api/q/guias/importar", json={"url": "x", "apenas_catalogar": True}
         )
     ).json()
     guia_id = imp["id"]
@@ -195,7 +180,7 @@ async def test_importar_guia_fresco_usa_itens_da_pasta(client, db_session, monke
     }
     _fake_scraper(monkeypatch, resolve=resolve_sem_ids, save=save_com_itens, enqueue=ENQUEUE)
 
-    r = await client.post("/api/q/guias/importar", json={"url": "x", "iniciar_coleta": False})
+    r = await client.post("/api/q/guias/importar", json={"url": "x", "apenas_catalogar": True})
     assert r.status_code == 202
     assert r.json()["cadernos"] == 2
 
@@ -213,7 +198,7 @@ async def test_materializar_sem_coleta_nao_cria_caderno(client, monkeypatch):
     _fake_scraper(monkeypatch, resolve=RESOLVE, save=SAVE, enqueue=ENQUEUE)
     imp = (
         await client.post(
-            "/api/q/guias/importar", json={"url": "x", "iniciar_coleta": False}
+            "/api/q/guias/importar", json={"url": "x", "apenas_catalogar": True}
         )
     ).json()
 

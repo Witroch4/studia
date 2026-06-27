@@ -45,9 +45,15 @@ class ImportarGuiaReq(BaseModel):
     url: str = Field(..., description="URL base do guia TC (ex.: /guias/oab-2026)")
     relogin: bool = Field(False, description="Refazer login Playwright antes")
     page_size: int = Field(200, ge=1, le=200)
-    iniciar_coleta: bool = Field(
-        True, description="Enfileirar coleta dos cadernos logo após importar"
+    apenas_catalogar: bool = Field(
+        False,
+        description="Só resolver+salvar metadados agora (sem coletar). Padrão: "
+        "False = adiciona à fila de coleta serial.",
     )
+
+
+class ImportarLoteReq(BaseModel):
+    urls: list[str] = Field(..., min_length=1, description="URLs de guias do TC")
 
 
 class MaterializarReq(BaseModel):
@@ -149,100 +155,113 @@ async def importar_guia(
     _admin: CurrentUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Resolve o guia, persiste cadernos, salva no TC e enfileira a coleta."""
-    resolved = await _scraper_post(
-        "/guia/resolver", {"url": req.url, "relogin": req.relogin}, _RESOLVE_TIMEOUT
-    )
+    """Padrão: adiciona o guia à fila de coleta serial (resolve preguiçoso, na
+    vez do guia). Com `apenas_catalogar=true`: resolve+salva metadados agora,
+    sem coletar."""
+    import guia_service
 
-    tc_guia_id = int(resolved["tc_guia_id"])
-    # `cadernos_in` enriquece capítulos/ordem; a fonte autoritativa dos ids vem
-    # dos itens da pasta após "salvar todos" (ver `_merge_cadernos`).
-    cadernos_in = resolved.get("cadernos", [])
-
-    # Upsert Guia
-    guia = (
-        await db.execute(select(Guia).where(Guia.tc_guia_id == tc_guia_id))
-    ).scalar_one_or_none()
-    if guia is None:
-        guia = Guia(tc_guia_id=tc_guia_id)
-        db.add(guia)
-    guia.slug = resolved.get("slug")
-    guia.url = resolved.get("url") or req.url
-    guia.nome = resolved.get("nome") or f"Guia {tc_guia_id}"
-    guia.banca = resolved.get("banca")
-    guia.status = "saving"
-    await db.flush()
-
-    # Salvar todos os cadernos no TC (cria/reaproveita a pasta). Os itens da
-    # pasta são a fonte AUTORITATIVA dos ids/nomes dos cadernos de questões —
-    # `listar-pelo-guia` só traz o id quando o usuário já tinha salvo o guia.
-    saved = await _scraper_post(
-        "/guia/salvar-cadernos", {"tc_guia_id": tc_guia_id}, _SAVE_TIMEOUT
-    )
-    pasta_id = saved.get("pasta_id")
-    if pasta_id:
-        guia.tc_pasta_id = int(pasta_id)
-
-    cadernos = _merge_cadernos(saved.get("itens") or [], cadernos_in)
-    if not cadernos:
-        raise HTTPException(502, "Não foi possível obter os cadernos do guia (pasta vazia).")
-    guia.total_cadernos = len(cadernos)
-
-    # Upsert GuiaCaderno
-    existing = {
-        gc.tc_caderno_id: gc
-        for gc in (
-            await db.execute(select(GuiaCaderno).where(GuiaCaderno.guia_id == guia.id))
-        ).scalars().all()
-    }
-    for c in cadernos:
-        tc_caderno_id = int(c["tc_caderno_id"])
-        gc = existing.get(tc_caderno_id)
-        if gc is None:
-            gc = GuiaCaderno(guia_id=guia.id, tc_caderno_id=tc_caderno_id)
-            db.add(gc)
-        gc.tc_caderno_base = c.get("caderno_base_id")
-        gc.nome = c["nome"]
-        gc.disciplina = c["nome"]
-        gc.total_questoes = int(c.get("total_questoes") or 0)
-        gc.total_capitulos = int(c.get("total_capitulos") or 0)
-        gc.ordem = c.get("ordem")
-        if gc.status not in {"materialized"}:
-            gc.status = "pending"
-    await db.commit()
-    await db.refresh(guia)
-
-    # Enfileira a coleta de cada caderno (serial no worker; aqui só publica)
-    enqueued = 0
-    falhas: list[int] = []
-    if req.iniciar_coleta:
-        for c in cadernos:
-            res = await _enqueue_caderno(
-                int(c["tc_caderno_id"]), int(c.get("total_questoes") or 0), req.page_size
+    if req.apenas_catalogar:
+        try:
+            guia, cadernos = await guia_service.resolver_e_salvar(
+                db, url=req.url, relogin=req.relogin, page_size=req.page_size
             )
-            if res.get("enqueued_units", 0) > 0 or res.get("job_id"):
-                enqueued += 1
-            else:
-                falhas.append(int(c["tc_caderno_id"]))
-        guia.status = "collecting"
+        except ValueError as exc:
+            raise HTTPException(502, str(exc))
+        guia.status = "pending"
         await db.commit()
         await db.refresh(guia)
+        return {
+            **_guia_dict(guia),
+            "cadernos": len(cadernos),
+            "enqueued": 0,
+            "message": "Guia catalogado (sem coleta).",
+        }
 
-    message = (
-        "Guia importado. Cadernos salvos e coleta enfileirada; o worker processa em série."
-        if req.iniciar_coleta
-        else "Guia importado. Cadernos salvos; inicie a coleta quando quiser."
-    )
-    if falhas:
-        message += f" {len(falhas)} caderno(s) não enfileirados — use 'Retomar coleta' no guia."
-
+    novos = await guia_service.enfileirar_urls(db, [req.url], requested_by=_admin.id)
+    await db.commit()
+    if not novos:
+        return {"status": "queued", "url": req.url, "message": "Guia já estava na fila."}
+    e = novos[0]
+    await db.refresh(e)
     return {
-        **_guia_dict(guia),
-        "cadernos": len(cadernos),
-        "enqueued": enqueued,
-        "falhas": falhas,
-        "message": message,
+        "fila_id": e.id,
+        "status": e.status,
+        "url": e.url,
+        "message": "Guia adicionado à fila de coleta.",
     }
+
+
+@router.post("/importar-lote", status_code=status.HTTP_202_ACCEPTED)
+async def importar_lote(
+    req: ImportarLoteReq,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Enfileira N guias de uma vez (resolve preguiçoso, coleta 1 por vez)."""
+    import guia_service
+
+    novos = await guia_service.enfileirar_urls(db, req.urls, requested_by=_admin.id)
+    await db.commit()
+    return {
+        "enfileirados": len(novos),
+        "fila": [{"id": e.id, "url": e.url, "status": e.status} for e in novos],
+        "message": f"{len(novos)} guia(s) na fila de coleta.",
+    }
+
+
+@router.get("/fila")
+async def listar_fila(
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Fila de coleta + countdown do cooldown. Enriquece com o nome do guia."""
+    import os
+    from datetime import datetime
+
+    import guia_service
+
+    cooldown = int(os.getenv("GUIA_COOLDOWN_SECONDS", "900"))
+    data = await guia_service.listar_fila(db, agora=datetime.utcnow(), cooldown_s=cooldown)
+    guia_ids = [it["guia_id"] for it in data["fila"] if it["guia_id"]]
+    nomes: dict[int, str] = {}
+    if guia_ids:
+        rows = (
+            await db.execute(select(Guia.id, Guia.nome).where(Guia.id.in_(guia_ids)))
+        ).all()
+        nomes = {gid: nome for gid, nome in rows}
+    for it in data["fila"]:
+        it["guia_nome"] = nomes.get(it["guia_id"])
+    return data
+
+
+@router.delete("/fila/{fila_id}")
+async def remover_fila(
+    fila_id: int,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Remove uma entrada que ainda está só 'na fila'."""
+    import guia_service
+
+    ok = await guia_service.remover_da_fila(db, fila_id)
+    await db.commit()
+    return {"ok": ok}
+
+
+@router.post("/fila/{fila_id}/pular")
+async def pular_fila_endpoint(
+    fila_id: int,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Pula a entrada ativa/queued (libera a fila; dispara o cooldown)."""
+    from datetime import datetime
+
+    import guia_service
+
+    ok = await guia_service.pular_fila(db, fila_id, agora=datetime.utcnow())
+    await db.commit()
+    return {"ok": ok}
 
 
 def _merge_cadernos(itens_pasta: list[dict], cadernos_guia: list[dict]) -> list[dict]:
@@ -719,33 +738,21 @@ async def coletar_guia(
     _admin: CurrentUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """(Re)enfileira a coleta dos cadernos do guia que ainda não estão completos.
+    """Adiciona o guia à fila de coleta serial (re-coleta). Idempotente: não
+    duplica se já estiver na fila/coletando."""
+    import guia_service
 
-    Idempotente: cadernos já `done` no ledger são ignorados pelo scraper.
-    """
     guia = (await db.execute(select(Guia).where(Guia.id == guia_id))).scalar_one_or_none()
     if not guia:
         raise HTTPException(404, "Guia não encontrado")
-
-    cads = (
-        await db.execute(select(GuiaCaderno).where(GuiaCaderno.guia_id == guia_id))
-    ).scalars().all()
-    jobs = await _jobs_por_caderno(db, [c.tc_caderno_id for c in cads])
-
-    enqueued = 0
-    falhas: list[int] = []
-    for c in cads:
-        if jobs.get(c.tc_caderno_id, {}).get("status") == "done":
-            continue
-        res = await _enqueue_caderno(c.tc_caderno_id, c.total_questoes, 200)
-        if res.get("enqueued_units", 0) > 0 or res.get("job_id"):
-            enqueued += 1
-        else:
-            falhas.append(c.tc_caderno_id)
-    if enqueued:
-        guia.status = "collecting"
-        await db.commit()
-    return {"guia_id": guia_id, "enqueued": enqueued, "falhas": falhas}
+    e = await guia_service.enfileirar_guia(db, guia_id, requested_by=_admin.id)
+    await db.commit()
+    return {
+        "guia_id": guia_id,
+        "fila_id": e.id if e else None,
+        "enfileirado": e is not None,
+        "message": "Guia na fila de coleta." if e else "Guia já estava na fila/coletando.",
+    }
 
 
 @router.post("/{guia_id}/materializar")

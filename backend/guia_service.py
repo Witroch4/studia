@@ -187,9 +187,7 @@ async def resolver_e_salvar(
 
     cadernos = gr._merge_cadernos(saved.get("itens") or [], cadernos_in)
     if not cadernos:
-        from fastapi import HTTPException
-
-        raise HTTPException(502, "Não foi possível obter os cadernos do guia (pasta vazia).")
+        raise ValueError("Não foi possível obter os cadernos do guia (pasta vazia).")
     guia.total_cadernos = len(cadernos)
 
     existing = {
