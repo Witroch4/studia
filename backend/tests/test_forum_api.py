@@ -29,7 +29,10 @@ async def test_forum_vazio_retorna_lista_vazia(client, db_session):
     await seed_questao(db_session)
     r = await client.get("/api/q/questoes/99/forum")
     assert r.status_code == 200
-    assert r.json() == {"total": 0, "comentarios": []}
+    data = r.json()
+    assert data["total"] == 0
+    assert data["comentarios"] == []
+    assert data["tc_importado"] is False
 
 
 async def test_forum_lista_post_e_resposta_aninhada(client, db_session):

@@ -1995,7 +1995,14 @@ async def listar_forum(
     else:  # recentes
         out.sort(key=lambda d: d["criado_em"] or "", reverse=True)
 
-    return {"total": total, "comentarios": out}
+    tc_importado = (await db.execute(
+        select(QuestaoTcImport.id).where(
+            QuestaoTcImport.questao_id == questao_id,
+            QuestaoTcImport.quadro == quadro,
+        )
+    )).first() is not None
+
+    return {"total": total, "comentarios": out, "tc_importado": tc_importado}
 
 
 @router.post("/questoes/{questao_id}/importar-comentarios-tc")
