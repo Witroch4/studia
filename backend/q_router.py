@@ -1930,7 +1930,7 @@ async def _rehost_imagens_tc(
             key = f"forum/{_uuid.uuid4()}.{ext}"
             upload_bytes(key, r.content, ct)
             md = md.replace(url, f"/api/q/forum/imagem/{key}")
-        except httpx.HTTPError:
+        except Exception:
             continue
     return md
 
