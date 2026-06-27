@@ -288,6 +288,14 @@ export default function FiltrarPage() {
     }));
   }
 
+  /** Limpa todos os filtros ativos de uma vez (assuntos, facetas, favoritas,
+   *  enunciado). Mantém o modo objetivas/discursivas e a busca por nome. */
+  function limparFiltros() {
+    setFiltros({});
+    setFavoritas(false);
+    setQEnunciado("");
+  }
+
   const totalChips =
     CAMPOS_CHIP.reduce((n, campo) => n + ((filtros[campo] as unknown[] | undefined)?.length || 0), 0) +
     (favoritas ? 1 : 0) + (qEnunciado.trim() ? 1 : 0);
@@ -487,9 +495,20 @@ export default function FiltrarPage() {
 
         {/* Painel direito Opções */}
         <aside className="border-l border-border p-4 bg-page">
-          <h2 className="text-sm font-semibold mb-3 text-fg-muted">
-            Filtros ativos: <span className="text-primary">{totalChips}</span>
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-fg-muted">
+              Filtros ativos: <span className="text-primary">{totalChips}</span>
+            </h2>
+            {totalChips > 0 && (
+              <button
+                onClick={limparFiltros}
+                className="text-xs text-error hover:underline flex items-center gap-1"
+                title="Remove todos os filtros de uma vez"
+              >
+                Limpar todos ✕
+              </button>
+            )}
+          </div>
           <div className="space-y-2 mb-4 max-h-[50vh] overflow-y-auto">
             {favoritas && (
               <div className="flex items-center justify-between bg-warning/15 border border-warning/40 rounded px-2 py-1 text-xs">
