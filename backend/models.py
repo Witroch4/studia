@@ -702,6 +702,26 @@ class ComentarioVoto(Base):
     )
 
 
+class QuestaoTcImport(Base):
+    """Marcador: comentários do TC já buscados para (questão, quadro).
+
+    Existência da linha = já buscado (mesmo que `count=0`). Evita re-scrape.
+    """
+    __tablename__ = "questao_tc_imports"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    questao_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("questoes.id", ondelete="CASCADE"), index=True
+    )
+    quadro: Mapped[str] = mapped_column(String(16))  # "alunos" | "professores"
+    count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("questao_id", "quadro", name="uq_tc_import_questao_quadro"),
+    )
+
+
 # ─── Cronograma ────────────────────────────────────────────
 
 
