@@ -721,3 +721,413 @@ def _planned_ranges(
             is_last=False,
         )
     ]
+
+
+# ---------------------------------------------------------------------------
+# Funções de job/unit de comentários (espelham as de caderno acima)
+# ---------------------------------------------------------------------------
+
+async def upsert_comentario_job(
+    session: AsyncSession,
+    *,
+    caderno_id: int,
+    questao_ids: list[int],
+    requested_by: int | None = None,
+) -> CadernoJob:
+    """Cria/reaproveita job kind='comentarios' e insere uma unit por questão_id."""
+    total_units = len(questao_ids)
+    external_id = str(caderno_id)
+
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:lock_key))"),
+        {"lock_key": f"tc:comentarios:{external_id}"},
+    )
+
+    row = (
+        await session.execute(
+            text(
+                """
+                SELECT id, external_id, expected_total, total_units, status
+                FROM tc_jobs
+                WHERE kind = 'comentarios'
+                  AND external_id = :external_id
+                  AND status <> 'cancelled'
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ),
+            {"external_id": external_id},
+        )
+    ).mappings().first()
+
+    if row is None:
+        row = (
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO tc_jobs (
+                      kind, status, source, external_id, expected_total, page_size,
+                      requested_by, total_units, params, updated_at
+                    )
+                    VALUES (
+                      'comentarios', 'pending', 'tc', :external_id, NULL,
+                      1, :requested_by, :total_units, '{}'::jsonb, now()
+                    )
+                    RETURNING id, external_id, expected_total, total_units, status
+                    """
+                ),
+                {
+                    "external_id": external_id,
+                    "requested_by": requested_by,
+                    "total_units": total_units,
+                },
+            )
+        ).mappings().one()
+    else:
+        row = (
+            await session.execute(
+                text(
+                    """
+                    UPDATE tc_jobs
+                    SET
+                      total_units = :total_units,
+                      requested_by = COALESCE(requested_by, :requested_by),
+                      updated_at = now()
+                    WHERE id = :job_id
+                    RETURNING id, external_id, expected_total, total_units, status
+                    """
+                ),
+                {
+                    "job_id": row["id"],
+                    "requested_by": requested_by,
+                    "total_units": total_units,
+                },
+            )
+        ).mappings().one()
+
+    job_id = int(row["id"])
+    for questao_id in questao_ids:
+        await session.execute(
+            text(
+                """
+                INSERT INTO tc_comentario_units (
+                  job_id, caderno_id, questao_id, status, updated_at
+                )
+                VALUES (
+                  :job_id, :caderno_id, :questao_id, 'pending', now()
+                )
+                ON CONFLICT (job_id, questao_id) DO NOTHING
+                """
+            ),
+            {
+                "job_id": job_id,
+                "caderno_id": caderno_id,
+                "questao_id": questao_id,
+            },
+        )
+
+    await refresh_comentario_job_counts(session, job_id=job_id)
+    return await _get_comentario_job(session, job_id=job_id)
+
+
+async def refresh_comentario_job_counts(session: AsyncSession, *, job_id: int) -> None:
+    await session.execute(
+        text(
+            """
+            UPDATE tc_jobs j
+            SET
+              done_units = s.done_units,
+              failed_units = s.failed_units,
+              blocked_units = s.blocked_units,
+              updated_at = now()
+            FROM (
+              SELECT
+                job_id,
+                count(*) FILTER (WHERE status = 'done') AS done_units,
+                count(*) FILTER (WHERE status = 'failed') AS failed_units,
+                count(*) FILTER (WHERE status = 'blocked') AS blocked_units
+              FROM tc_comentario_units
+              WHERE job_id = :job_id
+              GROUP BY job_id
+            ) s
+            WHERE j.id = s.job_id
+            """
+        ),
+        {"job_id": job_id},
+    )
+
+
+async def refresh_comentario_job_status(session: AsyncSession, *, job_id: int) -> None:
+    await refresh_comentario_job_counts(session, job_id=job_id)
+    await session.execute(
+        text(
+            """
+            UPDATE tc_jobs j
+            SET
+              status = CASE
+                WHEN j.total_units > 0 AND j.done_units >= j.total_units THEN 'done'
+                WHEN EXISTS (
+                  SELECT 1 FROM tc_comentario_units u
+                  WHERE u.job_id = j.id
+                    AND u.status = 'blocked'
+                    AND COALESCE(u.blocked_until, now() + interval '1 second') > now()
+                ) THEN 'blocked'
+                WHEN NOT EXISTS (
+                  SELECT 1 FROM tc_comentario_units u
+                  WHERE u.job_id = j.id
+                    AND u.status IN ('pending', 'queued', 'running')
+                ) AND j.blocked_units > 0 THEN 'blocked'
+                WHEN NOT EXISTS (
+                  SELECT 1 FROM tc_comentario_units u
+                  WHERE u.job_id = j.id
+                    AND u.status IN ('pending', 'queued', 'running', 'blocked')
+                ) AND j.failed_units > 0 THEN 'failed'
+                WHEN EXISTS (
+                  SELECT 1 FROM tc_comentario_units u
+                  WHERE u.job_id = j.id
+                    AND u.status IN ('running', 'queued', 'pending', 'failed', 'blocked')
+                ) THEN 'running'
+                ELSE j.status
+              END,
+              finished_at = CASE
+                WHEN j.total_units > 0 AND j.done_units >= j.total_units THEN now()
+                WHEN NOT EXISTS (
+                  SELECT 1 FROM tc_comentario_units u
+                  WHERE u.job_id = j.id
+                    AND u.status IN ('pending', 'queued', 'running', 'blocked')
+                ) AND j.failed_units > 0 THEN now()
+                ELSE j.finished_at
+              END,
+              updated_at = now()
+            WHERE j.id = :job_id
+            """
+        ),
+        {"job_id": job_id},
+    )
+
+
+async def _get_comentario_job(session: AsyncSession, *, job_id: int) -> CadernoJob:
+    row = (
+        await session.execute(
+            text(
+                """
+                SELECT id, external_id, expected_total, total_units, status
+                FROM tc_jobs
+                WHERE id = :job_id
+                """
+            ),
+            {"job_id": job_id},
+        )
+    ).mappings().one()
+    return CadernoJob(
+        id=int(row["id"]),
+        caderno_id=int(row["external_id"]),
+        expected_total=row["expected_total"],
+        total_units=int(row["total_units"] or 0),
+        status=str(row["status"]),
+    )
+
+
+async def list_enqueueable_comentario_units(
+    session: AsyncSession, *, caderno_id: int, limit: int | None = None
+) -> list[dict[str, Any]]:
+    limit_sql = "LIMIT :limit" if limit is not None else ""
+    params: dict[str, Any] = {"caderno_id": caderno_id}
+    if limit is not None:
+        params["limit"] = limit
+    rows = (
+        await session.execute(
+            text(
+                f"""
+                SELECT id AS unit_id, job_id, caderno_id, questao_id, status, attempts, block_reason
+                FROM tc_comentario_units
+                WHERE caderno_id = :caderno_id
+                  AND (
+                    status IN ('pending', 'failed')
+                    OR (status = 'blocked' AND blocked_until <= now())
+                    OR (status = 'running' AND leased_until < now())
+                  )
+                ORDER BY questao_id
+                {limit_sql}
+                """
+            ),
+            params,
+        )
+    ).mappings().all()
+    return [dict(row) for row in rows]
+
+
+async def lease_comentario_unit(
+    session: AsyncSession,
+    *,
+    caderno_id: int,
+    questao_id: int,
+    ack_wait_seconds: int,
+) -> dict[str, Any] | None:
+    row = (
+        await session.execute(
+            text(
+                """
+                UPDATE tc_comentario_units
+                SET
+                  status = 'running',
+                  attempts = attempts + 1,
+                  leased_until = now() + (:ack_wait_seconds * interval '1 second'),
+                  block_reason = NULL,
+                  blocked_until = NULL,
+                  last_error = NULL,
+                  finished_at = NULL,
+                  updated_at = now()
+                WHERE caderno_id = :caderno_id
+                  AND questao_id = :questao_id
+                  AND (
+                    status IN ('pending', 'queued', 'failed')
+                    OR (status = 'blocked' AND COALESCE(blocked_until, now()) <= now())
+                    OR (status = 'running' AND leased_until <= now())
+                  )
+                RETURNING id AS unit_id, job_id, caderno_id, questao_id, attempts, status
+                """
+            ),
+            {
+                "caderno_id": caderno_id,
+                "questao_id": questao_id,
+                "ack_wait_seconds": ack_wait_seconds,
+            },
+        )
+    ).mappings().first()
+    if row is None:
+        return None
+
+    await session.execute(
+        text(
+            """
+            UPDATE tc_jobs
+            SET status = 'running', updated_at = now(), finished_at = NULL
+            WHERE id = :job_id
+              AND status IN ('pending', 'blocked', 'failed')
+            """
+        ),
+        {"job_id": row["job_id"]},
+    )
+    return dict(row)
+
+
+async def mark_comentario_unit_done(
+    session: AsyncSession,
+    *,
+    unit_id: int,
+    job_id: int,
+    coments_alunos: int,
+    coments_professores: int,
+) -> None:
+    await session.execute(
+        text(
+            """
+            UPDATE tc_comentario_units
+            SET
+              status = 'done',
+              coments_alunos = :coments_alunos,
+              coments_professores = :coments_professores,
+              http_status = NULL,
+              block_reason = NULL,
+              blocked_until = NULL,
+              last_error = NULL,
+              leased_until = NULL,
+              finished_at = now(),
+              updated_at = now()
+            WHERE id = :unit_id
+            """
+        ),
+        {
+            "unit_id": unit_id,
+            "coments_alunos": coments_alunos,
+            "coments_professores": coments_professores,
+        },
+    )
+    await refresh_comentario_job_status(session, job_id=job_id)
+
+
+async def mark_comentario_unit_blocked(
+    session: AsyncSession,
+    *,
+    unit_id: int,
+    job_id: int,
+    reason: str,
+    blocked_until: Any,
+    http_status: int | None = None,
+) -> None:
+    await session.execute(
+        text(
+            """
+            UPDATE tc_comentario_units
+            SET
+              status = 'blocked',
+              block_reason = :reason,
+              blocked_until = :blocked_until,
+              http_status = :http_status,
+              leased_until = NULL,
+              updated_at = now()
+            WHERE id = :unit_id
+            """
+        ),
+        {
+            "unit_id": unit_id,
+            "reason": reason,
+            "blocked_until": blocked_until,
+            "http_status": http_status,
+        },
+    )
+    await refresh_comentario_job_status(session, job_id=job_id)
+
+
+async def mark_comentario_unit_failed(
+    session: AsyncSession,
+    *,
+    unit_id: int,
+    job_id: int,
+    error: str,
+    http_status: int | None = None,
+) -> None:
+    await session.execute(
+        text(
+            """
+            UPDATE tc_comentario_units
+            SET
+              status = 'failed',
+              last_error = :error,
+              http_status = :http_status,
+              leased_until = NULL,
+              updated_at = now()
+            WHERE id = :unit_id
+            """
+        ),
+        {"unit_id": unit_id, "error": error, "http_status": http_status},
+    )
+    await refresh_comentario_job_status(session, job_id=job_id)
+
+
+async def list_active_comentario_jobs(session: AsyncSession) -> list[CadernoJob]:
+    rows = (
+        await session.execute(
+            text(
+                """
+                SELECT id, external_id, expected_total, total_units, status
+                FROM tc_jobs
+                WHERE kind = 'comentarios'
+                  AND status IN ('pending', 'running', 'blocked')
+                  AND paused_by_user IS NOT TRUE
+                ORDER BY id
+                """
+            )
+        )
+    ).mappings().all()
+    return [
+        CadernoJob(
+            id=int(row["id"]),
+            caderno_id=int(row["external_id"]),
+            expected_total=row["expected_total"],
+            total_units=int(row["total_units"] or 0),
+            status=str(row["status"]),
+        )
+        for row in rows
+    ]
