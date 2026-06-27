@@ -21,7 +21,7 @@ import asyncio
 from typing import Annotated, Any
 
 import typer
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
 from app.auth import login_and_save_state
@@ -241,6 +241,39 @@ async def gabarito_endpoint(caderno_id: int, relogin: bool = False) -> dict[str,
     return await _with_tc_client(
         lambda c: fetch_gabarito(c, caderno_id), relogin=relogin
     )
+
+
+_TC_IMG_HOSTS = ("tecconcursos.com.br", "s3-sa-east-1.amazonaws.com")  # do contrato (Task 1)
+
+
+@api.get("/questao/{id_questao}/comentarios")
+async def comentarios_endpoint(
+    id_questao: int, quadro: str = "alunos", relogin: bool = False
+) -> dict[str, Any]:
+    from app.scrapers.tc_comentarios import fetch_comentarios
+    if quadro not in ("alunos", "professores"):
+        raise HTTPException(422, "quadro inválido")
+    return await _with_tc_client(
+        lambda c: fetch_comentarios(c, id_questao, quadro), relogin=relogin
+    )
+
+
+@api.get("/tc/imagem")
+async def tc_imagem_endpoint(u: str) -> Response:
+    """Baixa uma imagem do TC pela sessão autenticada (proxy p/ re-host no MinIO)."""
+    from urllib.parse import urlparse
+    host = (urlparse(u).hostname or "").lower()
+    if not any(host == h or host.endswith("." + h) for h in _TC_IMG_HOSTS):
+        raise HTTPException(400, "host de imagem não permitido")
+
+    async def _baixar(client: TcClient) -> Response:
+        r = await client._client.get(u, headers=client._build_headers(
+            "https://www.tecconcursos.com.br/", None))
+        client._check(r)
+        return Response(content=r.content,
+                        media_type=r.headers.get("content-type", "image/png"))
+
+    return await _with_tc_client(_baixar)
 
 
 @api.post("/guia/resolver")
