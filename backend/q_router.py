@@ -119,12 +119,22 @@ class SearchReq(CountReq):
     sort: list[str] | None = None
 
 
+def _meili_quote(v: str) -> str:
+    """Valor string para filtro Meili, com aspas e escapes corretos.
+
+    Nomes de assunto podem conter aspas duplas (ex.: `Vocábulo "Como"`). Sem
+    escapar `\\` e `"`, o filtro vira sintaxe inválida e o Meili responde 400 —
+    derrubando a query inteira (count/search/gerar caderno).
+    """
+    return '"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 def _to_meili_filter(filtros: dict[str, list]) -> str | None:
     parts: list[str] = []
     for k, vals in filtros.items():
         if not vals:
             continue
-        quoted = [f'"{v}"' if isinstance(v, str) else str(v) for v in vals]
+        quoted = [_meili_quote(v) if isinstance(v, str) else str(v) for v in vals]
         if k == "status_excluir":
             # ["ANULADA", ...] → status != "ANULADA" AND ...
             parts.append("(" + " AND ".join(f"status != {v}" for v in quoted) + ")")

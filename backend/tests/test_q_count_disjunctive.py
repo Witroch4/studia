@@ -4,7 +4,7 @@ do próprio grupo (mantendo tipo/status_excluir/favoritas/q globais).
 Testa a função pura `_build_count_queries` — sem Meili nem DB.
 """
 
-from q_router import FACET_GROUPS, MEILI_INDEX, _build_count_queries
+from q_router import FACET_GROUPS, MEILI_INDEX, _build_count_queries, _to_meili_filter
 
 
 def _grupo(queries, facets):
@@ -63,6 +63,22 @@ def test_grupo_orgao_cargo_omite_ambos():
     assert "orgao =" not in g["filter"]
     assert "cargo =" not in g["filter"]
     assert "ano = 2024" in g["filter"]  # outro grupo permanece
+
+
+def test_escapa_aspas_no_nome_do_assunto():
+    # Nomes como `Vocábulo "Como"` quebravam a query (Meili 400) por aspas não
+    # escapadas → todo o /count caía pra 0. Devem virar \" dentro da string.
+    f = _to_meili_filter({"assuntos": ['Vocábulo "Como"']})
+    assert f == '(assuntos = "Vocábulo \\"Como\\"")'
+
+
+def test_escapa_barra_invertida():
+    f = _to_meili_filter({"banca": ["A\\B"]})
+    assert f == '(banca = "A\\\\B")'
+
+
+def test_valor_sem_aspas_inalterado():
+    assert _to_meili_filter({"banca": ["CESGRANRIO"]}) == '(banca = "CESGRANRIO")'
 
 
 def test_favoritas_e_q_e_index_sao_globais_em_todas_as_queries():
