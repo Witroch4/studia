@@ -10,8 +10,9 @@ async def test_pace_so_quando_bate_no_tc(monkeypatch):
         return {"importados": 0 if quadro == "alunos" else 1,
                 "ja_importado": quadro == "alunos"}
     async def fake_sleep(s): sleeps.append(s)
-    # neutraliza o ledger (lease/mark) — testamos só a lógica de pacing/chamadas
+    # neutraliza o ledger (lease/mark/pausa) — testamos só a lógica de pacing/chamadas
     monkeypatch.setattr(m, "_lease", lambda **k: {"unit_id": 1, "job_id": 1})
+    monkeypatch.setattr(m, "_is_paused", lambda **k: False)
     monkeypatch.setattr(m, "_mark_done", lambda **k: None)
     monkeypatch.setattr(m, "_enqueue_next", lambda **k: None)
     res = await m._processar_unit_comentarios(

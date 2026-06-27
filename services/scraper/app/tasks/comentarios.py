@@ -20,10 +20,12 @@ from app.tasks.brokers.studia import broker_studia_default
 from app.tasks.enqueue import enqueue
 from app.tasks.ledger import (
     ensure_ledger_schema,
+    is_comentario_paused,
     lease_comentario_unit,
     list_enqueueable_comentario_units,
     mark_comentario_unit_done,
     mark_comentario_unit_failed,
+    release_comentario_unit_to_pending,
 )
 
 log = get_logger(__name__)
@@ -32,19 +34,28 @@ QUADROS = ("alunos", "professores")
 
 # ─── helpers de I/O (substituíveis em testes via monkeypatch) ─────────────────
 
-async def _post_import(questao_id: int, quadro: str) -> dict[str, Any]:
+async def _post_import(questao_id: int, quadro: str, *, _sleep: Any = asyncio.sleep) -> dict[str, Any]:
     s = get_settings()
     url = (
         f"{s.backend_url}/api/q/questoes/{questao_id}"
         f"/importar-comentarios-tc?quadro={quadro}"
     )
     headers = {"X-Internal-Token": s.studia_internal_token}
-    async with httpx.AsyncClient(
-        timeout=httpx.Timeout(connect=5, read=180, write=10, pool=185)
-    ) as c:
-        r = await c.post(url, headers=headers)
-        r.raise_for_status()
-        return r.json()
+    ultimo: Exception | None = None
+    for tentativa in range(3):  # 1 + 2 retries
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=5, read=180, write=10, pool=185)
+        ) as c:
+            r = await c.post(url, headers=headers)
+            if r.status_code < 500:
+                r.raise_for_status()  # 4xx → falha imediata
+                return r.json()
+            ultimo = httpx.HTTPStatusError(f"{r.status_code}", request=r.request, response=r)
+        if tentativa < 2:
+            r = _sleep(3.0)
+            if inspect.isawaitable(r):
+                await r
+    raise ultimo  # 5xx persistente após retries
 
 
 def _engine_session():
@@ -91,6 +102,24 @@ async def _mark_failed(*, unit_id: int, job_id: int, error: str) -> None:
             await mark_comentario_unit_failed(
                 s, unit_id=unit_id, job_id=job_id, error=error
             )
+    finally:
+        await eng.dispose()
+
+
+async def _is_paused(*, caderno_id: int) -> bool:
+    eng, S = _engine_session()
+    try:
+        async with S.begin() as s:
+            return await is_comentario_paused(s, caderno_id=caderno_id)
+    finally:
+        await eng.dispose()
+
+
+async def _release(*, unit_id: int) -> None:
+    eng, S = _engine_session()
+    try:
+        async with S.begin() as s:
+            await release_comentario_unit_to_pending(s, unit_id=unit_id)
     finally:
         await eng.dispose()
 
@@ -144,6 +173,10 @@ async def _processar_unit_comentarios(
     leased = await _call(_self._lease, caderno_id=caderno_id, questao_id=questao_id)
     if leased is None:
         return {"status": "skipped"}
+
+    if await _call(_self._is_paused, caderno_id=caderno_id):
+        await _call(_self._release, unit_id=leased["unit_id"])
+        return {"status": "paused"}  # solta a unit e NÃO encadeia
 
     s = get_settings()
     counts: dict[str, int] = {"alunos": 0, "professores": 0}
