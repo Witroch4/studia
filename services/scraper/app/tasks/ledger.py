@@ -71,6 +71,37 @@ ON tc_caderno_units (job_id, status, inicio);
 CREATE INDEX IF NOT EXISTS idx_tc_caderno_units_blocked_until
 ON tc_caderno_units (status, blocked_until);
 
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tc_jobs_active_comentarios
+ON tc_jobs (kind, external_id)
+WHERE kind = 'comentarios' AND status IN ('pending', 'running', 'blocked');
+
+CREATE TABLE IF NOT EXISTS tc_comentario_units (
+  id BIGSERIAL PRIMARY KEY,
+  job_id BIGINT NOT NULL REFERENCES tc_jobs(id) ON DELETE CASCADE,
+  caderno_id BIGINT NOT NULL,
+  questao_id BIGINT NOT NULL,
+  status TEXT NOT NULL,
+  task_id TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  coments_alunos INTEGER NOT NULL DEFAULT 0,
+  coments_professores INTEGER NOT NULL DEFAULT 0,
+  http_status INTEGER,
+  block_reason TEXT,
+  blocked_until TIMESTAMPTZ,
+  last_error TEXT,
+  leased_until TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at TIMESTAMPTZ,
+  UNIQUE (job_id, questao_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tc_comentario_units_job_status
+ON tc_comentario_units (job_id, status, questao_id);
+
+CREATE INDEX IF NOT EXISTS idx_tc_comentario_units_blocked_until
+ON tc_comentario_units (status, blocked_until);
+
 CREATE TABLE IF NOT EXISTS tc_image_assets (
   uuid TEXT PRIMARY KEY,
   source_url TEXT NOT NULL,
