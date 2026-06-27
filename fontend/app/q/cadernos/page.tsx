@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, apiJson } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
 import { qk } from "@/lib/queryKeys";
 
 /**
@@ -83,7 +84,19 @@ function CadernosView({ pasta }: { pasta: string }) {
   const queryClient = useQueryClient();
   const [desempenho, setDesempenho] = useState<Record<number, Desempenho | "loading">>({});
   const [importando, setImportando] = useState<Record<number, boolean>>({});
+  const [coletandoComents, setColetandoComents] = useState<Record<number, boolean>>({});
   const [editando, setEditando] = useState<{ id: number; nome: string } | null>(null);
+  const [ehAdmin, setEhAdmin] = useState(false);
+
+  useEffect(() => {
+    authClient
+      .getSession()
+      .then((res) => {
+        const role = (res?.data?.user as { role?: string } | undefined)?.role;
+        setEhAdmin(role === "admin");
+      })
+      .catch(() => {});
+  }, []);
 
   const { data: cadernos, isPending } = useQuery({
     queryKey: qk.cadernos(pasta),
@@ -130,10 +143,29 @@ function CadernosView({ pasta }: { pasta: string }) {
     }
   }
 
+  async function importarComentarios(id: number) {
+    setColetandoComents((s) => ({ ...s, [id]: true }));
+    try {
+      const r = await apiFetch(`/api/q/cadernos/${id}/importar-comentarios-tc`, {
+        method: "POST",
+      });
+      if (!r.ok) {
+        const erro = await r.json().catch(() => ({}));
+        throw new Error((erro as { detail?: string }).detail || `falha ${r.status}`);
+      }
+      window.alert("Coleta iniciada em background. Acompanhe em Coletar.");
+    } catch (e) {
+      console.error(e);
+      window.alert(`Não foi possível iniciar coleta: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setColetandoComents((s) => ({ ...s, [id]: false }));
+    }
+  }
+
   async function importarDoTec(id: number) {
-    // Pede o ID/URL do caderno no TEC; vazio = usa o vínculo já salvo no caderno.
+    // Pede o ID/URL do caderno; vazio = usa o vínculo já salvo no caderno.
     const entrada = window.prompt(
-      "Importar seu desempenho do TecConcursos.\n\nCole a URL ou o ID do caderno no TEC (deixe vazio se já estiver vinculado):",
+      "Importar seu desempenho.\n\nCole a URL ou o ID do caderno (deixe vazio se já estiver vinculado):",
       "",
     );
     if (entrada === null) return; // cancelou
@@ -157,10 +189,10 @@ function CadernosView({ pasta }: { pasta: string }) {
         [id]: { resolvidas: res.importadas + res.ja_tinha, acertos: res.acertos, erros: res.erros },
       }));
       window.alert(
-        `Importado do TEC:\n` +
+        `Desempenho importado:\n` +
           `• ${res.importadas} resolvidas novas (${res.acertos} acertos, ${res.erros} erros)\n` +
           `• ${res.ja_tinha} já estavam no studIA\n` +
-          `• ${res.nao_resolvidas_no_tec} ainda não resolvidas no TEC\n` +
+          `• ${res.nao_resolvidas_no_tec} ainda não resolvidas\n` +
           (res.nao_mapeadas
             ? `• ${res.nao_mapeadas} questões não encontradas no studIA (caderno coletado parcialmente)`
             : ""),
@@ -250,11 +282,21 @@ function CadernosView({ pasta }: { pasta: string }) {
               <button
                 onClick={() => importarDoTec(c.id)}
                 disabled={importando[c.id]}
-                title="Importar acertos/erros da aba Gabarito do TecConcursos"
+                title="Importar acertos/erros do desempenho"
                 className="text-fg-faint hover:text-primary disabled:opacity-50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition whitespace-nowrap"
               >
-                {importando[c.id] ? "importando…" : "↓ TEC"}
+                {importando[c.id] ? "importando…" : "↓ Desempenho"}
               </button>
+              {ehAdmin && (
+                <button
+                  onClick={() => importarComentarios(c.id)}
+                  disabled={coletandoComents[c.id]}
+                  title="Importar comentários"
+                  className="text-fg-faint hover:text-primary disabled:opacity-50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition whitespace-nowrap"
+                >
+                  {coletandoComents[c.id] ? "coletando…" : "💬 Importar"}
+                </button>
+              )}
             </div>
           </div>
         );

@@ -63,6 +63,28 @@ interface ColetarJobsResponse {
   jobs: JobAtivo[];
 }
 
+interface ComentarioJob {
+  job_id: number;
+  caderno_id: number;
+  caderno_nome: string | null;
+  status: string;
+  paused: boolean;
+  total_units: number;
+  done_units: number;
+  pending_units: number;
+  queued_units: number;
+  running_units: number;
+  failed_units: number;
+  questoes_ok_done: number;
+  expected_total: number;
+  pct_units_done: number;
+  updated_at: string;
+}
+
+interface ComentarioJobsResponse {
+  jobs: ComentarioJob[];
+}
+
 function statusTexto(status: string): string {
   switch (status) {
     case "blocked":
@@ -172,6 +194,37 @@ export default function ColetarPage() {
 
   const jobs: JobAtivo[] = jobsData?.jobs ?? [];
 
+  // Polling dos jobs de comentários — refetch enquanto houver algum ativo.
+  const {
+    data: comentarioJobsData,
+    isPending: carregandoComentarioJobs,
+    refetch: refetchComentarioJobs,
+  } = useQuery<ComentarioJobsResponse>({
+    queryKey: qk.comentarioJobs(),
+    queryFn: async () => {
+      const r = await apiFetch("/api/q/coletar/comentario-jobs", { cache: "no-store" });
+      const text = await r.text();
+      let data: ComentarioJobsResponse = { jobs: [] };
+      try {
+        data = text ? JSON.parse(text) : { jobs: [] };
+      } catch {
+        throw new Error(`HTTP ${r.status}: resposta nao-JSON`);
+      }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return data;
+    },
+    enabled: isAdmin === true,
+    refetchInterval: (q) => {
+      const cjobs = q.state.data?.jobs ?? [];
+      const hasActive = cjobs.some(
+        (j) => j.status === "running" || j.status === "queued" || j.pending_units > 0 || j.running_units > 0
+      );
+      return hasActive ? 15000 : false;
+    },
+  });
+
+  const comentarioJobs: ComentarioJob[] = comentarioJobsData?.jobs ?? [];
+
   async function recoletarCaderno(job: JobAtivo) {
     if (
       !confirm(
@@ -220,7 +273,7 @@ export default function ColetarPage() {
     }
   }
 
-  async function alternarPausa(job: JobAtivo) {
+  async function alternarPausa(job: Pick<JobAtivo, "job_id" | "paused">) {
     setPausando(job.job_id);
     const acao = job.paused ? "retomar" : "pausar";
     try {
@@ -548,6 +601,124 @@ export default function ColetarPage() {
                       <div className="mb-1 flex items-center justify-between text-xs text-fg-muted">
                         <span>Progresso por questoes</span>
                         <span>{job.pct_questions_done.toFixed(2)}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
+                        <div
+                          className="h-full bg-cyan-500 transition-all"
+                          style={{ width: `${progresso}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-fg-muted">
+                      <span>Pending: {job.pending_units}</span>
+                      <span>Queued: {job.queued_units}</span>
+                      <span>Running: {job.running_units}</span>
+                      <span>Ultima atualizacao: {formatarMomento(job.updated_at)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Seção: Coleta de comentários */}
+        <section className="border border-border rounded-lg bg-page/70 p-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-fg-strong">
+                Coleta de comentários
+              </h2>
+              <p className="text-xs text-fg-faint mt-1">
+                Jobs de importação de comentários iniciados pela página Minhas Pastas. Atualiza automaticamente enquanto há jobs ativos.
+              </p>
+            </div>
+            <button
+              onClick={() => void refetchComentarioJobs()}
+              disabled={carregandoComentarioJobs}
+              className="text-xs bg-surface-2 hover:bg-fg-strong/6 disabled:opacity-60 px-3 py-2 rounded"
+            >
+              {carregandoComentarioJobs ? "Atualizando..." : "Atualizar"}
+            </button>
+          </div>
+
+          {comentarioJobs.length === 0 && !carregandoComentarioJobs && (
+            <div className="text-sm text-fg-muted">
+              Nenhum job de comentários ativo no momento.
+            </div>
+          )}
+
+          {comentarioJobs.length > 0 && (
+            <div className="space-y-3">
+              {comentarioJobs.map((job) => {
+                const progresso = Math.max(0, Math.min(100, job.pct_units_done));
+                return (
+                  <div
+                    key={job.job_id}
+                    className="rounded-lg border border-border bg-black/20 p-4"
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-fg-strong">
+                          {job.caderno_nome ? (
+                            <span className="text-primary">{job.caderno_nome}</span>
+                          ) : (
+                            <>Caderno #{job.caderno_id}</>
+                          )}
+                          <span className="ml-2 text-primary">Job #{job.job_id}</span>
+                        </div>
+                        {job.caderno_nome && (
+                          <div className="text-[11px] text-fg-faint">Caderno #{job.caderno_id}</div>
+                        )}
+                        <div className="mt-1 text-xs text-fg-muted">
+                          Status: {statusTexto(job.status)}
+                          {job.paused && (
+                            <span className="ml-1.5 inline-flex items-center gap-1 rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase text-warning">
+                              <span className="material-symbols-outlined text-[12px]">pause</span> Pausado
+                            </span>
+                          )}
+                          {" · "}{job.questoes_ok_done.toLocaleString("pt-BR")} / {job.expected_total.toLocaleString("pt-BR")} questões · {job.done_units}/{job.total_units} faixas
+                        </div>
+                        {job.status !== "done" && (
+                          <div className="mt-2">
+                            <button
+                              onClick={() => alternarPausa(job)}
+                              disabled={pausando === job.job_id}
+                              className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
+                                job.paused
+                                  ? "border border-success/40 bg-success/15 text-success hover:bg-success/20"
+                                  : "border border-border bg-surface-2 text-fg hover:bg-fg-strong/6"
+                              }`}
+                            >
+                              <span className={`material-symbols-outlined text-[14px] ${pausando === job.job_id ? "animate-spin" : ""}`}>
+                                {pausando === job.job_id ? "progress_activity" : job.paused ? "play_arrow" : "pause"}
+                              </span>
+                              {job.paused ? "Retomar" : "Pausar"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs md:min-w-45">
+                        <div className="rounded bg-page px-3 py-2">
+                          <div className="text-lg font-semibold text-success">{job.done_units}</div>
+                          <div className="text-fg-faint">Done</div>
+                        </div>
+                        <div className="rounded bg-page px-3 py-2">
+                          <div className="text-lg font-semibold text-warning">{job.running_units + job.queued_units}</div>
+                          <div className="text-fg-faint">Fila/Run</div>
+                        </div>
+                        <div className="rounded bg-page px-3 py-2">
+                          <div className="text-lg font-semibold text-error">{job.failed_units}</div>
+                          <div className="text-fg-faint">Falhas</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="mb-1 flex items-center justify-between text-xs text-fg-muted">
+                        <span>Progresso por faixas</span>
+                        <span>{job.pct_units_done.toFixed(2)}%</span>
                       </div>
                       <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
                         <div
