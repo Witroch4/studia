@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any, Literal
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import Integer, bindparam, func, select, text
@@ -206,6 +206,26 @@ async def _meili_search(payload: dict[str, Any]) -> dict[str, Any]:
         )
         r.raise_for_status()
         return r.json()
+
+
+# ─── Dependência de auth: sessão OU token de serviço ─────
+
+
+async def require_user_or_service(
+    request: Request,
+    user: CurrentUser | None = Depends(get_current_user_opt),
+) -> CurrentUser | None:
+    """Autoriza se houver sessão válida OU header X-Internal-Token correto.
+
+    Permite que o worker do scraper (Fase 2) chame endpoints de importação sem
+    sessão de usuário. Um token vazio/não configurado NUNCA autoriza.
+    """
+    if user is not None:
+        return user
+    tok = os.getenv("STUDIA_INTERNAL_TOKEN") or ""
+    if tok and request.headers.get("X-Internal-Token") == tok:
+        return None  # chamada de serviço autorizada
+    raise HTTPException(status.HTTP_401_UNAUTHORIZED, "não autenticado")
 
 
 # ─── Endpoints ───────────────────────────────────────────
@@ -2013,7 +2033,7 @@ async def listar_forum(
 async def importar_comentarios_tc(
     questao_id: int,
     quadro: Literal["alunos", "professores"] = "alunos",
-    user: CurrentUser = Depends(require_user),
+    user: CurrentUser | None = Depends(require_user_or_service),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Importa (sob demanda) os comentários do TC para (questão, quadro).
