@@ -167,6 +167,21 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const minhasResolucoes = minhasResData?.resolucoes ?? {};
   const resolvidasSet = new Set<number>(Object.keys(minhasResolucoes).map(Number));
 
+  // ─── Status por questão (p/ excluir anuladas do sorteio "sem anuladas") ───
+  const { data: gabaritoData } = useQuery<{
+    items: { questao_id: number; status: string | null }[];
+  }>({
+    queryKey: qk.cadernoSub(id, "gabarito"),
+    queryFn: () => apiJson(`/api/q/cadernos/${id}/gabarito`),
+    enabled: !!caderno,
+    staleTime: 10 * 60 * 1000,
+  });
+  const anuladasSet = new Set<number>(
+    (gabaritoData?.items ?? [])
+      .filter((it) => it.status === "ANULADA")
+      .map((it) => it.questao_id),
+  );
+
   const currentQid = caderno?.question_ids[idx];
   const fav = currentQid ? favIds.has(currentQid) : false;
 
@@ -357,6 +372,20 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       return;
     }
     const escolha = naoResolvidas[Math.floor(Math.random() * naoResolvidas.length)];
+    void mudarIndice(escolha.i);
+  }
+
+  function aleatoriaSemAnuladas() {
+    if (!caderno) return;
+    // Sorteia entre as NÃO respondidas E NÃO anuladas (anulada não é respondível).
+    const candidatas = caderno.question_ids
+      .map((qid, i) => ({ qid, i }))
+      .filter(({ qid }) => !resolvidasSet.has(qid) && !anuladasSet.has(qid));
+    if (candidatas.length === 0) {
+      toast.info("Nenhuma questão não respondida (fora as anuladas) neste caderno.");
+      return;
+    }
+    const escolha = candidatas[Math.floor(Math.random() * candidatas.length)];
     void mudarIndice(escolha.i);
   }
 
@@ -757,6 +786,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               <NavBtn icon="←" title="Anterior (←)" onClick={() => avancar(-1)} disabled={idx === 0} />
               <NavBtn icon="→" title="Próxima (→)" onClick={() => avancar(1)} disabled={idx === caderno.total - 1} />
               <NavBtn icon="🔀" title="Aleatória não resolvida (L)" onClick={aleatoria} />
+              <NavBtn icon="🎲" title="Aleatória não respondida, sem anuladas" onClick={aleatoriaSemAnuladas} />
               <NavBtn icon="→⊟" title="Próxima não resolvida (N)" onClick={proximaNaoResolvida} />
               <NavBtn icon="◀" title="Tópico anterior (Z)" onClick={() => avancar(-1)} />
               <NavBtn icon="▶" title="Tópico seguinte (X)" onClick={() => avancar(1)} />
