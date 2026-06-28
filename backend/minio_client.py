@@ -42,6 +42,16 @@ def upload_bytes(object_name: str, data: bytes, content_type: str) -> str:
 
 
 def download_pdf(object_name: str) -> bytes:
+    return download_bytes(object_name)
+
+
+def download_bytes(object_name: str) -> bytes:
+    """Baixa os bytes de um objeto do bucket. Levanta se não existir.
+
+    Usado para servir imagens do fórum PELO backend (stream), em vez de
+    redirecionar o navegador para a URL presigned do MinIO — cujo host
+    (`minio:9000`) só resolve dentro da rede dos containers.
+    """
     client = get_minio_client()
     response = client.get_object(BUCKET_NAME, object_name)
     try:
