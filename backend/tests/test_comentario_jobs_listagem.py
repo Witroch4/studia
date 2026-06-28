@@ -21,6 +21,7 @@ async def test_lista_jobs_comentarios(db_session, client):
           blocked_units INTEGER NOT NULL DEFAULT 0,
           paused_by_user BOOLEAN NOT NULL DEFAULT FALSE,
           params JSONB,
+          created_at TIMESTAMPTZ DEFAULT now(),
           updated_at TIMESTAMPTZ
         )
         """
@@ -34,7 +35,8 @@ async def test_lista_jobs_comentarios(db_session, client):
           questao_id BIGINT NOT NULL,
           status TEXT NOT NULL,
           coments_alunos INTEGER NOT NULL DEFAULT 0,
-          coments_professores INTEGER NOT NULL DEFAULT 0
+          coments_professores INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMPTZ DEFAULT now()
         )
         """
     ))
@@ -75,6 +77,7 @@ async def test_lista_jobs_comentarios_sem_jobs(db_session, client):
           blocked_units INTEGER NOT NULL DEFAULT 0,
           paused_by_user BOOLEAN NOT NULL DEFAULT FALSE,
           params JSONB,
+          created_at TIMESTAMPTZ DEFAULT now(),
           updated_at TIMESTAMPTZ
         )
         """
@@ -88,7 +91,8 @@ async def test_lista_jobs_comentarios_sem_jobs(db_session, client):
           questao_id BIGINT NOT NULL,
           status TEXT NOT NULL,
           coments_alunos INTEGER NOT NULL DEFAULT 0,
-          coments_professores INTEGER NOT NULL DEFAULT 0
+          coments_professores INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMPTZ DEFAULT now()
         )
         """
     ))
@@ -116,6 +120,7 @@ async def test_lista_jobs_comentarios_pct_total_zero(db_session, client):
           blocked_units INTEGER NOT NULL DEFAULT 0,
           paused_by_user BOOLEAN NOT NULL DEFAULT FALSE,
           params JSONB,
+          created_at TIMESTAMPTZ DEFAULT now(),
           updated_at TIMESTAMPTZ
         )
         """
@@ -129,7 +134,8 @@ async def test_lista_jobs_comentarios_pct_total_zero(db_session, client):
           questao_id BIGINT NOT NULL,
           status TEXT NOT NULL,
           coments_alunos INTEGER NOT NULL DEFAULT 0,
-          coments_professores INTEGER NOT NULL DEFAULT 0
+          coments_professores INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMPTZ DEFAULT now()
         )
         """
     ))
