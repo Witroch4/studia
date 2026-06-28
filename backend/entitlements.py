@@ -90,6 +90,27 @@ async def contagem_questoes_hoje(db: AsyncSession, uid: str) -> int:
     ).scalar_one()
 
 
+META_DIARIA_PRO = 15  # questões/dia que disparam a celebração de meta (só conta ilimitada)
+
+
+async def meta_diaria_status(db: AsyncSession, user, *, era_nova: bool) -> dict:
+    """Status da meta diária p/ a celebração no front.
+
+    `batida_agora` só é True quando: a conta é ilimitada (admin OU PRO ativo),
+    ESTA resposta criou uma resolução nova (`era_nova`) e o total de questões
+    DISTINTAS de hoje bateu exatamente META_DIARIA_PRO — i.e. a transição
+    14→15. Dispara uma única vez por dia; recarregar/repetir não re-dispara
+    (o caminho idempotente passa era_nova=False) e o grátis nunca chega lá.
+    """
+    total = await contagem_questoes_hoje(db, user.id)
+    ilimitado = user.is_admin or await acesso_pro_ativo(db, user.id)
+    return {
+        "meta": META_DIARIA_PRO,
+        "total": total,
+        "batida_agora": era_nova and ilimitado and total == META_DIARIA_PRO,
+    }
+
+
 async def _questao_ja_contada_hoje(db: AsyncSession, uid: str, questao_id: int) -> bool:
     inicio = inicio_do_dia_utc_naive()
     achou = (
