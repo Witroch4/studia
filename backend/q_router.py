@@ -991,6 +991,9 @@ class GerarCadernoReq(BaseModel):
     favoritas: bool = False
     limite: int = Field(default=500, ge=1, le=30000)
     ordem: str = Field(default="aleatoria", description="aleatoria | id | ano")
+    # IDs studIA explícitos: se vier, pula o Meili e usa direto (ex.: caderno de
+    # 1 questão a partir da busca por ID). Tem precedência sobre filtros/q.
+    question_ids: list[int] | None = None
 
 
 @router.post("/cadernos")
@@ -1005,6 +1008,24 @@ async def gerar_caderno(
     histórico do caderno fica estável mesmo se novas questões forem adicionadas.
     O caderno é pessoal: gravamos `owner_uid = user.id` (entra em "Minhas Pastas").
     """
+    # 0. IDs explícitos (ex.: caderno de 1 questão pela busca por ID) — pula o Meili.
+    if req.question_ids:
+        ids_validos = (await db.execute(
+            select(Questao.id).where(Questao.id.in_(req.question_ids))
+        )).scalars().all()
+        ids = [qid for qid in req.question_ids if qid in set(ids_validos)]
+        if not ids:
+            raise HTTPException(400, "Nenhuma questão válida nos IDs informados.")
+        caderno = CadernoQuestoes(
+            owner_uid=user.id, nome=req.nome.strip() or "Caderno de Estudo",
+            pasta=req.pasta, filtros=req.filtros, question_ids=ids, total=len(ids),
+        )
+        db.add(caderno)
+        await db.commit()
+        await db.refresh(caderno)
+        return {"id": caderno.id, "nome": caderno.nome, "total": caderno.total,
+                "primeira_questao_id": ids[0], "redirect": f"/q/caderno/{caderno.id}"}
+
     # 1. Busca IDs via Meili
     payload = {
         "q": req.q,
@@ -1053,6 +1074,45 @@ async def gerar_caderno(
         "total": caderno.total,
         "primeira_questao_id": ids[0] if ids else None,
         "redirect": f"/q/caderno/{caderno.id}",
+    }
+
+
+@router.get("/questoes/buscar-externo/{id_externo}")
+async def buscar_questao_externo(
+    id_externo: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Busca uma questão pelo `id_externo` (ID do TC) + cadernos do usuário que a contêm."""
+    row = (await db.execute(
+        select(
+            Questao.id, Questao.id_externo, Questao.status, Questao.gabarito, Questao.tipo,
+            Banca.sigla.label("banca"), Materia.nome.label("materia"),
+            func.substring(Questao.enunciado_md, 1, 240).label("preview"),
+        )
+        .outerjoin(Banca, Banca.id == Questao.banca_id)
+        .outerjoin(Materia, Materia.id == Questao.materia_id)
+        .where(Questao.id_externo == id_externo)
+    )).mappings().first()
+    if row is None:
+        return {"found": False}
+    qid = row["id"]
+    cad_rows = (await db.execute(text(
+        """
+        SELECT id, nome, pasta FROM cadernos_questoes
+        WHERE owner_uid = :uid
+          AND cast(question_ids as jsonb) @> to_jsonb(cast(:qid as integer))
+        ORDER BY created_at DESC
+        """
+    ), {"uid": user.id, "qid": qid})).mappings().all()
+    return {
+        "found": True,
+        "questao": {
+            "id": qid, "id_externo": row["id_externo"], "status": row["status"],
+            "gabarito": row["gabarito"], "tipo": row["tipo"], "banca": row["banca"],
+            "materia": row["materia"], "preview": (row["preview"] or "").strip(),
+        },
+        "cadernos": [{"id": c["id"], "nome": c["nome"], "pasta": c["pasta"]} for c in cad_rows],
     }
 
 

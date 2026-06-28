@@ -57,12 +57,23 @@ interface CountResp {
 
 interface CadernoPayload {
   nome: string;
-  pasta: string | null;
-  filtros: Record<string, Array<string | number>>;
-  q: string;
-  favoritas: boolean;
-  limite: number;
-  ordem: string;
+  pasta?: string | null;
+  filtros?: Record<string, Array<string | number>>;
+  q?: string;
+  favoritas?: boolean;
+  limite?: number;
+  ordem?: string;
+  question_ids?: number[];
+}
+
+interface QuestaoExterna {
+  found: boolean;
+  questao?: {
+    id: number; id_externo: number; status: string | null;
+    gabarito: string | null; tipo: string | null;
+    banca: string | null; materia: string | null; preview: string;
+  };
+  cadernos?: { id: number; nome: string; pasta: string | null }[];
 }
 
 interface CadernoResp {
@@ -205,6 +216,22 @@ export default function FiltrarPage() {
       limite: Math.min(Math.max(contagem.total, 1), 30000),
       ordem: "aleatoria",
     });
+  }
+
+  // ── Busca por ID (id_externo do TC): se digitar só números em Matéria/assunto ─
+  const buscaId =
+    categoria === "Matéria e assunto" && /^\d{3,}$/.test(busca.trim())
+      ? busca.trim()
+      : null;
+  const { data: porId, isFetching: buscandoId } = useQuery<QuestaoExterna>({
+    queryKey: ["q", "buscar-externo", buscaId],
+    enabled: !!buscaId,
+    queryFn: () => apiJson<QuestaoExterna>(`/api/q/questoes/buscar-externo/${buscaId}`),
+  });
+
+  function gerarDaQuestao(qid: number, idExterno: number) {
+    setErroGerar(null);
+    gerarMutation.mutate({ nome: `Questão #${idExterno}`, question_ids: [qid] });
   }
 
   // ── Handlers de filtro (preservados) ─────────────────────────────────────
@@ -353,14 +380,60 @@ export default function FiltrarPage() {
           {(categoria === "Matéria e assunto" || gruposDaCategoria) && (
             <input
               type="text"
-              placeholder="Pesquisar por nome…"
+              placeholder="Pesquisar por nome ou ID da questão…"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               className="w-full mb-3 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-primary"
             />
           )}
 
-          {categoria === "Matéria e assunto" && (
+          {buscaId && (
+            <div className="mb-3 rounded-lg border border-border bg-surface-2/40 p-4 text-sm">
+              {buscandoId && <p className="text-fg-faint">Buscando questão #{buscaId}…</p>}
+              {!buscandoId && porId && porId.found === false && (
+                <p className="text-fg-faint">Nenhuma questão com o ID <b>#{buscaId}</b>.</p>
+              )}
+              {!buscandoId && porId?.found && porId.questao && (
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-fg">Questão #{porId.questao.id_externo}</span>
+                    {porId.questao.status === "ANULADA" && (
+                      <span className="px-2 py-0.5 bg-warning/15 text-warning rounded text-[10px] font-semibold border border-warning/40">ANULADA</span>
+                    )}
+                    {porId.questao.status === "DESATUALIZADA" && (
+                      <span className="px-2 py-0.5 bg-warning/10 text-warning rounded text-[10px] font-semibold border border-warning/30">DESATUALIZADA</span>
+                    )}
+                    <span className="text-xs text-fg-faint">
+                      {[porId.questao.banca, porId.questao.materia, porId.questao.tipo].filter(Boolean).join(" · ")}
+                      {porId.questao.gabarito && !porId.questao.gabarito.includes("ANULADA") ? ` · gab. ${porId.questao.gabarito}` : ""}
+                    </span>
+                  </div>
+                  {porId.questao.preview && (
+                    <p className="mt-2 text-fg-muted line-clamp-3">{porId.questao.preview}</p>
+                  )}
+                  <div className="mt-3 flex items-center gap-2 flex-wrap">
+                    {porId.cadernos && porId.cadernos.length > 0 ? (
+                      porId.cadernos.map((c) => (
+                        <Link key={c.id} href={`/q/caderno/${c.id}`}
+                          className="px-3 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 text-xs">
+                          Abrir em “{c.nome}”
+                        </Link>
+                      ))
+                    ) : (
+                      <button
+                        onClick={() => gerarDaQuestao(porId.questao!.id, porId.questao!.id_externo)}
+                        disabled={gerando}
+                        className="px-3 py-1 rounded bg-primary text-on-primary hover:bg-primary/90 disabled:opacity-50 text-xs">
+                        {gerando ? "Gerando…" : "Gerar caderno com esta questão"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {categoria === "Matéria e assunto" && !buscaId && (
             arvoreLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 8 }).map((_, i) => (
