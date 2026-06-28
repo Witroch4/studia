@@ -14,7 +14,8 @@ from typing import Any, Literal
 
 import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
-from fastapi.responses import RedirectResponse
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import Integer, bindparam, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
@@ -48,7 +49,7 @@ from models import (
 
 import re as _re
 import uuid as _uuid
-from minio_client import upload_bytes, get_presigned_url
+from minio_client import upload_bytes, download_bytes
 
 router = APIRouter(prefix="/api/q", tags=["questoes"])
 
@@ -1365,6 +1366,25 @@ async def responder(
     if not q:
         raise HTTPException(404, "questao não encontrada")
 
+    # Questão ANULADA não pode ser respondida (igual ao TC): não grava Resolucao,
+    # não consome o limite diário e não pontua. Retorna early antes da idempotência
+    # e do gate de limite. Trava prospectiva — resoluções antigas ficam no histórico.
+    anulada = (q.status == "ANULADA") or ("ANULADA" in (q.gabarito or "").upper())
+    if anulada:
+        total = (await db.execute(select(func.count()).where(
+            Resolucao.questao_id == questao_id, Resolucao.usuario_uid == user.id))).scalar_one()
+        acertos = (await db.execute(select(func.count()).where(
+            Resolucao.questao_id == questao_id, Resolucao.usuario_uid == user.id,
+            Resolucao.acertou == True))).scalar_one()  # noqa: E712
+        return {
+            "anulada": True,
+            "acertou": None,
+            "gabarito": q.gabarito,
+            "stats": {"resolvidas": total, "acertos": acertos, "erros": total - acertos},
+            "limite": await resumo_limite(db, user),
+            "meta_diaria": await meta_diaria_status(db, user, era_nova=False),
+        }
+
     # Idempotência: uma questão já resolvida pelo usuário NESTE caderno não pode
     # ser respondida de novo. Sem isso, voltar à questão (ou cliques-fantasma)
     # gravava Resolucao duplicada — inflando estatísticas e burlando o limite.
@@ -1407,9 +1427,8 @@ async def responder(
     resp = req.resposta.strip().upper()
     gab = (q.gabarito or "").strip().upper()
     corretas = {(a.letra or "").strip().upper() for a in q.alternativas if a.correta is True}
-    if "ANULADA" in gab:
-        acertou = True  # questão anulada — todo mundo acerta (convenção TC)
-    elif corretas:
+    # (Anuladas já retornaram early acima — nunca chegam aqui.)
+    if corretas:
         acertou = resp in corretas
     else:
         alt_sel = next((a for a in q.alternativas if (a.letra or "").strip().upper() == resp), None)
@@ -2578,6 +2597,10 @@ _FORUM_IMG_TIPOS = {
 }
 _FORUM_IMG_MAX = 5 * 1024 * 1024  # 5 MB
 _FORUM_KEY_RE = _re.compile(r"^forum/[0-9a-f-]{36}\.(png|jpg|webp|gif)$")
+_CT_POR_EXT = {
+    "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+    "webp": "image/webp", "gif": "image/gif",
+}
 
 
 @router.post("/forum/upload")
@@ -2597,10 +2620,26 @@ async def upload_imagem_forum(
 
 
 @router.get("/forum/imagem/{key:path}")
-async def imagem_forum(key: str) -> RedirectResponse:
+async def imagem_forum(key: str) -> Response:
+    """Serve a imagem do fórum PELO backend (stream dos bytes do MinIO).
+
+    NÃO redirecionar para a URL presigned: o host do MinIO (`minio:9000`) só
+    resolve dentro da rede dos containers, então o navegador não a alcança e a
+    imagem fica quebrada (comentário só-imagem aparece em branco). As keys são
+    UUID imutável → cache agressivo é seguro.
+    """
     if not _FORUM_KEY_RE.match(key):
         raise HTTPException(404, "imagem não encontrada")
-    return RedirectResponse(get_presigned_url(key), status_code=302)
+    try:
+        data = await run_in_threadpool(download_bytes, key)
+    except Exception as exc:  # objeto ausente / MinIO indisponível
+        raise HTTPException(404, "imagem não encontrada") from exc
+    ext = key.rsplit(".", 1)[-1].lower()
+    return Response(
+        content=data,
+        media_type=_CT_POR_EXT.get(ext, "image/png"),
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 # ─── Admin: gestão de roles de usuários ───────────────────────────────────
