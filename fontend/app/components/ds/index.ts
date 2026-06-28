@@ -4,6 +4,12 @@
 export { Icon } from "./Icon";
 export type { IconProps } from "./Icon";
 
+export { Skeleton } from "./Skeleton";
+export type { SkeletonProps } from "./Skeleton";
+
+export { BrandLoader } from "./BrandLoader";
+export type { BrandLoaderProps } from "./BrandLoader";
+
 export { Button } from "./Button";
 export type { ButtonProps, ButtonVariant, ButtonSize } from "./Button";
 

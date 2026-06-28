@@ -45,6 +45,29 @@ worktree), **mantendo o checkout principal sempre na `main`** — e depois faça
 Jamais alternar a branch do checkout principal por conta própria. Voltar PARA a
 `main` (corrigir um desvio) é permitido; sair dela, não.
 
+## DADOS NÃO PODEM PULAR NA TELA (regra rígida de UI)
+
+Nenhum dado pode aparecer "do nada" empurrando o layout. Todo carregamento
+assíncrono **DEVE reservar o espaço final antes** do conteúdo chegar. O usuário
+nunca vê vazio→conteúdo nem um número que pisca `(0)`→`(2)`.
+
+1. **React Query v5 é obrigatório** (`@tanstack/react-query`) para todo data
+   fetching. **NUNCA** `fetch` cru dentro de `useEffect`. Sempre tratar
+   `isPending` / `isError`.
+2. **Carga de banco (rápida)** → renderize **`<Skeleton>`** (`components/ds/`)
+   no formato do conteúdo final (mesma altura/linhas), nunca um espaço vazio que
+   depois preenche.
+3. **Operação lenta/incerta** (import sob demanda que vai à fonte externa via
+   scraper, etc.) → use **`<BrandLoader>`** (logo studIA + 3 pontinhos em SVG),
+   não um spinner simples nem texto solto. Sinaliza que a espera é esperada.
+4. **Nunca** mostrar estado-vazio ("Seja o primeiro…", "Nenhum resultado") nem o
+   contador final **enquanto** um carregamento/efeito que trará dados está
+   pendente — é o que causa o flash. Gate em `!importando`/`!isPending`.
+5. Conteúdo já disponível renderiza **estável**; o que chega depois entra **no
+   lugar do loader/skeleton**, sem deslocar o que já estava na tela.
+
+Referência viva: `ForumPanel.tsx` (fórum lazy do TC) e `components/ds/{Skeleton,BrandLoader}.tsx`.
+
 ## Quick Start
 
 ```bash
