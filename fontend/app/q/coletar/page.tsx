@@ -78,6 +78,19 @@ interface ComentarioJob {
   coments_total: number;
   pct_units_done: number;
   updated_at: string;
+  created_at: string | null;
+  questao_atual: number | null;
+}
+
+interface ComentarioEvento {
+  questao_id: number;
+  id_externo: number | null;
+  status: string;
+  coments_alunos: number;
+  coments_professores: number;
+  block_reason: string | null;
+  last_error: string | null;
+  updated_at: string | null;
 }
 
 interface ComentarioJobsResponse {
@@ -134,6 +147,205 @@ function statusDescricao(resultado: Resultado): string {
   return "A primeira faixa foi enviada. As próximas faixas são liberadas automaticamente conforme cada unidade termina.";
 }
 
+function useComentarioEventos(jobId: number | null, ativo: boolean) {
+  return useQuery({
+    queryKey: ["q", "comentario-eventos", jobId],
+    enabled: jobId != null,
+    refetchInterval: ativo ? 15000 : false,
+    queryFn: async () => {
+      const r = await apiFetch(`/api/q/coletar/comentario-jobs/${jobId}/eventos?limit=15`, { cache: "no-store" });
+      if (!r.ok) throw new Error("falha");
+      return (await r.json()).eventos as ComentarioEvento[];
+    },
+  });
+}
+
+function ritmoEta(job: ComentarioJob): string {
+  if (!job.created_at || job.done_units <= 0) return "—";
+  const min = (Date.now() - new Date(job.created_at).getTime()) / 60000;
+  if (min <= 0) return "—";
+  const qpm = job.done_units / min;
+  if (qpm <= 0) return "—";
+  const restantes = Math.max(0, job.total_units - job.done_units);
+  const etaMin = restantes / qpm;
+  const h = Math.floor(etaMin / 60), mm = Math.round(etaMin % 60);
+  return `${qpm.toFixed(1)} q/min · ~${h > 0 ? `${h}h ` : ""}${mm}m restantes`;
+}
+
+function statusIcone(status: string): string {
+  switch (status) {
+    case "done": return "✓";
+    case "running": return "▶";
+    case "blocked": return "⛔";
+    case "failed": return "✗";
+    default: return "…";
+  }
+}
+
+function ComentarioJobCard({
+  job,
+  pausando,
+  aberto,
+  onToggleDetalhes,
+  onAlternarPausa,
+}: {
+  job: ComentarioJob;
+  pausando: number | null;
+  aberto: boolean;
+  onToggleDetalhes: () => void;
+  onAlternarPausa: () => void;
+}) {
+  const ativo =
+    job.status === "running" ||
+    job.status === "queued" ||
+    job.pending_units > 0 ||
+    job.running_units > 0;
+  const { data: eventos, isPending: carregandoEventos } = useComentarioEventos(
+    aberto ? job.job_id : null,
+    ativo
+  );
+  const progresso = Math.max(0, Math.min(100, job.pct_units_done));
+
+  return (
+    <div className="rounded-lg border border-border bg-black/20 p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="text-sm font-semibold text-fg-strong">
+            Caderno #{job.caderno_id}
+            <span className="ml-2 text-primary">Job #{job.job_id}</span>
+          </div>
+          <div className="mt-1 text-xs text-fg-muted">
+            Status: {statusTexto(job.status)}
+            {job.paused && (
+              <span className="ml-1.5 inline-flex items-center gap-1 rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase text-warning">
+                <span className="material-symbols-outlined text-[12px]">pause</span> Pausado
+              </span>
+            )}
+            {" · "}{job.done_units}/{job.total_units} questões · {job.coments_total.toLocaleString("pt-BR")} comentários coletados
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {job.status !== "done" && (
+              <button
+                onClick={onAlternarPausa}
+                disabled={pausando === job.job_id}
+                className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
+                  job.paused
+                    ? "border border-success/40 bg-success/15 text-success hover:bg-success/20"
+                    : "border border-border bg-surface-2 text-fg hover:bg-fg-strong/6"
+                }`}
+              >
+                <span className={`material-symbols-outlined text-[14px] ${pausando === job.job_id ? "animate-spin" : ""}`}>
+                  {pausando === job.job_id ? "progress_activity" : job.paused ? "play_arrow" : "pause"}
+                </span>
+                {job.paused ? "Retomar" : "Pausar"}
+              </button>
+            )}
+            <button
+              onClick={onToggleDetalhes}
+              className="inline-flex items-center gap-1 rounded border border-border bg-surface-2 px-2.5 py-1 text-xs font-medium text-fg hover:bg-fg-strong/6"
+            >
+              <span className="material-symbols-outlined text-[14px]">
+                {aberto ? "expand_less" : "expand_more"}
+              </span>
+              {aberto ? "Ocultar detalhes" : "Ver detalhes"}
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center text-xs md:min-w-45">
+          <div className="rounded bg-page px-3 py-2">
+            <div className="text-lg font-semibold text-success">{job.done_units}</div>
+            <div className="text-fg-faint">Done</div>
+          </div>
+          <div className="rounded bg-page px-3 py-2">
+            <div className="text-lg font-semibold text-warning">{job.running_units + job.queued_units}</div>
+            <div className="text-fg-faint">Fila/Run</div>
+          </div>
+          <div className="rounded bg-page px-3 py-2">
+            <div className="text-lg font-semibold text-error">{job.failed_units}</div>
+            <div className="text-fg-faint">Falhas</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <div className="mb-1 flex items-center justify-between text-xs text-fg-muted">
+          <span>Progresso por questões</span>
+          <span>{job.pct_units_done.toFixed(2)}%</span>
+        </div>
+        <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
+          <div
+            className="h-full bg-cyan-500 transition-all"
+            style={{ width: `${progresso}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2 text-xs text-fg-muted">
+        <span>Pending: {job.pending_units}</span>
+        <span>Queued: {job.queued_units}</span>
+        <span>Running: {job.running_units}</span>
+        <span>
+          Última atualização:{" "}
+          {job.updated_at
+            ? new Date(job.updated_at).toLocaleString("pt-BR")
+            : "—"}
+        </span>
+      </div>
+
+      {aberto && (
+        <div className="mt-4 border-t border-border pt-4 space-y-3">
+          <div className="flex flex-wrap gap-4 text-xs text-fg-muted">
+            <span>
+              <span className="font-medium text-fg">Questão atual:</span>{" "}
+              {job.questao_atual ? `Processando Q#${job.questao_atual}` : "—"}
+            </span>
+            <span>
+              <span className="font-medium text-fg">Ritmo/ETA:</span>{" "}
+              {ritmoEta(job)}
+            </span>
+          </div>
+
+          <div>
+            <div className="mb-1 text-xs font-medium text-fg">Últimas questões processadas</div>
+            {carregandoEventos && (
+              <div className="text-xs text-fg-faint">Carregando…</div>
+            )}
+            {!carregandoEventos && (!eventos || eventos.length === 0) && (
+              <div className="text-xs text-fg-faint">Nenhum evento registrado ainda.</div>
+            )}
+            {eventos && eventos.length > 0 && (
+              <div className="space-y-1">
+                {eventos.map((ev, i) => (
+                  <div key={i} className="flex flex-wrap items-baseline gap-1 text-xs">
+                    <span className="font-mono text-fg-muted">
+                      {statusIcone(ev.status)}
+                    </span>
+                    <span className="text-fg">
+                      Q#{ev.id_externo ?? ev.questao_id}
+                    </span>
+                    <span className="text-fg-muted">
+                      +{ev.coments_alunos}/{ev.coments_professores}
+                    </span>
+                    <span className="text-fg-faint">
+                      {ev.updated_at ? formatarMomento(ev.updated_at) : "—"}
+                    </span>
+                    {ev.block_reason && (
+                      <span className="text-error">{ev.block_reason}</span>
+                    )}
+                    {ev.last_error && (
+                      <span className="text-error truncate max-w-xs">{ev.last_error}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ColetarPage() {
   const [url, setUrl] = useState("");
   const [expectedTotalText, setExpectedTotalText] = useState("");
@@ -161,6 +373,7 @@ export default function ColetarPage() {
   const [nomesEdit, setNomesEdit] = useState<Record<number, string>>({});
   const [montados, setMontados] = useState<Record<number, { id: number; nome: string; total: number }>>({});
   const [recoletando, setRecoletando] = useState<number | null>(null);
+  const [detalhesAbertos, setDetalhesAbertos] = useState<Record<number, boolean>>({});
 
   // Polling dos jobs ativos — refetch enquanto houver algum running/queued/pending.
   const {
@@ -650,85 +863,21 @@ export default function ColetarPage() {
 
           {comentarioJobs.length > 0 && (
             <div className="space-y-3">
-              {comentarioJobs.map((job) => {
-                const progresso = Math.max(0, Math.min(100, job.pct_units_done));
-                return (
-                  <div
-                    key={job.job_id}
-                    className="rounded-lg border border-border bg-black/20 p-4"
-                  >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <div className="text-sm font-semibold text-fg-strong">
-                          Caderno #{job.caderno_id}
-                          <span className="ml-2 text-primary">Job #{job.job_id}</span>
-                        </div>
-                        <div className="mt-1 text-xs text-fg-muted">
-                          Status: {statusTexto(job.status)}
-                          {job.paused && (
-                            <span className="ml-1.5 inline-flex items-center gap-1 rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase text-warning">
-                              <span className="material-symbols-outlined text-[12px]">pause</span> Pausado
-                            </span>
-                          )}
-                          {" · "}{job.done_units}/{job.total_units} questões · {job.coments_total.toLocaleString("pt-BR")} comentários coletados
-                        </div>
-                        {job.status !== "done" && (
-                          <div className="mt-2">
-                            <button
-                              onClick={() => alternarPausa(job)}
-                              disabled={pausando === job.job_id}
-                              className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${
-                                job.paused
-                                  ? "border border-success/40 bg-success/15 text-success hover:bg-success/20"
-                                  : "border border-border bg-surface-2 text-fg hover:bg-fg-strong/6"
-                              }`}
-                            >
-                              <span className={`material-symbols-outlined text-[14px] ${pausando === job.job_id ? "animate-spin" : ""}`}>
-                                {pausando === job.job_id ? "progress_activity" : job.paused ? "play_arrow" : "pause"}
-                              </span>
-                              {job.paused ? "Retomar" : "Pausar"}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-center text-xs md:min-w-45">
-                        <div className="rounded bg-page px-3 py-2">
-                          <div className="text-lg font-semibold text-success">{job.done_units}</div>
-                          <div className="text-fg-faint">Done</div>
-                        </div>
-                        <div className="rounded bg-page px-3 py-2">
-                          <div className="text-lg font-semibold text-warning">{job.running_units + job.queued_units}</div>
-                          <div className="text-fg-faint">Fila/Run</div>
-                        </div>
-                        <div className="rounded bg-page px-3 py-2">
-                          <div className="text-lg font-semibold text-error">{job.failed_units}</div>
-                          <div className="text-fg-faint">Falhas</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4">
-                      <div className="mb-1 flex items-center justify-between text-xs text-fg-muted">
-                        <span>Progresso por faixas</span>
-                        <span>{job.pct_units_done.toFixed(2)}%</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
-                        <div
-                          className="h-full bg-cyan-500 transition-all"
-                          style={{ width: `${progresso}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-fg-muted">
-                      <span>Pending: {job.pending_units}</span>
-                      <span>Queued: {job.queued_units}</span>
-                      <span>Running: {job.running_units}</span>
-                      <span>Ultima atualizacao: {formatarMomento(job.updated_at)}</span>
-                    </div>
-                  </div>
-                );
-              })}
+              {comentarioJobs.map((job) => (
+                <ComentarioJobCard
+                  key={job.job_id}
+                  job={job}
+                  pausando={pausando}
+                  aberto={!!detalhesAbertos[job.job_id]}
+                  onToggleDetalhes={() =>
+                    setDetalhesAbertos((prev) => ({
+                      ...prev,
+                      [job.job_id]: !prev[job.job_id],
+                    }))
+                  }
+                  onAlternarPausa={() => alternarPausa(job)}
+                />
+              ))}
             </div>
           )}
         </section>
