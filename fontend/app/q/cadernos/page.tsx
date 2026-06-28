@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, apiJson } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { qk } from "@/lib/queryKeys";
+import { toast } from "sonner";
 
 /**
  * /q/cadernos — "Minhas pastas", hierarquia estilo TecConcursos:
@@ -153,10 +154,10 @@ function CadernosView({ pasta }: { pasta: string }) {
         const erro = await r.json().catch(() => ({}));
         throw new Error((erro as { detail?: string }).detail || `falha ${r.status}`);
       }
-      window.alert("Coleta iniciada em background. Acompanhe em Coletar.");
+      toast.success("Coleta iniciada em background — acompanhe em Coletar.");
     } catch (e) {
       console.error(e);
-      window.alert(`Não foi possível iniciar coleta: ${e instanceof Error ? e.message : e}`);
+      toast.error(`Não foi possível iniciar a coleta: ${e instanceof Error ? e.message : e}`);
     } finally {
       setColetandoComents((s) => ({ ...s, [id]: false }));
     }
@@ -188,18 +189,17 @@ function CadernosView({ pasta }: { pasta: string }) {
         ...d,
         [id]: { resolvidas: res.importadas + res.ja_tinha, acertos: res.acertos, erros: res.erros },
       }));
-      window.alert(
-        `Desempenho importado:\n` +
-          `• ${res.importadas} resolvidas novas (${res.acertos} acertos, ${res.erros} erros)\n` +
-          `• ${res.ja_tinha} já estavam no studIA\n` +
-          `• ${res.nao_resolvidas_no_tec} ainda não resolvidas\n` +
+      toast.success(
+        `Desempenho importado: ${res.importadas} novas (${res.acertos} acertos, ${res.erros} erros)` +
+          ` · ${res.ja_tinha} já estavam no studIA` +
+          ` · ${res.nao_resolvidas_no_tec} ainda não resolvidas` +
           (res.nao_mapeadas
-            ? `• ${res.nao_mapeadas} questões não encontradas no studIA (caderno coletado parcialmente)`
+            ? ` · ${res.nao_mapeadas} questões não encontradas (caderno coletado parcialmente)`
             : ""),
       );
     } catch (e) {
       console.error(e);
-      window.alert(`Não foi possível importar: ${e instanceof Error ? e.message : e}`);
+      toast.error(`Não foi possível importar: ${e instanceof Error ? e.message : e}`);
     } finally {
       setImportando((s) => ({ ...s, [id]: false }));
     }
