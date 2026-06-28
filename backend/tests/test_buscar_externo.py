@@ -33,6 +33,29 @@ async def test_buscar_externo_lista_cadernos_e_dados(db_session, client):
 
 
 @pytest.mark.asyncio
+async def test_buscar_por_nosso_id(db_session, client):
+    db_session.add(Questao(id=482, id_externo=3412517, status="ATIVA", gabarito="A"))
+    await db_session.commit()
+    # busca pelo NOSSO id (482), não pelo do TC
+    r = (await client.get("/api/q/questoes/buscar-externo/482")).json()
+    assert r["found"] is True
+    assert r["questao"]["id"] == 482
+    assert r["questao"]["id_externo"] == 3412517
+
+
+@pytest.mark.asyncio
+async def test_colisao_prioriza_id_externo(db_session, client):
+    # número 777 bate id_externo de A e id de B → deve retornar A
+    db_session.add(Questao(id=500, id_externo=777, status="ATIVA", gabarito="A"))
+    db_session.add(Questao(id=777, id_externo=999, status="ATIVA", gabarito="B"))
+    await db_session.commit()
+    r = (await client.get("/api/q/questoes/buscar-externo/777")).json()
+    assert r["found"] is True
+    assert r["questao"]["id"] == 500
+    assert r["questao"]["id_externo"] == 777
+
+
+@pytest.mark.asyncio
 async def test_gerar_caderno_por_question_ids(db_session, client):
     db_session.add(Questao(id=777, id_externo=111, status="ATIVA", gabarito="A"))
     await db_session.commit()

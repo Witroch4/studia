@@ -16,7 +16,7 @@ import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import Integer, bindparam, func, select, text
+from sqlalchemy import Integer, bindparam, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -1077,13 +1077,14 @@ async def gerar_caderno(
     }
 
 
-@router.get("/questoes/buscar-externo/{id_externo}")
+@router.get("/questoes/buscar-externo/{n}")
 async def buscar_questao_externo(
-    id_externo: int,
+    n: int,
     user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Busca uma questão pelo `id_externo` (ID do TC) + cadernos do usuário que a contêm."""
+    """Busca uma questão por número: casa `id_externo` (TC) OU `id` (nosso),
+    priorizando o match por `id_externo`. + cadernos do usuário que a contêm."""
     row = (await db.execute(
         select(
             Questao.id, Questao.id_externo, Questao.status, Questao.gabarito, Questao.tipo,
@@ -1092,7 +1093,9 @@ async def buscar_questao_externo(
         )
         .outerjoin(Banca, Banca.id == Questao.banca_id)
         .outerjoin(Materia, Materia.id == Questao.materia_id)
-        .where(Questao.id_externo == id_externo)
+        .where(or_(Questao.id_externo == n, Questao.id == n))
+        .order_by((Questao.id_externo == n).desc())
+        .limit(1)
     )).mappings().first()
     if row is None:
         return {"found": False}
