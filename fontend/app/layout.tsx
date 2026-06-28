@@ -4,6 +4,7 @@ import "./globals.css";
 import AppShell from "./components/AppShell";
 import { ThemeProvider } from "./components/ThemeProvider";
 import QueryProvider from "./components/QueryProvider";
+import { Toaster } from "sonner";
 import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -88,6 +89,7 @@ export default function RootLayout({
             <AppShell>{children}</AppShell>
           </QueryProvider>
         </ThemeProvider>
+        <Toaster richColors position="top-center" theme="dark" />
       </body>
     </html>
   );
