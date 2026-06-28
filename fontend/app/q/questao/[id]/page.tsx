@@ -87,6 +87,9 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
   if (isPending && !q) return <div className="p-8 text-fg-muted">Carregando…</div>;
   if (!q) return null;
 
+  // Questão ANULADA não pode ser respondida (igual ao TC): trava o clique.
+  const anulada = q.status === "ANULADA";
+
   return (
     <div
       className="min-h-screen bg-page text-fg"
@@ -132,8 +135,8 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
             return (
               <li key={alt.id}>
                 <button
-                  onClick={() => !resolvida && setSelecionada(alt.letra)}
-                  disabled={resolvida}
+                  onClick={() => !resolvida && !anulada && setSelecionada(alt.letra)}
+                  disabled={resolvida || anulada}
                   className={`w-full text-left flex items-start gap-3 p-3 rounded border transition ${
                     isCorreta ? "border-success bg-success/10" :
                     isErrada ? "border-error bg-error/10" :
@@ -151,7 +154,7 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
           })}
         </ol>
 
-        {!resolvida && (
+        {!resolvida && !anulada && (
           <button
             onClick={() => setResolvida(true)}
             disabled={!selecionada}
@@ -159,6 +162,12 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
           >
             RESOLVER QUESTÃO
           </button>
+        )}
+
+        {anulada && (
+          <div className="p-3 rounded text-sm font-medium bg-warning/15 border border-warning/40 text-warning">
+            ⚠ Questão anulada — não pode ser respondida e não conta na sua estatística.
+          </div>
         )}
 
         {resolvida && (

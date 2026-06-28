@@ -192,6 +192,9 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     staleTime: 10 * 60 * 1000,
   });
 
+  // Questão ANULADA não pode ser respondida (igual ao TC): trava o clique.
+  const anulada = questao?.status === "ANULADA";
+
   // ─── Prefetch inteligente: aquece o cache das próximas prováveis ───
   // Mata a "engasgada" ao navegar: → ← N (vizinhos) e L (pool aleatório de
   // não resolvidas) já vêm do cache. prefetchQuery é no-op se já estiver fresco.
@@ -280,7 +283,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   });
 
   async function resolverQuestao() {
-    if (!selecionada || !questao || !caderno || resolvida) return;
+    if (!selecionada || !questao || !caderno || resolvida || anulada) return;
     const tempo_segundos = Math.round((Date.now() - startedAt.current) / 1000);
     setRespostaQid(questao.id);
     setRespostaState((prev) => ({ ...prev, resolvida: true }));
@@ -659,7 +662,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
           {/* ─── Linha enxuta com código + banca ─── */}
           <div className="px-4 py-2 bg-surface-2 border-b border-border/60 text-xs flex items-center gap-2">
             <span className="text-fg-faint">🔗</span>
-            <span className="text-primary font-mono">#{questao.id_externo}</span>
+            <span className="text-primary font-mono">#{questao.id}</span>
             <span className="font-semibold text-fg">{questao.banca?.sigla}</span>
             <span className="text-fg-faint">-</span>
             <span className="text-fg-muted">
@@ -698,7 +701,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                       id={alt.id}
                       letra={alt.letra}
                       selected={selecionada === alt.letra}
-                      disabled={resolvida}
+                      disabled={resolvida || anulada}
                       struck={isStruck({ type: "alternative", id: alt.id })}
                       onSelect={() => {
                         // Estado FRESCO p/ a questão atual: não espalhar `prev`, que
@@ -724,7 +727,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               })}
             </ol>
 
-            {!resolvida && (
+            {!resolvida && !anulada && (
               <button
                 onClick={resolverQuestao}
                 disabled={!selecionada}
@@ -732,6 +735,12 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               >
                 Resolver Questão
               </button>
+            )}
+
+            {anulada && (
+              <div className="p-3 rounded text-sm font-medium bg-warning/15 border border-warning/40 text-warning">
+                ⚠ Questão anulada — não pode ser respondida e não conta na sua estatística.
+              </div>
             )}
 
             {resolvida && acertou !== null && (
