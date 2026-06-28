@@ -8,14 +8,18 @@ Usuário fala Português BR. Responda em português.
 
 ## Workflow OBRIGATÓRIO ao fim de qualquer alteração
 
-Toda alteração de código DEVE terminar com este ciclo completo, nesta ordem —
-não é opcional, não espere o usuário pedir:
+Toda alteração de código DEVE rodar num **git worktree** (nunca direto na `main` —
+ver regra rígida abaixo) e terminar com este ciclo completo, nesta ordem — não é
+opcional, não espere o usuário pedir:
 
-1. **Commit** com mensagem pertinente (escopo + porquê), agrupada por intenção.
-2. **Push** para `origin/main` (`git push`).
-3. **Deploy em produção** com `./build.sh` (build + push de imagens + `db_prepare`
-   + `docker stack deploy`). Para só Meili: `./build.sh --reindex`.
-4. **Worktree limpo** ao final (`git status` sem pendências).
+1. **Worktree**: trabalhe num worktree isolado (`.claude/worktrees/<nome>`, via a
+   ferramenta de worktree). Todos os commits da alteração nascem lá.
+2. **Commit** com mensagem pertinente (escopo + porquê), agrupada por intenção.
+3. **Merge na `main`**: a partir do checkout principal (que **continua na `main`**,
+   sem `git switch`), `git merge <branch-do-worktree>`; depois **push** (`git push`).
+4. **Deploy em produção** com `./build.sh` a partir da `main` (build + push de
+   imagens + `db_prepare` + `docker stack deploy`). Para só Meili: `./build.sh --reindex`.
+5. **Worktree removido** e tudo limpo (`git worktree remove` + `git status` sem pendências).
 
 ### Autorização permanente de SSH de produção (automode)
 
@@ -30,20 +34,30 @@ Produção se auto-ajusta: o backend roda `python -m scripts.db_prepare` no star
 (migra schema + verifica + aplica settings do Meili). Qualquer deploy leva o
 schema ao dia sozinho; se não puder, o container falha visível (nunca 500 mudo).
 
-### PROIBIDO trocar a branch do checkout principal (regra rígida)
+### Trabalhe SEMPRE num worktree, NUNCA direto na `main` (regra rígida)
 
 O diretório `/home/wital/studia` é o checkout que o **VSCode do usuário usa** e onde
-os containers de dev estão montados. **NUNCA** rode `git checkout <branch>` /
-`git switch` / `git checkout -b` que tire esse diretório da `main` — isso troca a
-branch no editor do usuário e o trava ("local changes would be overwritten"). O
-projeto é **baseado em `main`**: trabalhe **direto na `main`** (commits frequentes,
-como manda o Workflow OBRIGATÓRIO acima).
+os containers de dev estão montados. Ele fica **sempre na `main` e sempre limpo**.
+Duas regras rígidas:
 
-Se precisar de isolamento (ex.: execução multi-task por subagentes), use um **git
-worktree** em diretório separado (`.claude/worktrees/...` via a ferramenta de
-worktree), **mantendo o checkout principal sempre na `main`** — e depois faça merge.
-Jamais alternar a branch do checkout principal por conta própria. Voltar PARA a
-`main` (corrigir um desvio) é permitido; sair dela, não.
+1. **NUNCA** `git checkout <branch>` / `git switch` / `git checkout -b` nesse
+   diretório — isso troca a branch no editor do usuário e o trava ("local changes
+   would be overwritten"). Voltar PARA a `main` (corrigir um desvio) é permitido;
+   sair dela, não.
+
+2. **NÃO trabalhe direto na `main`.** Para QUALQUER alteração, crie um **git
+   worktree em diretório separado** (`.claude/worktrees/<nome>` via a ferramenta de
+   worktree — ela cria a branch num diretório à parte, SEM tocar no checkout
+   principal nem na branch do VSCode). Faça os commits lá, isolado.
+
+**Por quê:** trabalhar direto na `main` mistura código meio-pronto no checkout do
+usuário e **atropela outras sessões/agentes** rodando em paralelo — já aconteceu de
+o commit de outro agente "varrer" junto uma edição não-commitada deste. O worktree
+mantém cada trabalho isolado e a `main` sempre limpa.
+
+**Fluxo:** worktree (branch própria) → commit → `git merge` na `main` (a partir do
+checkout principal, que **continua na `main`**) → `git push` → `./build.sh` →
+`git worktree remove`. O merge é sempre por `git merge`, **nunca** por `git switch`.
 
 ## DADOS NÃO PODEM PULAR NA TELA (regra rígida de UI)
 
