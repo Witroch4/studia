@@ -95,10 +95,15 @@ export default function QuestaoPage({ params }: { params: Promise<{ id: string }
       <header className="border-b border-border px-6 py-3 flex items-center gap-4">
         <div className="flex-1">
           <div className="text-xs text-fg-faint">
-            Estudo › Caderno IDENCAN CIVIL
+            {[q.banca?.sigla, q.materia?.nome].filter(Boolean).join(" · ") || "Questão avulsa"}
           </div>
-          <div className="font-semibold">
-            Questão Q{q.id_externo}{" "}
+          <div className="font-semibold flex items-center gap-2">
+            Questão #{q.id}
+            {q.status === "ANULADA" && (
+              <span className="px-2 py-0.5 bg-warning/15 text-warning rounded text-[10px] font-semibold border border-warning/40">
+                ANULADA
+              </span>
+            )}
             {favorita && <span className="text-yellow-400">⭐</span>}
           </div>
         </div>
