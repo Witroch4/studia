@@ -218,7 +218,7 @@ export default function FiltrarPage() {
     });
   }
 
-  // ── Busca por ID (id_externo do TC): se digitar só números em Matéria/assunto ─
+  // ── Busca por número (id_externo do TC OU nosso id): só números em Matéria/assunto ─
   const buscaId =
     categoria === "Matéria e assunto" && /^\d{3,}$/.test(busca.trim())
       ? busca.trim()
@@ -229,9 +229,9 @@ export default function FiltrarPage() {
     queryFn: () => apiJson<QuestaoExterna>(`/api/q/questoes/buscar-externo/${buscaId}`),
   });
 
-  function gerarDaQuestao(qid: number, idExterno: number) {
+  function gerarDaQuestao(qid: number) {
     setErroGerar(null);
-    gerarMutation.mutate({ nome: `Questão #${idExterno}`, question_ids: [qid] });
+    gerarMutation.mutate({ nome: `Questão #${qid}`, question_ids: [qid] });
   }
 
   // ── Handlers de filtro (preservados) ─────────────────────────────────────
@@ -396,7 +396,7 @@ export default function FiltrarPage() {
               {!buscandoId && porId?.found && porId.questao && (
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-fg">Questão #{porId.questao.id_externo}</span>
+                    <span className="font-semibold text-fg">Questão #{porId.questao.id}</span>
                     {porId.questao.status === "ANULADA" && (
                       <span className="px-2 py-0.5 bg-warning/15 text-warning rounded text-[10px] font-semibold border border-warning/40">ANULADA</span>
                     )}
@@ -412,21 +412,16 @@ export default function FiltrarPage() {
                     <p className="mt-2 text-fg-muted line-clamp-3">{porId.questao.preview}</p>
                   )}
                   <div className="mt-3 flex items-center gap-2 flex-wrap">
-                    {porId.cadernos && porId.cadernos.length > 0 ? (
-                      porId.cadernos.map((c) => (
-                        <Link key={c.id} href={`/q/caderno/${c.id}`}
-                          className="px-3 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 text-xs">
-                          Abrir em “{c.nome}”
-                        </Link>
-                      ))
-                    ) : (
-                      <button
-                        onClick={() => gerarDaQuestao(porId.questao!.id, porId.questao!.id_externo)}
-                        disabled={gerando}
-                        className="px-3 py-1 rounded bg-primary text-on-primary hover:bg-primary/90 disabled:opacity-50 text-xs">
-                        {gerando ? "Gerando…" : "Gerar caderno com esta questão"}
-                      </button>
-                    )}
+                    <Link href={`/q/questao/${porId.questao.id}`}
+                      className="px-3 py-1 rounded bg-primary text-on-primary hover:bg-primary/90 text-xs font-semibold">
+                      Abrir questão
+                    </Link>
+                    <button
+                      onClick={() => gerarDaQuestao(porId.questao!.id)}
+                      disabled={gerando}
+                      className="px-3 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50 text-xs">
+                      {gerando ? "Gerando…" : "Gerar caderno com esta questão"}
+                    </button>
                   </div>
                 </div>
               )}
