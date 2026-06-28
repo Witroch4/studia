@@ -15,6 +15,8 @@ import { ForumPanel } from "./components/ForumPanel";
 import { apiFetch, apiJson, apiPost } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
 import { useSession } from "@/lib/auth-client";
+import { toast } from "sonner";
+import { celebrarMetaDiaria } from "@/lib/confetti";
 
 interface Alternativa {
   id: number;
@@ -242,11 +244,21 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
         // Lança erro especial para ser capturado no onError
         throw Object.assign(new Error("paywall"), { isPaywall: true, detail: err });
       }
-      return r.json() as Promise<{ acertou: boolean; limite?: typeof limiteQuery }>;
+      return r.json() as Promise<{
+        acertou: boolean;
+        limite?: typeof limiteQuery;
+        meta_diaria?: { meta: number; total: number; batida_agora: boolean };
+      }>;
     },
     onSuccess: (data) => {
       setRespostaState((prev) => ({ ...prev, acertou: data.acertou }));
       if (data.limite) setLimiteLocal(data.limite as typeof limiteLocal);
+      if (data.meta_diaria?.batida_agora) {
+        celebrarMetaDiaria();
+        toast.success("🎯 Meta diária batida!", {
+          description: "Você resolveu 15 questões hoje. Continue assim! 🔥",
+        });
+      }
       // Invalidações: estatísticas + limite + gabarito
       void queryClient.invalidateQueries({ queryKey: qk.cadernoSub(id, "estatisticas") });
       void queryClient.invalidateQueries({ queryKey: qk.cadernoSub(id, "stats-detalhe") });
