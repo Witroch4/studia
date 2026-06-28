@@ -169,6 +169,21 @@ async def _upsert_taxonomia(session: AsyncSession, q: QuestaoApi) -> dict[str, i
     return ids
 
 
+def _derivar_status(gabarito: str | None, anulada: bool, desatualizada: bool) -> str:
+    """Status da questão.
+
+    ATENÇÃO: o endpoint de impressão do TC (/ajaxCarregarQuestoesImpressao) retorna
+    `anulada=false` MESMO para questões anuladas. A anulação real vem no campo
+    `gabarito` com prefixo 'ANULADA_' (ex.: 'ANULADA_MULTIPLA_ESCOLHA',
+    'ANULADA_CERTO_ERRADO'). Por isso derivamos ANULADA também do gabarito.
+    """
+    if anulada or (gabarito or "").upper().startswith("ANULADA"):
+        return "ANULADA"
+    if desatualizada:
+        return "DESATUALIZADA"
+    return "ATIVA"
+
+
 async def upsert_questao(q: QuestaoApi, raw: dict[str, Any] | None = None) -> int:
     """Idempotente: insere/atualiza questão + alternativas + vínculo assunto."""
     session_factory = _get_session_factory()
@@ -180,7 +195,7 @@ async def upsert_questao(q: QuestaoApi, raw: dict[str, Any] | None = None) -> in
             # quando disponível (vem em /ajaxCarregarQuestoesImpressao). Fallback
             # pra derivar da posição numérica (vem em /api/cadernos/{c}/questoes/{N}).
             gabarito = q.gabarito or letra_from_numero(q.numeroAlternativaCorreta)
-            status_txt = "ANULADA" if q.anulada else ("DESATUALIZADA" if q.desatualizada else "ATIVA")
+            status_txt = _derivar_status(gabarito, q.anulada, q.desatualizada)
 
             stmt = (
                 pg_insert(Questao)
