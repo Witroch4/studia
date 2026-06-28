@@ -96,6 +96,13 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const [forumAberto, setForumAberto] = useState(false);
   const [forumProfAberto, setForumProfAberto] = useState(false);
   const [paywall, setPaywall] = useState<string | null>(null);
+
+  // Toolbar de questão: classe base (hover de fundo + press no clique) e a
+  // variante ATIVA (fórum aberto). Emoji não muda com text-color → o feedback
+  // de "ativado" vem de bg-primary/15 + ring, igual ao CanvasToolbar.
+  const tbBtn =
+    "relative inline-flex h-8 w-8 items-center justify-center rounded transition hover:bg-surface-2 active:scale-90";
+  const tbOn = "bg-primary/15 text-primary ring-1 ring-inset ring-primary";
   // limite local: sobrescrito pelo retorno do /responder, sincronizado com a query
   const [limiteLocal, setLimiteLocal] = useState<{
     usado: number; limite: number; restantes: number | null; ilimitado: boolean;
@@ -648,8 +655,9 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               />
               <button
                 title="Fórum dos professores (O)"
+                aria-pressed={forumProfAberto}
                 onClick={() => { setForumProfAberto((v) => !v); setForumAberto(false); }}
-                className={`relative ${forumProfAberto ? "text-primary" : "hover:text-primary"}`}
+                className={`${tbBtn} ${forumProfAberto ? tbOn : ""}`}
               >
                 🎓
                 {(questao.forum_count_professores ?? 0) > 0 && (
@@ -658,11 +666,12 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                   </span>
                 )}
               </button>
-              <button title="Teoria" className="hover:text-primary">📕</button>
+              <button title="Teoria" className={tbBtn}>📕</button>
               <button
                 title="Fórum (F)"
+                aria-pressed={forumAberto}
                 onClick={() => { setForumAberto((v) => !v); setForumProfAberto(false); }}
-                className={`relative ${forumAberto ? "text-primary" : "hover:text-primary"}`}
+                className={`${tbBtn} ${forumAberto ? tbOn : ""}`}
               >
                 💬
                 {(questao.forum_count ?? 0) > 0 && (
@@ -671,12 +680,13 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                   </span>
                 )}
               </button>
-              <button title="Favoritar (M)" onClick={toggleFavorita} className={fav ? "text-yellow-400" : "hover:text-yellow-400"}>
+              <button title="Favoritar (M)" aria-pressed={fav} onClick={toggleFavorita}
+                className={`${tbBtn} ${fav ? "bg-yellow-400/15 text-yellow-400 ring-1 ring-inset ring-yellow-400/70" : ""}`}>
                 {fav ? "★" : "☆"}
               </button>
-              <button title="Anotação (W)" className="hover:text-primary">✏️</button>
-              <button title="Estatísticas" className="hover:text-primary">⭕</button>
-              <button title="Mais opções" className="hover:text-primary">⋮</button>
+              <button title="Anotação (W)" className={tbBtn}>✏️</button>
+              <button title="Estatísticas" className={tbBtn}>⭕</button>
+              <button title="Mais opções" className={tbBtn}>⋮</button>
             </div>
           </header>
 
