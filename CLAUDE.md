@@ -30,6 +30,21 @@ Produção se auto-ajusta: o backend roda `python -m scripts.db_prepare` no star
 (migra schema + verifica + aplica settings do Meili). Qualquer deploy leva o
 schema ao dia sozinho; se não puder, o container falha visível (nunca 500 mudo).
 
+### PROIBIDO trocar a branch do checkout principal (regra rígida)
+
+O diretório `/home/wital/studia` é o checkout que o **VSCode do usuário usa** e onde
+os containers de dev estão montados. **NUNCA** rode `git checkout <branch>` /
+`git switch` / `git checkout -b` que tire esse diretório da `main` — isso troca a
+branch no editor do usuário e o trava ("local changes would be overwritten"). O
+projeto é **baseado em `main`**: trabalhe **direto na `main`** (commits frequentes,
+como manda o Workflow OBRIGATÓRIO acima).
+
+Se precisar de isolamento (ex.: execução multi-task por subagentes), use um **git
+worktree** em diretório separado (`.claude/worktrees/...` via a ferramenta de
+worktree), **mantendo o checkout principal sempre na `main`** — e depois faça merge.
+Jamais alternar a branch do checkout principal por conta própria. Voltar PARA a
+`main` (corrigir um desvio) é permitido; sair dela, não.
+
 ## Quick Start
 
 ```bash
