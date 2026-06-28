@@ -8,6 +8,7 @@ import { apiFetch, apiJson } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { qk } from "@/lib/queryKeys";
 import { toast } from "sonner";
+import { PromptDialog } from "@/app/components/PromptDialog";
 
 /**
  * /q/cadernos — "Minhas pastas", hierarquia estilo TecConcursos:
@@ -88,6 +89,7 @@ function CadernosView({ pasta }: { pasta: string }) {
   const [coletandoComents, setColetandoComents] = useState<Record<number, boolean>>({});
   const [editando, setEditando] = useState<{ id: number; nome: string } | null>(null);
   const [ehAdmin, setEhAdmin] = useState(false);
+  const [promptGabarito, setPromptGabarito] = useState<{ aberto: boolean; cadernoId: number | null }>({ aberto: false, cadernoId: null });
 
   useEffect(() => {
     authClient
@@ -163,13 +165,14 @@ function CadernosView({ pasta }: { pasta: string }) {
     }
   }
 
-  async function importarDoTec(id: number) {
-    // Pede o ID/URL do caderno; vazio = usa o vínculo já salvo no caderno.
-    const entrada = window.prompt(
-      "Importar seu desempenho.\n\nCole a URL ou o ID do caderno (deixe vazio se já estiver vinculado):",
-      "",
-    );
-    if (entrada === null) return; // cancelou
+  function abrirPromptGabarito(id: number) {
+    setPromptGabarito({ aberto: true, cadernoId: id });
+  }
+
+  async function confirmarImportarGabarito(entrada: string) {
+    const id = promptGabarito.cadernoId;
+    setPromptGabarito({ aberto: false, cadernoId: null });
+    if (id === null) return;
     const m = entrada.trim().match(/(\d{4,})/);
     const tc_caderno_id = m ? Number(m[1]) : null;
 
@@ -209,6 +212,7 @@ function CadernosView({ pasta }: { pasta: string }) {
   if (!cadernos || cadernos.length === 0) return <p className="text-sm text-fg-faint italic">Nenhum caderno nesta pasta.</p>;
 
   return (
+    <>
     <div className="space-y-2">
       {cadernos.map((c: CadernoRow) => {
         const d = desempenho[c.id];
@@ -280,7 +284,7 @@ function CadernosView({ pasta }: { pasta: string }) {
                 </span>
               )}
               <button
-                onClick={() => importarDoTec(c.id)}
+                onClick={() => abrirPromptGabarito(c.id)}
                 disabled={importando[c.id]}
                 title="Importar acertos/erros do desempenho"
                 className="text-fg-faint hover:text-primary disabled:opacity-50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition whitespace-nowrap"
@@ -302,6 +306,16 @@ function CadernosView({ pasta }: { pasta: string }) {
         );
       })}
     </div>
+    <PromptDialog
+      key={promptGabarito.cadernoId ?? "closed"}
+      open={promptGabarito.aberto}
+      titulo="Importar desempenho"
+      descricao="Cole a URL ou o ID do caderno de origem"
+      placeholder="https://… ou 12345"
+      onConfirm={confirmarImportarGabarito}
+      onCancel={() => setPromptGabarito({ aberto: false, cadernoId: null })}
+    />
+    </>
   );
 }
 
