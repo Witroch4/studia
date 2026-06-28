@@ -169,3 +169,13 @@ async def test_get_fila_e_pular(client, db_session):
     assert rp.status_code == 200 and rp.json()["ok"] is True
     rd = await client.delete(f"/api/q/guias/fila/{fila[1]['id']}")
     assert rd.status_code == 200 and rd.json()["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_importar_url_duplicada_nao_duplica_fila(client, db_session):
+    await client.post("/api/q/guias/importar", json={"url": "x"})
+    r2 = await client.post("/api/q/guias/importar", json={"url": "x"})
+    assert r2.status_code == 202
+    assert r2.json()["message"] == "Guia já estava na fila."
+    n = (await db_session.execute(select(safunc.count()).select_from(GuiaFila))).scalar()
+    assert n == 1

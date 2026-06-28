@@ -14,6 +14,7 @@ export const qk = {
   guiasUsuariosPastas: () => ["q", "guias", "usuarios-pastas"] as const,
   coletarJobs: () => ["q", "coletar", "jobs"] as const,
   comentarioJobs: () => ["q", "coletar", "comentario-jobs"] as const,
+  guiaFila: () => ["q", "guias", "fila"] as const,
   jobs: () => ["jobs"] as const,
   batchJobs: () => ["batch-jobs"] as const,
   vouchers: () => ["vouchers"] as const,

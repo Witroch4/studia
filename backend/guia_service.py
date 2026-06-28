@@ -13,7 +13,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import GuiaFila
+from models import Guia, GuiaFila
 
 ATIVOS = ("resolving", "collecting")
 TERMINAIS = ("done", "skipped", "error")
@@ -263,3 +263,96 @@ async def guia_coleta_completa(db: AsyncSession, guia_id: int) -> bool:
         or (c.total_questoes > 0 and coletado.get(c.tc_caderno_id, 0) >= c.total_questoes)
         for c in cads
     )
+
+
+# ─── Tick do supervisor ──────────────────────────────────
+
+
+async def _default_resolver(db: AsyncSession, url: str, *, page_size: int):
+    guia, _ = await resolver_e_salvar(db, url=url, relogin=False, page_size=page_size)
+    return guia
+
+
+async def guia_supervisor_tick(
+    db: AsyncSession,
+    *,
+    agora: datetime,
+    cooldown_s: int,
+    max_coleta_s: int,
+    max_tentativas: int,
+    resolver=_default_resolver,
+    enqueue=enqueue_cadernos_do_guia,
+    completa=guia_coleta_completa,
+) -> dict[str, Any]:
+    """Um passo do supervisor. Invariantes: ≤1 entrada ativa; 1º guia imediato;
+    ≥cooldown entre guias. Deps (resolver/enqueue/completa) são injetáveis p/ teste.
+    Retorna {"acao": ...}. NÃO commita (o runner commita)."""
+    # 1) Há entrada ativa?
+    ativo = (
+        await db.execute(
+            select(GuiaFila).where(GuiaFila.status.in_(ATIVOS)).order_by(GuiaFila.id).limit(1)
+        )
+    ).scalar_one_or_none()
+
+    if ativo is not None:
+        if ativo.status == "collecting" and ativo.guia_id is not None:
+            if await completa(db, ativo.guia_id):
+                ativo.status = "done"
+                ativo.finalizado_em = agora
+                await db.flush()
+                return {"acao": "concluiu", "fila_id": ativo.id}
+            if ativo.iniciado_em and (agora - ativo.iniciado_em).total_seconds() > max_coleta_s:
+                ativo.status = "skipped"
+                ativo.erro = "timeout (parcial)"
+                ativo.finalizado_em = agora
+                await db.flush()
+                return {"acao": "pulou_timeout", "fila_id": ativo.id}
+            return {"acao": "aguardando", "fila_id": ativo.id}
+        # Entrada ativa anômala (resolving preso por crash, ou collecting sem
+        # guia_id): drena como tentativa falha — nunca trava a fila.
+        ativo.tentativas += 1
+        ativo.erro = "estado ativo inconsistente (drenado)"
+        if ativo.tentativas >= max_tentativas:
+            ativo.status = "error"
+            ativo.finalizado_em = agora
+        await db.flush()
+        return {"acao": "erro_resolver", "fila_id": ativo.id, "tentativas": ativo.tentativas}
+
+    # 2) Nenhuma ativa → cooldown?
+    espera = await proximo_cooldown_segundos(db, agora=agora, cooldown_s=cooldown_s)
+    if espera > 0:
+        return {"acao": "cooldown", "proximo_em_segundos": espera}
+
+    # 3) Pega o próximo queued
+    proximo = (
+        await db.execute(
+            select(GuiaFila).where(GuiaFila.status == "queued").order_by(GuiaFila.id).limit(1)
+        )
+    ).scalar_one_or_none()
+    if proximo is None:
+        return {"acao": "nada"}
+
+    proximo.iniciado_em = agora
+    if proximo.guia_id is None:
+        try:
+            guia = await resolver(db, proximo.url, page_size=200)
+            proximo.guia_id = guia.id
+        except Exception as exc:  # noqa: BLE001 — qualquer falha de resolve conta tentativa
+            proximo.tentativas += 1
+            proximo.erro = str(exc)[:500]
+            if proximo.tentativas >= max_tentativas:
+                proximo.status = "error"
+                proximo.finalizado_em = agora
+            await db.flush()
+            return {"acao": "erro_resolver", "fila_id": proximo.id, "tentativas": proximo.tentativas}
+
+    enq, falhas = await enqueue(db, proximo.guia_id, page_size=200)
+    proximo.status = "collecting"
+    # marca o Guia como coletando (UI)
+    guia_row = (
+        await db.execute(select(Guia).where(Guia.id == proximo.guia_id))
+    ).scalar_one_or_none()
+    if guia_row is not None:
+        guia_row.status = "collecting"
+    await db.flush()
+    return {"acao": "iniciou", "fila_id": proximo.id, "enqueued": enq, "falhas": falhas}

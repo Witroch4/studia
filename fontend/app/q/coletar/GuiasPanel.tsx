@@ -33,6 +33,24 @@ interface GuiasResponse {
   guias: GuiaCard[];
 }
 
+interface FilaItem {
+  id: number;
+  url: string | null;
+  status: string;
+  guia_id: number | null;
+  guia_nome: string | null;
+  posicao: number | null;
+  erro: string | null;
+}
+
+interface FilaResp {
+  fila: FilaItem[];
+  ativo: boolean;
+  proximo_em_segundos: number;
+}
+
+const FILA_TERMINAL = ["done", "skipped", "error"];
+
 // Estado de exibição derivado: a coluna `status` do banco só vira "done" depois
 // que o usuário materializa ("Salvar"). Enquanto isso, se todos os jobs de
 // coleta terminaram (`coleta_completa`), a coleta acabou — o que o TC tinha já
@@ -71,8 +89,7 @@ function estadoBadge(e: EstadoGuia): string {
  */
 export default function GuiasPanel() {
   const queryClient = useQueryClient();
-  const [url, setUrl] = useState("");
-  const [iniciarColeta, setIniciarColeta] = useState(true);
+  const [urls, setUrls] = useState("");
   const [importando, setImportando] = useState(false);
   const [importandoSlug, setImportandoSlug] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -98,6 +115,29 @@ export default function GuiasPanel() {
 
   const guias: GuiaCard[] = guiasData?.guias ?? [];
 
+  // Fila de coleta: poll enquanto houver entrada não-terminal (coletando/queued).
+  const { data: filaData } = useQuery<FilaResp>({
+    queryKey: qk.guiaFila(),
+    queryFn: () => apiJson<FilaResp>("/api/q/guias/fila"),
+    refetchInterval: (q) => {
+      const naoTerminal = (q.state.data?.fila ?? []).some(
+        (e) => !FILA_TERMINAL.includes(e.status),
+      );
+      return naoTerminal ? 15000 : false;
+    },
+  });
+  const fila: FilaItem[] = filaData?.fila ?? [];
+
+  async function removerFila(id: number) {
+    await apiFetch(`/api/q/guias/fila/${id}`, { method: "DELETE" });
+    await queryClient.invalidateQueries({ queryKey: qk.guiaFila() });
+  }
+
+  async function pularFila(id: number) {
+    await apiFetch(`/api/q/guias/fila/${id}/pular`, { method: "POST" });
+    await queryClient.invalidateQueries({ queryKey: qk.guiaFila() });
+  }
+
   async function montarGuia(guiaId: number) {
     setMontandoId(guiaId);
     setMsg(null);
@@ -118,32 +158,60 @@ export default function GuiasPanel() {
     }
   }
 
-  async function importar(targetUrl: string, slug?: string) {
-    if (!targetUrl.trim()) {
-      setMsg("Cole a URL base do guia (ex.: https://www.tecconcursos.com.br/guias/oab-2026).");
+  // Adiciona uma ou mais URLs (uma por linha) à fila de coleta serial.
+  async function importarLote() {
+    const lista = urls
+      .split("\n")
+      .map((u) => u.trim())
+      .filter(Boolean);
+    if (lista.length === 0) {
+      setMsg("Cole uma ou mais URLs de guias (uma por linha).");
       return;
     }
-    if (slug) setImportandoSlug(slug);
-    else setImportando(true);
+    setImportando(true);
     setMsg(null);
     try {
-      const r = await apiFetch("/api/q/guias/importar", {
+      const r = await apiFetch("/api/q/guias/importar-lote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: targetUrl.trim(), iniciar_coleta: iniciarColeta }),
+        body: JSON.stringify({ urls: lista }),
       });
       const data = await r.json();
       if (!r.ok) setMsg(data.detail || data.message || `HTTP ${r.status}`);
       else {
-        setMsg(`✓ ${data.nome} — ${data.cadernos} cadernos${iniciarColeta ? `, ${data.enqueued} enfileirados` : ""}.`);
-        if (!slug) setUrl("");
+        setMsg(`✓ ${data.enfileirados} guia(s) adicionados à fila de coleta.`);
+        setUrls("");
+        await queryClient.invalidateQueries({ queryKey: qk.guiaFila() });
         await queryClient.invalidateQueries({ queryKey: qk.guias() });
-        if (termo) void buscar();
       }
     } catch (e) {
       setMsg((e as Error).message);
     } finally {
       setImportando(false);
+    }
+  }
+
+  // Importar 1 guia (resultado da busca) → também entra na fila de coleta.
+  async function importar(targetUrl: string, slug?: string) {
+    if (!targetUrl.trim()) return;
+    if (slug) setImportandoSlug(slug);
+    setMsg(null);
+    try {
+      const r = await apiFetch("/api/q/guias/importar-lote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls: [targetUrl.trim()] }),
+      });
+      const data = await r.json();
+      if (!r.ok) setMsg(data.detail || data.message || `HTTP ${r.status}`);
+      else {
+        setMsg(`✓ ${data.enfileirados} guia(s) na fila de coleta.`);
+        await queryClient.invalidateQueries({ queryKey: qk.guiaFila() });
+        if (termo) void buscar();
+      }
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
       setImportandoSlug(null);
     }
   }
@@ -179,28 +247,28 @@ export default function GuiasPanel() {
         </p>
       </div>
 
-      {/* Importar por URL */}
-      <div className="flex flex-col md:flex-row gap-2">
-        <input
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://www.tecconcursos.com.br/guias/oab-2026"
-          className="flex-1 px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-primary font-mono"
+      {/* Importar em lote por URLs */}
+      <div className="flex flex-col gap-2">
+        <textarea
+          value={urls}
+          onChange={(e) => setUrls(e.target.value)}
+          placeholder={"Cole uma ou mais URLs de guias (uma por linha)\nhttps://www.tecconcursos.com.br/guias/oab-2026\nhttps://www.tecconcursos.com.br/guias/..."}
+          rows={4}
+          className="px-3 py-2 bg-surface-2 border border-border rounded text-sm focus:outline-none focus:border-primary font-mono"
           disabled={importando}
         />
         <button
-          onClick={() => void importar(url)}
+          onClick={() => void importarLote()}
           disabled={importando}
-          className="bg-cyan-600 hover:bg-cyan-500 disabled:bg-surface-2 px-4 py-2 rounded text-sm font-semibold whitespace-nowrap"
+          className="self-start bg-cyan-600 hover:bg-cyan-500 disabled:bg-surface-2 px-4 py-2 rounded text-sm font-semibold"
         >
-          {importando ? "Importando…" : "Importar guia"}
+          {importando ? "Adicionando…" : "Adicionar à fila de coleta"}
         </button>
+        <p className="text-xs text-fg-faint">
+          Os guias são coletados <strong>1 por vez</strong>, com pausa de ~15 min entre eles
+          para não sobrecarregar o TC — vale igual colando todas de uma vez ou uma a uma.
+        </p>
       </div>
-      <label className="flex items-center gap-2 text-xs text-fg-muted cursor-pointer">
-        <input type="checkbox" checked={iniciarColeta} onChange={(e) => setIniciarColeta(e.target.checked)} disabled={importando} />
-        Iniciar a coleta das questões logo após importar
-      </label>
 
       {/* Buscar guias no TC */}
       <div className="flex flex-col md:flex-row gap-2">
@@ -252,6 +320,70 @@ export default function GuiasPanel() {
 
       {msg && <div className="text-xs text-primary">{msg}</div>}
       {erroGuias && <div className="text-xs text-error">Falha ao listar guias: {erroGuias}</div>}
+
+      {/* Fila de coleta */}
+      {fila.length > 0 && (
+        <div className="space-y-2 pt-1">
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-fg-faint uppercase tracking-wide">Fila de coleta</div>
+            {!filaData?.ativo && (filaData?.proximo_em_segundos ?? 0) > 0 && (
+              <span className="text-[11px] text-amber-400">
+                Esfriando — próximo guia em ~{Math.ceil((filaData!.proximo_em_segundos) / 60)} min
+              </span>
+            )}
+          </div>
+          {fila.map((e) => {
+            const label =
+              e.status === "collecting" ? "Coletando"
+              : e.status === "resolving" ? "Resolvendo"
+              : e.status === "queued" ? `Na fila${e.posicao ? ` #${e.posicao}` : ""}`
+              : e.status === "done" ? "Concluído"
+              : e.status === "skipped" ? "Pulado"
+              : "Erro";
+            const cor =
+              e.status === "collecting" || e.status === "resolving" ? "text-primary border-primary/40 bg-primary/15"
+              : e.status === "done" ? "text-success border-success/40 bg-success/15"
+              : e.status === "error" ? "text-error border-error/40 bg-error/15"
+              : "text-fg border-border bg-surface-2";
+            return (
+              <div key={e.id} className="rounded border border-border bg-black/20 p-2 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  {e.guia_id ? (
+                    <Link href={`/q/guias/${e.guia_id}`} className="text-sm text-fg truncate hover:text-primary">
+                      {e.guia_nome || e.url || `Guia ${e.guia_id}`}
+                    </Link>
+                  ) : (
+                    <div className="text-sm text-fg truncate">{e.url || `Guia ${e.id}`}</div>
+                  )}
+                  {e.erro && <div className="text-[11px] text-error truncate">{e.erro}</div>}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-[10px] uppercase font-semibold px-2 py-0.5 rounded border ${cor}`}>{label}</span>
+                  {e.status === "queued" && (
+                    <button
+                      onClick={() => void removerFila(e.id)}
+                      aria-label="Remover da fila"
+                      title="Remover da fila"
+                      className="text-xs text-fg-faint hover:text-error px-1"
+                    >
+                      ✕
+                    </button>
+                  )}
+                  {(e.status === "collecting" || e.status === "resolving") && (
+                    <button
+                      onClick={() => void pularFila(e.id)}
+                      title="Pular guia"
+                      className="text-xs text-amber-400 hover:text-amber-300 px-1"
+                    >
+                      Pular
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Guias importados */}
       {guias.length > 0 && (

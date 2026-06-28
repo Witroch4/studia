@@ -14,9 +14,11 @@ apenas:
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
+import guia_service
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import bindparam, select, text
@@ -158,8 +160,6 @@ async def importar_guia(
     """Padrão: adiciona o guia à fila de coleta serial (resolve preguiçoso, na
     vez do guia). Com `apenas_catalogar=true`: resolve+salva metadados agora,
     sem coletar."""
-    import guia_service
-
     if req.apenas_catalogar:
         try:
             guia, cadernos = await guia_service.resolver_e_salvar(
@@ -198,8 +198,6 @@ async def importar_lote(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Enfileira N guias de uma vez (resolve preguiçoso, coleta 1 por vez)."""
-    import guia_service
-
     novos = await guia_service.enfileirar_urls(db, req.urls, requested_by=_admin.id)
     await db.commit()
     return {
@@ -215,13 +213,12 @@ async def listar_fila(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Fila de coleta + countdown do cooldown. Enriquece com o nome do guia."""
-    import os
-    from datetime import datetime
-
-    import guia_service
-
     cooldown = int(os.getenv("GUIA_COOLDOWN_SECONDS", "900"))
-    data = await guia_service.listar_fila(db, agora=datetime.utcnow(), cooldown_s=cooldown)
+    data = await guia_service.listar_fila(
+        db,
+        agora=datetime.now(timezone.utc).replace(tzinfo=None),
+        cooldown_s=cooldown,
+    )
     guia_ids = [it["guia_id"] for it in data["fila"] if it["guia_id"]]
     nomes: dict[int, str] = {}
     if guia_ids:
@@ -241,8 +238,6 @@ async def remover_fila(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Remove uma entrada que ainda está só 'na fila'."""
-    import guia_service
-
     ok = await guia_service.remover_da_fila(db, fila_id)
     await db.commit()
     return {"ok": ok}
@@ -255,11 +250,9 @@ async def pular_fila_endpoint(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Pula a entrada ativa/queued (libera a fila; dispara o cooldown)."""
-    from datetime import datetime
-
-    import guia_service
-
-    ok = await guia_service.pular_fila(db, fila_id, agora=datetime.utcnow())
+    ok = await guia_service.pular_fila(
+        db, fila_id, agora=datetime.now(timezone.utc).replace(tzinfo=None)
+    )
     await db.commit()
     return {"ok": ok}
 
@@ -740,8 +733,6 @@ async def coletar_guia(
 ) -> dict[str, Any]:
     """Adiciona o guia à fila de coleta serial (re-coleta). Idempotente: não
     duplica se já estiver na fila/coletando."""
-    import guia_service
-
     guia = (await db.execute(select(Guia).where(Guia.id == guia_id))).scalar_one_or_none()
     if not guia:
         raise HTTPException(404, "Guia não encontrado")

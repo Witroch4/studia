@@ -61,6 +61,36 @@ services:
       - shared
       - studia-net
 
+  guia-supervisor:
+    build:
+      context: ./backend
+      target: deps
+    container_name: studia-guia-supervisor-dev
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    command: python -m scripts.guia_supervisor
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/studia
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=witalo
+      - MINIO_SECRET_KEY=g3IoVa0N51NjPGaMnbYsMhNdcrUX7UxUegOmCCre
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - PYTHONDONTWRITEBYTECODE=1
+      - SCRAPER_URL=http://studia-scraper-dev:8090
+      - MEILI_URL=http://meili:7700
+      - MEILI_KEY=dev_master_key_studia_2026
+      - STUDIA_COOKIE_SECURE=false
+      - NATS_SERVERS=${NATS_SERVERS:-nats://platform-nats:4222}
+      - TASKIQ_RESULT_REDIS_URL=redis://redis:6379/2
+      - GUIA_COOLDOWN_SECONDS=900
+      - GUIA_SUPERVISOR_INTERVAL=30
+      - GUIA_MAX_COLETA_SECONDS=21600
+      - GUIA_RESOLVE_MAX_TENTATIVAS=3
+    networks:
+      - shared
+      - studia-net
+
   minio:
     image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
     container_name: studia-minio-dev

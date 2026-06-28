@@ -94,6 +94,33 @@ services:
     deploy:
       <<: *on-manager
 
+  studia-guia-supervisor:
+    image: *backend-image
+    env_file:
+      - ${STUDIA_ENV_FILE:-/opt/studia/.env}
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MEILI_URL: http://studia-meili:7700
+      SCRAPER_URL: http://studia-scraper:8090
+      PYTHONDONTWRITEBYTECODE: "1"
+      TZ: America/Fortaleza
+      NATS_SERVERS: nats://nats:4222
+      TASKIQ_RESULT_REDIS_URL: redis://redis:6379/2
+      GUIA_COOLDOWN_SECONDS: "900"
+      GUIA_SUPERVISOR_INTERVAL: "30"
+      GUIA_MAX_COLETA_SECONDS: "21600"
+      GUIA_RESOLVE_MAX_TENTATIVAS: "3"
+    command: python -m scripts.guia_supervisor
+    # Não serve HTTP: desabilita o HEALTHCHECK HTTP herdado da imagem (senão
+    # vira unhealthy → crash-loop), igual ao serviço `worker`.
+    healthcheck:
+      test: ["NONE"]
+    networks:
+      - minha_rede
+    deploy:
+      <<: *on-manager
+      replicas: 1
+
   studia-scraper:
     image: *scraper-image
     env_file:
