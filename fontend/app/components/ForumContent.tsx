@@ -5,6 +5,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { API_BASE } from "@/lib/api";
+import { normalizeForumMath } from "./forumMath";
 
 /**
  * Renderiza conteúdo de comentário do fórum (gerado por usuário).
@@ -76,6 +77,8 @@ interface ForumContentProps {
 }
 
 export default function ForumContent({ content, className = "" }: ForumContentProps) {
+  const normalizedContent = normalizeForumMath(content);
+
   return (
     <div className={`forum-content ${className}`}>
       <ReactMarkdown
@@ -83,7 +86,7 @@ export default function ForumContent({ content, className = "" }: ForumContentPr
         rehypePlugins={[[rehypeSanitize, schema], rehypeKatex]}
         components={components}
       >
-        {content}
+        {normalizedContent}
       </ReactMarkdown>
     </div>
   );

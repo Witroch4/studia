@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import TurndownService from "turndown";
 import ForumContent from "../../../../components/ForumContent";
+import { normalizeForumMath } from "../../../../components/forumMath";
 import { uploadImagemForum } from "../../../hooks/useForum";
 
 // Converte HTML colado (chat do Gemini, Word, páginas) em markdown, preservando
@@ -58,6 +59,7 @@ export function CommentEditor({
     }
     if (!md) return; // conversão vazia/erro → deixa o paste nativo seguir
     e.preventDefault();
+    md = normalizeForumMath(md);
     const el = ref.current;
     const start = el ? el.selectionStart : texto.length;
     const end = el ? el.selectionEnd : texto.length;
@@ -86,7 +88,7 @@ export function CommentEditor({
   }
 
   async function publicar() {
-    const t = texto.trim();
+    const t = normalizeForumMath(texto.trim());
     if (!t) return;
     await onSubmit(t);
     setTexto("");
