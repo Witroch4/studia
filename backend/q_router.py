@@ -1226,6 +1226,58 @@ async def renomear_caderno(
     return {"id": cad.id, "nome": cad.nome}
 
 
+@router.post("/cadernos/{caderno_id}/questoes/{questao_id}")
+async def adicionar_questao_caderno(
+    caderno_id: int,
+    questao_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Adiciona uma questão a um caderno pessoal do usuário.
+
+    Cadernos de catálogo/salvos não são mutáveis aqui; para eles o usuário deve
+    criar um caderno derivado/pessoal. A operação é idempotente para evitar
+    duplicar IDs quando o front reenvia a ação.
+    """
+    cad = (
+        await db.execute(
+            select(CadernoQuestoes).where(
+                CadernoQuestoes.id == caderno_id,
+                CadernoQuestoes.owner_uid == user.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not cad:
+        raise HTTPException(404, "caderno não encontrado")
+
+    existe_questao = (
+        await db.execute(select(Questao.id).where(Questao.id == questao_id))
+    ).scalar_one_or_none()
+    if not existe_questao:
+        raise HTTPException(404, f"questao {questao_id} not found")
+
+    ids = [int(qid) for qid in (cad.question_ids or [])]
+    if questao_id in ids:
+        return {
+            "id": cad.id,
+            "questao_id": questao_id,
+            "adicionada": False,
+            "total": cad.total,
+            "redirect": f"/q/caderno/{cad.id}",
+        }
+
+    cad.question_ids = [*ids, questao_id]
+    cad.total = len(cad.question_ids)
+    await db.commit()
+    return {
+        "id": cad.id,
+        "questao_id": questao_id,
+        "adicionada": True,
+        "total": cad.total,
+        "redirect": f"/q/caderno/{cad.id}",
+    }
+
+
 @router.get("/cadernos")
 async def listar_cadernos(
     pasta: str | None = None,
@@ -2703,7 +2755,11 @@ async def admin_trocar_role(
 
 
 @router.get("/{questao_id}")
-async def detalhe(questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+async def detalhe(
+    questao_id: int,
+    user: CurrentUser | None = Depends(get_current_user_opt),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
     stmt = (
         select(Questao)
         .options(selectinload(Questao.alternativas), selectinload(Questao.assuntos))
@@ -2718,6 +2774,50 @@ async def detalhe(questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[s
     orgao = (await db.execute(select(Orgao).where(Orgao.id == q.orgao_id))).scalar_one_or_none() if q.orgao_id else None
     cargo = (await db.execute(select(Cargo).where(Cargo.id == q.cargo_id))).scalar_one_or_none() if q.cargo_id else None
     materia = (await db.execute(select(Materia).where(Materia.id == q.materia_id))).scalar_one_or_none() if q.materia_id else None
+
+    favorita = False
+    minha_resolucao: dict[str, Any] | None = None
+    cadernos: list[dict[str, Any]] = []
+    if user is not None:
+        favorita = (
+            await db.execute(
+                select(QuestaoFavorita.id).where(
+                    QuestaoFavorita.owner_uid == user.id,
+                    QuestaoFavorita.questao_id == questao_id,
+                )
+            )
+        ).scalar_one_or_none() is not None
+        res_row = (
+            await db.execute(
+                select(Resolucao.resposta, Resolucao.acertou)
+                .where(
+                    Resolucao.usuario_uid == user.id,
+                    Resolucao.questao_id == questao_id,
+                    Resolucao.caderno_id.is_(None),
+                )
+                .order_by(Resolucao.created_at.desc())
+                .limit(1)
+            )
+        ).first()
+        if res_row is not None:
+            minha_resolucao = {"resposta": res_row.resposta, "acertou": res_row.acertou}
+        cad_rows = (
+            await db.execute(
+                text(
+                    """
+                    SELECT id, nome, pasta FROM cadernos_questoes
+                    WHERE owner_uid = :uid
+                      AND cast(question_ids as jsonb) @> to_jsonb(cast(:qid as integer))
+                    ORDER BY created_at DESC
+                    """
+                ),
+                {"uid": user.id, "qid": questao_id},
+            )
+        ).mappings().all()
+        cadernos = [
+            {"id": c["id"], "nome": c["nome"], "pasta": c["pasta"]}
+            for c in cad_rows
+        ]
 
     return {
         "id": q.id,
@@ -2750,4 +2850,7 @@ async def detalhe(questao_id: int, db: AsyncSession = Depends(get_db)) -> dict[s
                 QuestaoComentario.deleted_at.is_(None),
             )
         )).scalar_one(),
+        "favorita": favorita,
+        "minha_resolucao": minha_resolucao,
+        "cadernos": cadernos,
     }
