@@ -1529,11 +1529,35 @@ async def estatisticas_caderno(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     cad = await _caderno_acessivel(db, caderno_id, user)
-    total = (await db.execute(select(func.count()).where(Resolucao.caderno_id == caderno_id, Resolucao.usuario_uid == user.id))).scalar_one()
-    acertos = (await db.execute(select(func.count()).where(Resolucao.caderno_id == caderno_id, Resolucao.usuario_uid == user.id, Resolucao.acertou == True))).scalar_one()  # noqa: E712
+    return await _estatisticas_caderno_payload(db, caderno_id, user.id, cad.total)
+
+
+async def _estatisticas_caderno_payload(
+    db: AsyncSession,
+    caderno_id: int,
+    usuario_uid: str,
+    questoes_total: int,
+) -> dict[str, Any]:
+    total = (
+        await db.execute(
+            select(func.count()).where(
+                Resolucao.caderno_id == caderno_id,
+                Resolucao.usuario_uid == usuario_uid,
+            )
+        )
+    ).scalar_one()
+    acertos = (
+        await db.execute(
+            select(func.count()).where(
+                Resolucao.caderno_id == caderno_id,
+                Resolucao.usuario_uid == usuario_uid,
+                Resolucao.acertou == True,  # noqa: E712
+            )
+        )
+    ).scalar_one()
     return {
         "caderno_id": caderno_id,
-        "questoes_total": cad.total,
+        "questoes_total": questoes_total,
         "resolvidas": total,
         "acertos": acertos,
         "erros": total - acertos,
@@ -1544,6 +1568,11 @@ class ImportarGabaritoReq(BaseModel):
     # ID do caderno no TEC. Opcional: se o caderno studIA já tem `tc_caderno_id`,
     # usa esse. Aceita o número puro (a UI extrai de uma URL antes de enviar).
     tc_caderno_id: int | None = None
+    # Alternativa manual: texto copiado da tabela de desempenho do TEC
+    # (Nº / Status / Resolvida em / Código). Usado quando o XHR não é a fonte
+    # mais confiável ou para corrigir uma estatística já importada.
+    texto_estatistica: str | None = Field(default=None, max_length=2_000_000)
+    sobrescrever: bool = True
 
 
 _ALT_LETRAS = {1: "A", 2: "B", 3: "C", 4: "D", 5: "E"}
@@ -1581,6 +1610,67 @@ def _parse_data_tc(valor: Any) -> datetime | None:
     return None
 
 
+def _datetime_utc_naive(valor: datetime | None) -> datetime | None:
+    if valor is None:
+        return None
+    if valor.tzinfo is None:
+        return valor
+    return valor.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+_TEXTO_STATS_RESOLVIDA_RE = _re.compile(
+    r"\b(?P<status>Acertou|Errou)\b\s+(?P<data>\d{2}/\d{2}/\d{4})\s+#(?P<id>\d+)",
+    _re.I,
+)
+_TEXTO_STATS_NAO_RESOLVIDA_RE = _re.compile(
+    r"N(?:ã|a)o\s+resolvida\s+#(?P<id>\d+)",
+    _re.I,
+)
+_TEXTO_STATS_NUMERO_RE = _re.compile(r"(?m)^\s*(?P<n>\d{1,5})(?:\s*$|\t)")
+
+
+def _parse_texto_estatistica_tc(texto: str) -> dict[str, Any]:
+    itens: list[dict[str, Any]] = []
+    resolvidas_ids: set[int] = set()
+
+    for m in _TEXTO_STATS_RESOLVIDA_RE.finditer(texto):
+        id_questao = int(m.group("id"))
+        resolvidas_ids.add(id_questao)
+        itens.append(
+            {
+                "idQuestao": id_questao,
+                "acertou": m.group("status").lower() == "acertou",
+                "data": m.group("data"),
+                "alternativa": None,
+                "tipoQuestao": None,
+            }
+        )
+
+    for m in _TEXTO_STATS_NAO_RESOLVIDA_RE.finditer(texto):
+        id_questao = int(m.group("id"))
+        if id_questao in resolvidas_ids:
+            continue
+        itens.append(
+            {
+                "idQuestao": id_questao,
+                "acertou": None,
+                "data": None,
+                "alternativa": None,
+                "tipoQuestao": None,
+            }
+        )
+
+    numeros = [int(m.group("n")) for m in _TEXTO_STATS_NUMERO_RE.finditer(texto)]
+    anuladas = len(_re.findall(r"\bAnulada\b", texto, _re.I))
+    total = max(numeros) if numeros else len(itens) + anuladas
+    if not itens and not anuladas:
+        raise HTTPException(
+            422,
+            "Texto de estatística não reconhecido. Cole a tabela com Status, Resolvida em e Código.",
+        )
+    return {"itens": itens, "total": total, "anuladas": anuladas}
+
+
 @router.post("/cadernos/{caderno_id}/importar-gabarito")
 async def importar_gabarito_tec(
     caderno_id: int,
@@ -1590,33 +1680,41 @@ async def importar_gabarito_tec(
 ) -> dict[str, Any]:
     """Importa o desempenho do usuário no TEC (aba Gabarito) para este caderno.
 
-    Mapeia cada `idQuestao` do TEC → `Questao.id_externo` → grava `Resolucao`
-    (resposta/acertou/data). Dedup por (usuário, caderno, questão): não duplica
-    nem sobrescreve respostas já existentes — re-import é incremental.
+    Mapeia cada `idQuestao` do TEC → `Questao.id_externo` → grava/atualiza
+    `Resolucao` (resposta/acertou/data). A fonte pode ser o scraper ou o texto
+    copiado da tabela de desempenho.
     """
     cad = await _caderno_acessivel(db, caderno_id, user)
 
     tc_cid = cad.tc_caderno_id or req.tc_caderno_id
-    if not tc_cid:
-        raise HTTPException(
-            422,
-            "Caderno sem vínculo com o TEC. Informe o ID (ou URL) do caderno no TecConcursos.",
-        )
     # Vincula o caderno ao TEC se ainda não tinha (só o dono pode gravar).
     if cad.tc_caderno_id is None and cad.owner_uid == user.id:
         cad.tc_caderno_id = tc_cid
 
-    # Busca o gabarito no scraper (sessão TC + proxy residencial vivem lá).
-    try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(connect=5, read=180, write=10, pool=185)
-        ) as c:
-            r = await c.get(f"{SCRAPER_URL}/caderno/{tc_cid}/gabarito")
-    except httpx.HTTPError as exc:
-        raise HTTPException(502, f"scraper indisponível: {exc}") from exc
-    if r.status_code != 200:
-        raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:300]}")
-    payload = r.json()
+    texto_manual = (req.texto_estatistica or "").strip()
+    fonte = "texto" if texto_manual else "scraper"
+    anuladas_no_tec = 0
+    if texto_manual:
+        parsed = _parse_texto_estatistica_tc(texto_manual)
+        payload = {"total": parsed["total"], "itens": parsed["itens"]}
+        anuladas_no_tec = int(parsed["anuladas"])
+    else:
+        if not tc_cid:
+            raise HTTPException(
+                422,
+                "Caderno sem vínculo com o TEC. Informe o ID (ou URL) do caderno no TecConcursos.",
+            )
+        # Busca o gabarito no scraper (sessão TC + proxy residencial vivem lá).
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(connect=5, read=180, write=10, pool=185)
+            ) as c:
+                r = await c.get(f"{SCRAPER_URL}/caderno/{tc_cid}/gabarito")
+        except httpx.HTTPError as exc:
+            raise HTTPException(502, f"scraper indisponível: {exc}") from exc
+        if r.status_code != 200:
+            raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:300]}")
+        payload = r.json()
     itens: list[dict[str, Any]] = payload.get("itens") or []
 
     # idQuestao (TEC) → Questao.id (studIA), via id_externo.
@@ -1633,12 +1731,11 @@ async def importar_gabarito_tec(
             ).all()
         )
 
-    # Questões que o usuário já tem resolução NESTE caderno (qualquer origem):
-    # não duplicar nem sobrescrever resposta manual.
-    ja_resolvidas: set[int] = set(
-        (
+    resolucoes_por_qid: dict[int, Resolucao] = {
+        r.questao_id: r
+        for r in (
             await db.execute(
-                select(Resolucao.questao_id).where(
+                select(Resolucao).where(
                     Resolucao.caderno_id == caderno_id,
                     Resolucao.usuario_uid == user.id,
                 )
@@ -1646,9 +1743,10 @@ async def importar_gabarito_tec(
         )
         .scalars()
         .all()
-    )
+    }
 
-    importadas = acertos = erros = ja_tinha = nao_resolvidas = nao_mapeadas = 0
+    importadas = atualizadas = acertos_importados = erros_importados = 0
+    ja_tinha = nao_resolvidas = nao_mapeadas = 0
     for it in itens:
         if it.get("acertou") is None:  # não resolvida no TEC
             nao_resolvidas += 1
@@ -1657,8 +1755,25 @@ async def importar_gabarito_tec(
         if qid is None:  # questão não existe no studIA (caderno não coletado por completo)
             nao_mapeadas += 1
             continue
-        if qid in ja_resolvidas:
+        existente = resolucoes_por_qid.get(qid)
+        if existente is not None:
             ja_tinha += 1
+            if req.sobrescrever:
+                mudou = False
+                resposta = _alt_para_resposta(it.get("alternativa"), it.get("tipoQuestao"))
+                data = _datetime_utc_naive(_parse_data_tc(it.get("data")))
+                acertou = bool(it.get("acertou"))
+                if resposta is not None and existente.resposta != resposta:
+                    existente.resposta = resposta
+                    mudou = True
+                if existente.acertou != acertou:
+                    existente.acertou = acertou
+                    mudou = True
+                if data is not None and existente.created_at != data:
+                    existente.created_at = data
+                    mudou = True
+                if mudou:
+                    atualizadas += 1
             continue
 
         acertou = bool(it.get("acertou"))
@@ -1672,26 +1787,32 @@ async def importar_gabarito_tec(
         )
         data = _parse_data_tc(it.get("data"))
         if data is not None:
-            kwargs["created_at"] = data
-        db.add(Resolucao(**kwargs))
-        ja_resolvidas.add(qid)
+            kwargs["created_at"] = _datetime_utc_naive(data)
+        resolucao = Resolucao(**kwargs)
+        db.add(resolucao)
+        resolucoes_por_qid[qid] = resolucao
         importadas += 1
         if acertou:
-            acertos += 1
+            acertos_importados += 1
         else:
-            erros += 1
+            erros_importados += 1
 
     await db.commit()
+    stats = await _estatisticas_caderno_payload(db, caderno_id, user.id, cad.total)
     return {
         "caderno_id": caderno_id,
         "tc_caderno_id": tc_cid,
+        "fonte": fonte,
         "total_no_tec": payload.get("total", len(itens)),
         "importadas": importadas,
-        "acertos": acertos,
-        "erros": erros,
+        "atualizadas": atualizadas,
+        "acertos_importados": acertos_importados,
+        "erros_importados": erros_importados,
         "ja_tinha": ja_tinha,
         "nao_resolvidas_no_tec": nao_resolvidas,
+        "anuladas_no_tec": anuladas_no_tec,
         "nao_mapeadas": nao_mapeadas,
+        **stats,
     }
 
 

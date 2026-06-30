@@ -173,7 +173,9 @@ function CadernosView({ pasta }: { pasta: string }) {
     const id = promptGabarito.cadernoId;
     setPromptGabarito({ aberto: false, cadernoId: null });
     if (id === null) return;
-    const m = entrada.trim().match(/(\d{4,})/);
+    const texto = entrada.trim();
+    const pareceTabela = /#\d{4,}/.test(texto) && /(Acertou|Errou|Não resolvida|Anulada)/i.test(texto);
+    const m = pareceTabela ? null : texto.match(/(\d{4,})/);
     const tc_caderno_id = m ? Number(m[1]) : null;
 
     setImportando((s) => ({ ...s, [id]: true }));
@@ -181,7 +183,11 @@ function CadernosView({ pasta }: { pasta: string }) {
       const r = await apiFetch(`/api/q/cadernos/${id}/importar-gabarito`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tc_caderno_id }),
+        body: JSON.stringify(
+          pareceTabela
+            ? { texto_estatistica: texto, sobrescrever: true }
+            : { tc_caderno_id, sobrescrever: true },
+        ),
       });
       if (!r.ok) {
         const erro = await r.json().catch(() => ({}));
@@ -190,12 +196,15 @@ function CadernosView({ pasta }: { pasta: string }) {
       const res = await r.json();
       setDesempenho((d) => ({
         ...d,
-        [id]: { resolvidas: res.importadas + res.ja_tinha, acertos: res.acertos, erros: res.erros },
+        [id]: { resolvidas: res.resolvidas, acertos: res.acertos, erros: res.erros },
       }));
       toast.success(
-        `Desempenho importado: ${res.importadas} novas (${res.acertos} acertos, ${res.erros} erros)` +
-          ` · ${res.ja_tinha} já estavam no studIA` +
+        `Desempenho importado: ${res.resolvidas} resolvidas (${res.acertos} acertos, ${res.erros} erros)` +
+          ` · ${res.importadas} novas` +
+          (res.atualizadas ? ` · ${res.atualizadas} atualizadas` : "") +
+          ` · ${res.ja_tinha} já existiam` +
           ` · ${res.nao_resolvidas_no_tec} ainda não resolvidas` +
+          (res.anuladas_no_tec ? ` · ${res.anuladas_no_tec} anuladas` : "") +
           (res.nao_mapeadas
             ? ` · ${res.nao_mapeadas} questões não encontradas (caderno coletado parcialmente)`
             : ""),
@@ -310,8 +319,9 @@ function CadernosView({ pasta }: { pasta: string }) {
       key={promptGabarito.cadernoId ?? "closed"}
       open={promptGabarito.aberto}
       titulo="Importar desempenho"
-      descricao="Cole a URL ou o ID do caderno de origem"
-      placeholder="https://… ou 12345"
+      descricao="Cole a URL/ID do caderno de origem ou a tabela copiada da aba de desempenho."
+      placeholder={"https://… ou 12345\n\nOu cole a tabela com Nº, Status, Resolvida em e Código."}
+      multiline
       onConfirm={confirmarImportarGabarito}
       onCancel={() => setPromptGabarito({ aberto: false, cadernoId: null })}
     />
