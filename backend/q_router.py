@@ -412,6 +412,11 @@ class ColetarReq(BaseModel):
     page_size: int = Field(200, ge=1, le=200, description="Tamanho da faixa TC")
 
 
+class TcAuthLoginReq(BaseModel):
+    email: str | None = Field(default=None, max_length=320)
+    password: str | None = Field(default=None, max_length=2048)
+
+
 @router.post("/coletar", status_code=status.HTTP_202_ACCEPTED)
 async def coletar(req: ColetarReq, _admin: CurrentUser = Depends(require_admin)) -> dict[str, Any]:
     """Enfileira a coleta de um caderno TC no scraper TaskIQ/NATS. (admin)"""
@@ -464,6 +469,62 @@ async def coletar(req: ColetarReq, _admin: CurrentUser = Depends(require_admin))
         "enqueued_units": job["enqueued_units"],
         "message": message,
     }
+
+
+def _sem_senha(payload: dict[str, Any]) -> dict[str, Any]:
+    payload.pop("password", None)
+    return payload
+
+
+async def _scraper_json_or_502(response: httpx.Response) -> dict[str, Any]:
+    if response.status_code != 200:
+        raise HTTPException(502, f"scraper falhou: {response.status_code} {response.text[:300]}")
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise HTTPException(502, "scraper retornou resposta não-JSON") from exc
+    if not isinstance(data, dict):
+        raise HTTPException(502, "scraper retornou payload inválido")
+    return _sem_senha(data)
+
+
+@router.get("/coletar/tc-auth/status")
+async def tc_auth_status(_admin: CurrentUser = Depends(require_admin)) -> dict[str, Any]:
+    """Status da sessão/credencial TC usada pelo scraper. Nunca retorna senha."""
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=3, read=8, write=5, pool=10)) as c:
+            r = await c.get(f"{SCRAPER_URL}/tc/auth/status")
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"scraper indisponível: {exc}") from exc
+    return await _scraper_json_or_502(r)
+
+
+@router.post("/coletar/tc-auth/login")
+async def tc_auth_login(
+    req: TcAuthLoginReq,
+    _admin: CurrentUser = Depends(require_admin),
+) -> dict[str, Any]:
+    """Salva credencial TC no scraper após login Playwright válido."""
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5, read=75, write=10, pool=80)) as c:
+            r = await c.post(
+                f"{SCRAPER_URL}/tc/auth/login",
+                json={"email": req.email, "password": req.password},
+            )
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"scraper indisponível: {exc}") from exc
+    return await _scraper_json_or_502(r)
+
+
+@router.delete("/coletar/tc-auth/session")
+async def tc_auth_logout(_admin: CurrentUser = Depends(require_admin)) -> dict[str, Any]:
+    """Remove o storage_state atual do TC sem apagar a credencial persistida."""
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=3, read=8, write=5, pool=10)) as c:
+            r = await c.delete(f"{SCRAPER_URL}/tc/auth/session")
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"scraper indisponível: {exc}") from exc
+    return await _scraper_json_or_502(r)
 
 
 @router.post("/cadernos/{caderno_id}/importar-comentarios-tc", status_code=status.HTTP_202_ACCEPTED)

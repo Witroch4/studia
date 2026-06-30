@@ -1,0 +1,98 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+import pytest
+
+import app.auth as tc_auth
+
+
+@dataclass
+class _Settings:
+    tc_email: str | None
+    tc_password: str | None
+    tc_storage_state_path: Path
+
+
+def test_runtime_credentials_override_env_without_exposing_password(tmp_path):
+    settings = _Settings(
+        tc_email="env@example.com",
+        tc_password="env-pass",
+        tc_storage_state_path=tmp_path / "storage_state.json",
+    )
+
+    tc_auth.save_runtime_credentials("runtime@example.com", "runtime-pass", settings=settings)
+
+    status = tc_auth.tc_auth_status(settings=settings)
+    email, password, source = tc_auth.effective_tc_credentials(settings=settings)
+
+    assert (email, password, source) == ("runtime@example.com", "runtime-pass", "runtime")
+    assert status["configured"] is True
+    assert status["email"] == "runtime@example.com"
+    assert status["source"] == "runtime"
+    assert "password" not in status
+
+
+def test_effective_credentials_falls_back_to_env(tmp_path):
+    settings = _Settings(
+        tc_email="env@example.com",
+        tc_password="env-pass",
+        tc_storage_state_path=tmp_path / "storage_state.json",
+    )
+
+    assert tc_auth.effective_tc_credentials(settings=settings) == (
+        "env@example.com",
+        "env-pass",
+        "env",
+    )
+
+
+def test_clear_tc_session_removes_storage_state_only(tmp_path):
+    settings = _Settings(
+        tc_email="env@example.com",
+        tc_password="env-pass",
+        tc_storage_state_path=tmp_path / "storage_state.json",
+    )
+    settings.tc_storage_state_path.write_text("{}", encoding="utf-8")
+    tc_auth.save_runtime_credentials("runtime@example.com", "runtime-pass", settings=settings)
+
+    removed = tc_auth.clear_tc_session(settings=settings)
+
+    assert removed is True
+    assert not settings.tc_storage_state_path.exists()
+    assert tc_auth.effective_tc_credentials(settings=settings)[0] == "runtime@example.com"
+
+
+@pytest.mark.asyncio
+async def test_api_login_saves_credentials_after_success(monkeypatch, tmp_path):
+    from app.main import TcAuthLoginBody, tc_auth_login_endpoint
+
+    settings = _Settings(
+        tc_email=None,
+        tc_password=None,
+        tc_storage_state_path=tmp_path / "storage_state.json",
+    )
+    logins: list[tuple[str | None, str | None]] = []
+
+    async def fake_login_and_save_state(*, headless: bool = True, email=None, password=None):
+        logins.append((email, password))
+        settings.tc_storage_state_path.write_text("{}", encoding="utf-8")
+        return settings.tc_storage_state_path
+
+    monkeypatch.setattr(tc_auth, "get_settings", lambda: settings)
+    monkeypatch.setattr("app.main.login_and_save_state", fake_login_and_save_state)
+
+    result = await tc_auth_login_endpoint(
+        TcAuthLoginBody(email="runtime@example.com", password="runtime-pass")
+    )
+
+    assert result["ok"] is True
+    assert result["email"] == "runtime@example.com"
+    assert result["storage_state_exists"] is True
+    assert logins == [("runtime@example.com", "runtime-pass")]
+    assert tc_auth.effective_tc_credentials(settings=settings) == (
+        "runtime@example.com",
+        "runtime-pass",
+        "runtime",
+    )

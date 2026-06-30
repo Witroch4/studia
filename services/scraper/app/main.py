@@ -24,7 +24,12 @@ import typer
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
-from app.auth import login_and_save_state
+from app.auth import (
+    clear_tc_session,
+    login_and_save_state,
+    save_runtime_credentials,
+    tc_auth_status,
+)
 from app.client import TcClient
 from app.config import get_settings
 from app.discovery import (
@@ -36,7 +41,6 @@ from app.discovery import (
 from app.observability import configure_logging, get_logger
 from app.scrapers.tc_imprimir import scrape_caderno_imprimir
 from app.scrapers.tecconcursos import scrape_caderno, scrape_ids
-from app.auth import login_and_save_state
 from app.state import ScrapeState
 
 configure_logging()
@@ -168,6 +172,11 @@ class DiscoverQuestaoBody(BaseModel):
     caderno_id: int | None = None
 
 
+class TcAuthLoginBody(BaseModel):
+    email: str | None = None
+    password: str | None = None
+
+
 class EnqueueCadernoBody(BaseModel):
     caderno_id: int
     expected_total: int | None = None
@@ -198,6 +207,37 @@ class EnqueueImagensResponse(BaseModel):
 @api.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@api.get("/tc/auth/status")
+async def tc_auth_status_endpoint() -> dict[str, Any]:
+    return tc_auth_status()
+
+
+@api.post("/tc/auth/login")
+async def tc_auth_login_endpoint(body: TcAuthLoginBody) -> dict[str, Any]:
+    email = (body.email or "").strip()
+    password = body.password or ""
+    has_new_credentials = bool(email or password)
+    if has_new_credentials and (not email or not password):
+        raise HTTPException(422, "email e senha do TC são obrigatórios")
+    try:
+        await login_and_save_state(
+            headless=True,
+            email=email if has_new_credentials else None,
+            password=password if has_new_credentials else None,
+        )
+    except Exception as exc:
+        raise HTTPException(502, f"login TC falhou: {exc}") from exc
+    if has_new_credentials:
+        save_runtime_credentials(email, password)
+    return {"ok": True, **tc_auth_status()}
+
+
+@api.delete("/tc/auth/session")
+async def tc_auth_logout_endpoint() -> dict[str, Any]:
+    removed = clear_tc_session()
+    return {"ok": True, "storage_state_removed": removed, **tc_auth_status()}
 
 
 class ResolverGuiaBody(BaseModel):

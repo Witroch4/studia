@@ -23,6 +23,7 @@ from app.schemas import SessionExpired
 @dataclass
 class _FakeResponse:
     status_code: int
+    text: str = ""
 
 
 def _make_fake_tc_client(warmup_statuses: list[int]) -> type:

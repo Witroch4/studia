@@ -13,6 +13,7 @@ export const qk = {
   guia: (id: number | string) => ["q", "guias", id] as const,
   guiasUsuariosPastas: () => ["q", "guias", "usuarios-pastas"] as const,
   coletarJobs: () => ["q", "coletar", "jobs"] as const,
+  tcAuth: () => ["q", "coletar", "tc-auth"] as const,
   comentarioJobs: () => ["q", "coletar", "comentario-jobs"] as const,
   guiaFila: () => ["q", "guias", "fila"] as const,
   jobs: () => ["jobs"] as const,

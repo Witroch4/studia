@@ -5,8 +5,9 @@ import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import GuiasPanel from "./GuiasPanel";
 import { apiFetch } from "@/lib/api";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/queryKeys";
+import { BrandLoader, Skeleton } from "../../components/ds";
 
 const KNOWN_TOTALS: Record<string, number> = {
   "95872872": 29774,
@@ -97,6 +98,17 @@ interface ComentarioJobsResponse {
   jobs: ComentarioJob[];
 }
 
+interface TcAuthStatus {
+  ok?: boolean;
+  configured: boolean;
+  email: string | null;
+  source: "runtime" | "env" | "none" | string;
+  storage_state_exists: boolean;
+  storage_state_mtime: string | null;
+  storage_state_age_seconds: number | null;
+  storage_state_removed?: boolean;
+}
+
 function statusTexto(status: string): string {
   switch (status) {
     case "blocked":
@@ -180,6 +192,11 @@ function statusIcone(status: string): string {
     case "failed": return "✗";
     default: return "…";
   }
+}
+
+async function parseApiError(r: Response, fallback: string): Promise<string> {
+  const data = await r.json().catch(() => null);
+  return data?.detail || data?.message || fallback;
 }
 
 function ComentarioJobCard({
@@ -350,6 +367,9 @@ export default function ColetarPage() {
   const [url, setUrl] = useState("");
   const [expectedTotalText, setExpectedTotalText] = useState("");
   const [relogin, setRelogin] = useState(false);
+  const [tcEmail, setTcEmail] = useState("");
+  const [tcSenha, setTcSenha] = useState("");
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -374,6 +394,56 @@ export default function ColetarPage() {
   const [montados, setMontados] = useState<Record<number, { id: number; nome: string; total: number }>>({});
   const [recoletando, setRecoletando] = useState<number | null>(null);
   const [detalhesAbertos, setDetalhesAbertos] = useState<Record<number, boolean>>({});
+
+  const {
+    data: tcAuth,
+    isPending: carregandoTcAuth,
+  } = useQuery<TcAuthStatus>({
+    queryKey: qk.tcAuth(),
+    enabled: isAdmin === true,
+    queryFn: async () => {
+      const r = await apiFetch("/api/q/coletar/tc-auth/status", { cache: "no-store" });
+      if (!r.ok) throw new Error(await parseApiError(r, `HTTP ${r.status}`));
+      return (await r.json()) as TcAuthStatus;
+    },
+  });
+
+  const loginTc = useMutation<TcAuthStatus, Error, void>({
+    mutationFn: async () => {
+      const email = tcEmail.trim();
+      const senha = tcSenha;
+      const enviandoNovaCredencial = Boolean(email || senha);
+      const r = await apiFetch("/api/q/coletar/tc-auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          enviandoNovaCredencial
+            ? { email, password: senha }
+            : { email: null, password: null }
+        ),
+      });
+      if (!r.ok) throw new Error(await parseApiError(r, `HTTP ${r.status}`));
+      return (await r.json()) as TcAuthStatus;
+    },
+    onSuccess: (data) => {
+      setTcSenha("");
+      setTcEmail("");
+      queryClient.setQueryData(qk.tcAuth(), data);
+    },
+  });
+
+  const logoutTc = useMutation<TcAuthStatus, Error, void>({
+    mutationFn: async () => {
+      const r = await apiFetch("/api/q/coletar/tc-auth/session", {
+        method: "DELETE",
+      });
+      if (!r.ok) throw new Error(await parseApiError(r, `HTTP ${r.status}`));
+      return (await r.json()) as TcAuthStatus;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(qk.tcAuth(), data);
+    },
+  });
 
   // Polling dos jobs ativos — refetch enquanto houver algum running/queued/pending.
   const {
@@ -528,6 +598,12 @@ export default function ColetarPage() {
     ? Number(expectedTotalText)
     : knownTotal;
   const jobAtual = id ? jobs.find((job) => String(job.caderno_id) === id) : null;
+  const novaCredencialTc = Boolean(tcEmail.trim() || tcSenha);
+  const loginTcIncompleto = novaCredencialTc && (!tcEmail.trim() || !tcSenha);
+  const podeLoginTc =
+    !loginTc.isPending &&
+    !loginTcIncompleto &&
+    (novaCredencialTc || Boolean(tcAuth?.configured));
 
   async function coletar() {
     if (!id) {
@@ -612,6 +688,147 @@ export default function ColetarPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+        <section className="border border-border rounded-lg bg-page/70 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-fg-strong">
+                <span className="material-symbols-outlined text-primary text-[18px]">key</span>
+                Credencial TC
+              </h2>
+              <div className="mt-2 min-h-6">
+                {carregandoTcAuth ? (
+                  <Skeleton className="h-5 w-64" />
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold ${
+                        tcAuth?.storage_state_exists
+                          ? "border-success/40 bg-success/15 text-success"
+                          : "border-warning/40 bg-warning/15 text-warning"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[13px]">
+                        {tcAuth?.storage_state_exists ? "verified_user" : "lock_open"}
+                      </span>
+                      {tcAuth?.storage_state_exists ? "Sessão ativa" : "Sessão ausente"}
+                    </span>
+                    <span className="text-fg-muted">
+                      {tcAuth?.email || "sem email configurado"}
+                    </span>
+                    {tcAuth?.source && tcAuth.source !== "none" && (
+                      <span className="text-fg-faint">
+                        fonte: {tcAuth.source === "runtime" ? "UI" : "env"}
+                      </span>
+                    )}
+                    {tcAuth?.storage_state_mtime && (
+                      <span className="text-fg-faint">
+                        login: {formatarMomento(tcAuth.storage_state_mtime)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => logoutTc.mutate()}
+              disabled={logoutTc.isPending || carregandoTcAuth || !tcAuth?.storage_state_exists}
+              className="inline-flex items-center justify-center gap-1 rounded border border-border bg-surface-2 px-3 py-2 text-xs font-medium text-fg transition hover:bg-fg-strong/6 disabled:opacity-50"
+            >
+              <span className={`material-symbols-outlined text-[15px] ${logoutTc.isPending ? "animate-spin" : ""}`}>
+                {logoutTc.isPending ? "progress_activity" : "logout"}
+              </span>
+              Deslogar sessão
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-fg-muted">Email</span>
+              <input
+                type="email"
+                autoComplete="username"
+                autoCapitalize="none"
+                value={tcEmail}
+                onChange={(e) => setTcEmail(e.target.value)}
+                placeholder={tcAuth?.email || "email do TecConcursos"}
+                className="h-10 w-full rounded border border-border bg-surface-2 px-3 text-sm text-fg focus:border-primary focus:outline-none"
+                disabled={loginTc.isPending}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-fg-muted">Senha</span>
+              <div className="flex h-10 rounded border border-border bg-surface-2 focus-within:border-primary">
+                <input
+                  type={mostrarSenha ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={tcSenha}
+                  onChange={(e) => setTcSenha(e.target.value)}
+                  placeholder="senha do TC"
+                  className="min-w-0 flex-1 bg-transparent px-3 text-sm text-fg focus:outline-none"
+                  disabled={loginTc.isPending}
+                />
+                <button
+                  type="button"
+                  onClick={() => setMostrarSenha((v) => !v)}
+                  className="grid w-10 place-items-center text-fg-muted hover:text-fg"
+                  aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    {mostrarSenha ? "visibility_off" : "visibility"}
+                  </span>
+                </button>
+              </div>
+            </label>
+            <button
+              type="button"
+              onClick={() => loginTc.mutate()}
+              disabled={!podeLoginTc}
+              className="mt-5 inline-flex h-10 items-center justify-center gap-1 rounded bg-primary px-4 text-sm font-semibold text-on-primary transition hover:bg-primary-600 disabled:bg-surface-2 disabled:text-fg-faint"
+            >
+              <span className={`material-symbols-outlined text-[16px] ${loginTc.isPending ? "animate-spin" : ""}`}>
+                {loginTc.isPending ? "progress_activity" : "login"}
+              </span>
+              {novaCredencialTc ? "Entrar e salvar" : "Refazer login"}
+            </button>
+          </div>
+
+          <div className="mt-3 min-h-20">
+            {loginTc.isPending && (
+              <BrandLoader
+                size={24}
+                className="items-start gap-1 py-1 text-left"
+                label="Entrando no TC…"
+              />
+            )}
+            {!loginTc.isPending && loginTc.error && (
+              <div className="rounded border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
+                {loginTc.error.message}
+              </div>
+            )}
+            {!loginTc.isPending && logoutTc.error && (
+              <div className="rounded border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
+                {logoutTc.error.message}
+              </div>
+            )}
+            {!loginTc.isPending && loginTc.data?.ok && (
+              <div className="rounded border border-success/40 bg-success/10 px-3 py-2 text-xs text-success">
+                Login TC validado.
+              </div>
+            )}
+            {!loginTc.isPending && logoutTc.data?.ok && !logoutTc.error && (
+              <div className="rounded border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+                Sessão TC removida.
+              </div>
+            )}
+            {!loginTc.isPending && loginTcIncompleto && (
+              <div className="rounded border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+                Preencha email e senha para atualizar a credencial.
+              </div>
+            )}
+          </div>
+        </section>
+
         <GuiasPanel />
 
         <div className="border-t border-border pt-6">

@@ -74,6 +74,133 @@ async def test_coletar_enqueues_scraper_job(client, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_tc_auth_status_proxy_admin(client, monkeypatch):
+    import q_router
+
+    calls: list[str] = []
+
+    class FakeResponse:
+        status_code = 200
+        text = '{"configured": true}'
+
+        def json(self):
+            return {
+                "configured": True,
+                "email": "tc@example.com",
+                "source": "runtime",
+                "storage_state_exists": True,
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url):
+            calls.append(url)
+            return FakeResponse()
+
+    monkeypatch.setattr(q_router.httpx, "AsyncClient", FakeAsyncClient)
+
+    response = await client.get("/api/q/coletar/tc-auth/status")
+
+    assert response.status_code == 200
+    assert response.json()["email"] == "tc@example.com"
+    assert calls == ["http://scraper:8090/tc/auth/status"]
+
+
+@pytest.mark.asyncio
+async def test_tc_auth_login_proxy_nao_retorna_senha(client, monkeypatch):
+    import q_router
+
+    calls: list[dict] = []
+
+    class FakeResponse:
+        status_code = 200
+        text = '{"ok": true}'
+
+        def json(self):
+            return {
+                "ok": True,
+                "configured": True,
+                "email": "tc@example.com",
+                "source": "runtime",
+                "storage_state_exists": True,
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, url, json):
+            calls.append({"url": url, "json": json})
+            return FakeResponse()
+
+    monkeypatch.setattr(q_router.httpx, "AsyncClient", FakeAsyncClient)
+
+    response = await client.post(
+        "/api/q/coletar/tc-auth/login",
+        json={"email": "tc@example.com", "password": "nova-senha"},
+    )
+
+    assert response.status_code == 200
+    assert "password" not in response.text
+    assert calls == [
+        {
+            "url": "http://scraper:8090/tc/auth/login",
+            "json": {"email": "tc@example.com", "password": "nova-senha"},
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_tc_auth_logout_proxy_admin(client, monkeypatch):
+    import q_router
+
+    calls: list[str] = []
+
+    class FakeResponse:
+        status_code = 200
+        text = '{"ok": true}'
+
+        def json(self):
+            return {"ok": True, "storage_state_removed": True}
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def delete(self, url):
+            calls.append(url)
+            return FakeResponse()
+
+    monkeypatch.setattr(q_router.httpx, "AsyncClient", FakeAsyncClient)
+
+    response = await client.delete("/api/q/coletar/tc-auth/session")
+
+    assert response.status_code == 200
+    assert response.json()["storage_state_removed"] is True
+    assert calls == ["http://scraper:8090/tc/auth/session"]
+
+
+@pytest.mark.asyncio
 async def test_coletar_unknown_caderno_requires_expected_total(client, monkeypatch):
     response = await client.post(
         "/api/q/coletar",
