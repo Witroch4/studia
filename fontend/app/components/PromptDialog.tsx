@@ -16,6 +16,7 @@ interface Props {
   titulo: string;
   descricao?: string;
   placeholder?: string;
+  multiline?: boolean;
   onConfirm: (valor: string) => void;
   onCancel: () => void;
 }
@@ -25,7 +26,7 @@ interface Props {
  * O `key` no pai (passado como `open ? cadernoId : "closed"`) garante
  * que o estado interno é resetado ao abrir um novo dialog.
  */
-export function PromptDialog({ open, titulo, descricao, placeholder, onConfirm, onCancel }: Props) {
+export function PromptDialog({ open, titulo, descricao, placeholder, multiline = false, onConfirm, onCancel }: Props) {
   const [valor, setValor] = useState("");
   return (
     <AlertDialog open={open} onOpenChange={(o) => { if (!o) onCancel(); }}>
@@ -34,14 +35,30 @@ export function PromptDialog({ open, titulo, descricao, placeholder, onConfirm, 
           <AlertDialogTitle>{titulo}</AlertDialogTitle>
           {descricao ? <AlertDialogDescription>{descricao}</AlertDialogDescription> : null}
         </AlertDialogHeader>
-        <input
-          autoFocus
-          value={valor}
-          placeholder={placeholder}
-          onChange={(e) => setValor(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && valor.trim()) onConfirm(valor.trim()); }}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg outline-none focus:border-primary"
-        />
+        {multiline ? (
+          <textarea
+            autoFocus
+            value={valor}
+            placeholder={placeholder}
+            onChange={(e) => setValor(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && valor.trim()) {
+                onConfirm(valor.trim());
+              }
+            }}
+            rows={10}
+            className="w-full resize-y rounded-md border border-border bg-surface px-3 py-2 font-mono text-xs leading-5 text-fg outline-none focus:border-primary"
+          />
+        ) : (
+          <input
+            autoFocus
+            value={valor}
+            placeholder={placeholder}
+            onChange={(e) => setValor(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && valor.trim()) onConfirm(valor.trim()); }}
+            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg outline-none focus:border-primary"
+          />
+        )}
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onCancel}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
