@@ -31,7 +31,7 @@ interface CadernoResumo {
 
 interface Questao {
   id: number;
-  id_externo: number;
+  id_externo?: number;
   enunciado_md: string;
   enunciado_html: string;
   tipo: string;
@@ -102,6 +102,7 @@ function QuestaoScreen({ id }: { id: string }) {
 
   const { data: sessao } = useSession();
   const meuRole = (sessao?.user as { role?: string } | undefined)?.role ?? "user";
+  const souAdmin = meuRole === "admin";
   const souProfOuAdmin = meuRole === "professor" || meuRole === "admin";
 
   const { data: questao, isPending, isError } = useQuery<Questao>({
@@ -289,7 +290,11 @@ function QuestaoScreen({ id }: { id: string }) {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 font-semibold">
                 Questao <span className="text-primary">#{questao.id}</span>
-                {questao.id_externo && <span className="font-mono text-xs text-fg-faint">TC {questao.id_externo}</span>}
+                {souAdmin && questao.id_externo && (
+                  <span className="font-mono text-xs text-fg-faint">
+                    ID interno {questao.id} · TC {questao.id_externo}
+                  </span>
+                )}
                 {questao.status === "ANULADA" && (
                   <span className="rounded border border-warning/40 bg-warning/15 px-2 py-0.5 text-[10px] font-semibold text-warning">
                     ANULADA

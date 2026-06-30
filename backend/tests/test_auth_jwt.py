@@ -4,8 +4,28 @@
 - POST /api/q/cadernos → requer require_user + CSRF (mutação protegida)
 """
 
+import base64
+import json
+
 import pytest
-from security import CSRF_COOKIE, SESSION_COOKIE, mint_session_jwt, new_csrf_token
+from jose import jwt
+
+from security import CSRF_COOKIE, SESSION_COOKIE, decode_session_jwt, mint_session_jwt, new_csrf_token
+
+
+def _b64url(data: dict) -> str:
+    raw = json.dumps(data, separators=(",", ":"), sort_keys=True).encode()
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+
+def test_jwt_adulterado_para_admin_e_rejeitado():
+    token = mint_session_jwt(user_id="user-1", email="u@b.c", name="U", role="user")
+    header = jwt.get_unverified_header(token)
+    claims = jwt.get_unverified_claims(token)
+    claims["role"] = "admin"
+    forged = f"{_b64url(header)}.{_b64url(claims)}.{token.rsplit('.', 1)[1]}"
+
+    assert decode_session_jwt(forged) is None
 
 
 @pytest.mark.anyio

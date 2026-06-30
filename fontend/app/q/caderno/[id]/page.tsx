@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useHotkeys, ATALHOS_TC } from "../../../hooks/useHotkeys";
@@ -29,7 +30,7 @@ interface Alternativa {
 
 interface Questao {
   id: number;
-  id_externo: number;
+  id_externo?: number;
   enunciado_html: string;
   gabarito: string;
   status: string;
@@ -701,7 +702,13 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
           {/* ─── Linha enxuta com código + banca ─── */}
           <div className="px-4 py-2 bg-surface-2 border-b border-border/60 text-xs flex items-center gap-2">
             <span className="text-fg-faint">🔗</span>
-            <span className="text-primary font-mono">#{questao.id}</span>
+            <Link
+              href={`/q/questao/${questao.id}`}
+              className="text-primary font-mono hover:underline"
+              title="Abrir página da questão"
+            >
+              #{questao.id}
+            </Link>
             <span className="font-semibold text-fg">{questao.banca?.sigla}</span>
             <span className="text-fg-faint">-</span>
             <span className="text-fg-muted">
@@ -979,7 +986,7 @@ interface StatsDetalhe {
   por_assunto: Array<{ nome: string; resolvidas: number; acertos: number; taxa: number }>;
   por_banca: Array<{ nome: string; resolvidas: number; acertos: number; taxa: number }>;
   ultimas_resolucoes: Array<{
-    id_externo: number; resposta: string; acertou: boolean;
+    questao_id: number; id_externo?: number; resposta: string; acertou: boolean;
     tempo_segundos: number; created_at: string;
   }>;
 }
@@ -1171,7 +1178,12 @@ function EstatisticasTab({ cadernoId, cadernoNome }: { cadernoId: number; cadern
             <tbody>
               {data.ultimas_resolucoes.map((r, i) => (
                 <tr key={i} className="border-b border-border/60">
-                  <td className="py-1.5 px-2 font-mono text-primary">Q{r.id_externo}</td>
+                  <td className="py-1.5 px-2 font-mono text-primary">
+                    <Link href={`/q/questao/${r.questao_id}`} className="hover:underline">
+                      #{r.questao_id}
+                    </Link>
+                    {r.id_externo && <span className="ml-1 text-fg-faint">TC {r.id_externo}</span>}
+                  </td>
                   <td className="py-1.5 px-2 font-mono">{r.resposta}</td>
                   <td className={`py-1.5 px-2 ${r.acertou ? "text-success" : "text-error"}`}>
                     {r.acertou ? "✓ Acerto" : "✗ Erro"}
@@ -1271,7 +1283,7 @@ function BarBlock({ titulo, items }: {
 interface IndiceItem {
   n: number;
   questao_id: number;
-  id_externo: number;
+  id_externo?: number;
   banca: string | null;
   materia: string | null;
   gabarito: string | null;
@@ -1296,7 +1308,8 @@ function IndiceTab({ cadernoId, onAbrir, idxAtual }: {
         (i.materia || "").toLowerCase().includes(filtro.toLowerCase()) ||
         (i.banca || "").toLowerCase().includes(filtro.toLowerCase()) ||
         i.preview.toLowerCase().includes(filtro.toLowerCase()) ||
-        String(i.id_externo).includes(filtro)
+        String(i.questao_id).includes(filtro) ||
+        (i.id_externo != null && String(i.id_externo).includes(filtro))
       )
     : items;
 
@@ -1326,7 +1339,8 @@ function IndiceTab({ cadernoId, onAbrir, idxAtual }: {
               <span className="font-mono text-xs text-fg-faint w-12 shrink-0 pt-0.5">#{it.n}</span>
               <div className="flex-1 min-w-0">
                 <div className="text-xs text-fg-muted flex gap-2 mb-0.5">
-                  <span className="text-primary font-mono">Q{it.id_externo}</span>
+                  <span className="text-primary font-mono">#{it.questao_id}</span>
+                  {it.id_externo && <span className="text-fg-faint font-mono">TC {it.id_externo}</span>}
                   <span className="text-fg-faint">·</span>
                   <span>{it.banca}</span>
                   <span className="text-fg-faint">·</span>
@@ -1353,7 +1367,8 @@ function IndiceTab({ cadernoId, onAbrir, idxAtual }: {
 
 interface GabaritoItem {
   n: number;
-  id_externo: number;
+  questao_id: number;
+  id_externo?: number;
   gabarito: string | null;
   status: string | null;
 }
@@ -1392,7 +1407,7 @@ function GabaritoTab({ cadernoId }: { cadernoId: number }) {
           <div
             key={it.n}
             className={`border border-border/60 rounded p-1.5 text-center text-xs ${corDe(it.gabarito)}`}
-            title={`Q${it.id_externo} — ${it.gabarito || "?"}`}
+            title={`${it.id_externo ? `TC ${it.id_externo} · ` : ""}Questão #${it.questao_id} — ${it.gabarito || "?"}`}
           >
             <div className="text-[10px] text-fg-faint font-mono mb-0.5">{it.n})</div>
             <div className="font-bold font-mono">{abrev(it.gabarito)}</div>

@@ -1,0 +1,6638 @@
+Nº	Alternativa marcada	Status	Resolvida em	Código
+1	
+A
+B
+C
+D
+E
+ Acertou	24/05/2026	#3643888
+2	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#2827757
+3	
+A
+B
+C
+D
+E
+ Errou	04/06/2026	#2893013
+4	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3027342
+5	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2336158
+6	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#2518229
+7	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#2769465
+8	
+C
+E
+ Acertou	25/06/2026	#2525813
+9	
+C
+E
+ Acertou	21/06/2026	#2525820
+10	
+C
+E
+ Acertou	21/06/2026	#2527646
+11	
+C
+E
+ Acertou	28/06/2026	#2527665
+12	
+A
+B
+C
+D
+E
+ Errou	26/06/2026	#1693259
+13	
+A
+B
+C
+D
+E
+ Errou	26/06/2026	#452384
+14	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#1098194
+15	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3412318
+16	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#3412331
+17	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3415598
+18	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#3027348
+19	
+A
+B
+C
+D
+E
+ Acertou	26/05/2026	#2199233
+20	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#3412358
+21	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#3412380
+22	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3412449
+23	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3967005
+24	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3726839
+25	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2827833
+26	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#2893012
+27	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2903114
+28	
+A
+B
+C
+D
+E
+ Errou	10/06/2026	#3027347
+29	
+C
+E
+ Acertou	25/06/2026	#2525849
+30	
+C
+E
+ Acertou	11/06/2026	#2525854
+31	
+
+C
+
+E
+Não resolvida		#2527715
+32	
+C
+E
+ Acertou	11/06/2026	#2527725
+33	
+A
+B
+C
+D
+E
+ Acertou	16/06/2026	#1693289
+34	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#1045288
+35	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#452373
+36	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#452378
+37	
+A
+B
+C
+D
+E
+ Errou	26/06/2026	#3399013
+38	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#3411121
+39	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#3412299
+40	
+A
+B
+C
+D
+E
+ Acertou	26/05/2026	#3412304
+41	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#3412312
+42	
+A
+B
+C
+D
+E
+ Errou	08/06/2026	#3412317
+43	
+A
+B
+C
+D
+E
+ Errou	04/06/2026	#3412363
+44	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3412365
+45	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#3412387
+46	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3412396
+47	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3412498
+48	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#3412506
+49	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#3415544
+50	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3415632
+51	
+A
+B
+C
+D
+E
+ Errou	11/06/2026	#3421376
+52	
+A
+B
+C
+D
+E
+ Errou	06/06/2026	#3421383
+53	
+A
+B
+C
+D
+E
+ Errou	06/06/2026	#3726740
+54	
+A
+B
+C
+D
+E
+ Errou	24/06/2026	#2827839
+55		Anulada		
+56	
+A
+B
+C
+D
+E
+ Acertou	25/05/2026	#1693299
+57	
+A
+B
+C
+D
+E
+ Acertou	27/06/2026	#1045287
+58	
+A
+B
+C
+D
+E
+ Errou	25/06/2026	#600491
+59		Anulada		
+60	
+A
+B
+C
+D
+E
+ Errou	15/06/2026	#3726841
+61	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2893035
+62	
+C
+E
+ Acertou	29/06/2026	#2525851
+63	
+
+C
+
+E
+Não resolvida		#2525856
+64	
+C
+E
+ Acertou	27/06/2026	#2527716
+65	
+C
+E
+ Acertou	29/05/2026	#2527742
+66	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#1693322
+67		Anulada		
+68	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#1045289
+69	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#3399082
+70	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411107
+71	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#3411145
+72	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3412305
+73	
+A
+B
+C
+D
+E
+ Acertou	20/06/2026	#3412307
+74	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#3412337
+75	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#3412344
+76	
+A
+B
+C
+D
+E
+ Errou	20/06/2026	#3412345
+77	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3412348
+78	
+A
+B
+C
+D
+E
+ Errou	03/06/2026	#3412352
+79	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#3412395
+80	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#3412462
+81	
+A
+B
+C
+D
+E
+ Acertou	21/06/2026	#3412473
+82	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3412487
+83	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3415541
+84	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#3421312
+85	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421321
+86	
+A
+B
+C
+D
+E
+ Acertou	20/06/2026	#2903119
+87	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#2769461
+88	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#2769464
+89	
+A
+B
+C
+D
+E
+ Acertou	27/06/2026	#2271265
+90	
+A
+B
+C
+D
+E
+ Acertou	20/06/2026	#1045290
+91	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#1098196
+92	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#1098199
+93	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3411092
+94	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#3411095
+95	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3412308
+96	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#3412320
+97	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#3412322
+98	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#3412335
+99	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3412340
+100	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#3412410
+101	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#3412453
+102	
+A
+B
+C
+D
+E
+ Acertou	21/06/2026	#3412497
+103	
+A
+B
+C
+D
+E
+ Errou	27/06/2026	#3415553
+104	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#3421316
+105	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421325
+106	
+A
+B
+C
+D
+E
+ Errou	24/06/2026	#3532215
+107	
+A
+B
+C
+D
+E
+ Acertou	21/06/2026	#2769494
+108	
+C
+E
+ Acertou	10/06/2026	#2527650
+109	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#1693279
+110	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#2272331
+111	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#452380
+112	
+A
+B
+C
+D
+E
+ Errou	28/06/2026	#1039460
+113	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#3412389
+114	
+A
+B
+C
+D
+E
+ Errou	16/06/2026	#3412390
+115	
+A
+B
+C
+D
+E
+ Acertou	28/06/2026	#3412403
+116	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3412432
+117	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#3412434
+118	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#3412443
+119	
+A
+B
+C
+D
+E
+ Errou	13/06/2026	#3412444
+120	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#3412447
+121	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#3412500
+122	
+A
+B
+C
+D
+E
+ Acertou	29/06/2026	#3412512
+123	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#3412528
+124	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3415595
+125	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3966999
+126	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3551998
+127		Anulada		
+128	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#2272339
+129	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411085
+130	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411090
+131	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#3411255
+132	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411257
+133	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#3415493
+134	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#3415498
+135	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3415517
+136	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3415519
+137	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#3415559
+138	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#3415576
+139	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#3421372
+140	
+A
+B
+C
+D
+E
+ Errou	09/06/2026	#3967004
+141	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2769315
+142	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2147799
+143	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3410687
+144	
+A
+B
+C
+D
+E
+ Errou	28/06/2026	#3411073
+145	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#3411077
+146	
+A
+B
+C
+D
+E
+ Acertou	27/05/2026	#3411191
+147	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#3411238
+148	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411242
+149	
+A
+B
+C
+D
+E
+ Errou	24/06/2026	#3411244
+150	
+A
+B
+C
+D
+E
+ Acertou	20/06/2026	#3411247
+151	
+A
+B
+C
+D
+E
+ Errou	16/06/2026	#3415469
+152	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3415484
+153	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#3421247
+154	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#3421542
+155	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421564
+156	
+A
+B
+C
+D
+E
+ Errou	04/06/2026	#3421584
+157	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#3421599
+158	
+A
+B
+C
+D
+E
+ Acertou	29/05/2026	#3421652
+159	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#3421722
+160	
+A
+B
+C
+D
+E
+ Acertou	07/06/2026	#3421724
+161	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421735
+162	
+A
+B
+C
+D
+E
+ Acertou	27/06/2026	#3421736
+163	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#3421737
+164	
+A
+B
+C
+D
+E
+ Errou	27/06/2026	#3421742
+165	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#3411264
+166	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3412448
+167	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#3415533
+168	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#3421603
+169	
+A
+B
+C
+D
+E
+ Errou	05/06/2026	#3411220
+170	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#1098206
+171	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411198
+172	
+A
+B
+C
+D
+E
+ Acertou	29/06/2026	#3411225
+173	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3619453
+174		Anulada		
+175		Anulada		
+176	
+A
+B
+C
+D
+E
+ Acertou	25/05/2026	#1693399
+177	
+A
+B
+C
+D
+E
+ Acertou	25/05/2026	#1098191
+178	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3410700
+179	
+A
+B
+C
+D
+E
+ Errou	29/06/2026	#3410705
+180	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3410732
+181	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411163
+182	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#3415476
+183	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3415621
+184	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3415626
+185	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421257
+186	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#3421330
+187	
+A
+B
+C
+D
+E
+ Errou	09/06/2026	#3421622
+188	
+A
+B
+C
+D
+E
+ Acertou	28/06/2026	#3643857
+189	
+A
+B
+C
+D
+E
+ Errou	07/06/2026	#1693361
+190		Anulada		
+191	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3726736
+192	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#3421313
+193	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#3421413
+194	
+A
+B
+C
+D
+E
+ Acertou	13/06/2026	#3619436
+195	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3726737
+196	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#2827837
+197	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#3027328
+198	
+A
+B
+C
+D
+E
+ Errou	09/06/2026	#3027334
+199	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2147798
+200	
+A
+B
+C
+D
+E
+ Acertou	07/06/2026	#1039456
+201		Anulada		
+202	
+A
+B
+C
+D
+E
+ Acertou	29/05/2026	#3411173
+203	
+A
+B
+C
+D
+E
+ Acertou	25/05/2026	#3411228
+204	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411250
+205	
+A
+B
+C
+D
+E
+ Errou	24/06/2026	#3643903
+206	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2827829
+207	
+C
+E
+ Acertou	11/06/2026	#2525815
+208	
+C
+E
+ Acertou	12/06/2026	#2525819
+209	
+C
+E
+ Acertou	04/06/2026	#2525827
+210	
+C
+E
+ Acertou	25/06/2026	#2527657
+211	
+
+C
+
+E
+Não resolvida		#2527690
+212	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#3411081
+213	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3415561
+214	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3415569
+215	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#3415575
+216	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#3415648
+217	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3553036
+218	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#2769264
+219	
+A
+B
+C
+D
+E
+ Errou	08/06/2026	#3967007
+220	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411091
+221		Anulada		
+222	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#3421244
+223	
+A
+B
+C
+D
+E
+ Acertou	26/05/2026	#3421270
+224	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421284
+225	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421288
+226	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#3421310
+227	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421318
+228	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#3532212
+229	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3619451
+230	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#3726853
+231	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#2827822
+232	
+A
+B
+C
+D
+E
+ Errou	06/06/2026	#2827825
+233	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#2271261
+234	
+A
+B
+C
+D
+E
+ Acertou	16/06/2026	#3398998
+235	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411093
+236		Anulada		
+237	
+A
+B
+C
+D
+E
+ Errou	15/06/2026	#3415573
+238	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#3415548
+239	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3415567
+240	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#370770
+241	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#3532213
+242	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#3532187
+243	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2893014
+244	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3552986
+245	
+A
+B
+C
+D
+E
+ Acertou	18/06/2026	#2336160
+246	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2769236
+247	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#2271251
+248	
+A
+B
+C
+D
+E
+ Errou	09/06/2026	#1693270
+249	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#1693271
+250	
+A
+B
+C
+D
+E
+ Acertou	18/06/2026	#1693272
+251	
+A
+B
+C
+D
+E
+ Errou	24/06/2026	#1693273
+252	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#2272395
+253	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#2272400
+254	
+A
+B
+C
+D
+E
+ Errou	12/06/2026	#1045291
+255		Anulada		
+256	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#3411169
+257		Anulada		
+258	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421345
+259	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#3421386
+260	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#3619449
+261	
+
+C
+
+E
+Não resolvida		#2525900
+262	
+C
+E
+ Acertou	06/06/2026	#2527826
+263	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#1693366
+264	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#1693369
+265	
+A
+B
+C
+D
+E
+ Errou	26/06/2026	#2272394
+266	
+A
+B
+C
+D
+E
+ Acertou	16/06/2026	#3415652
+267	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#3967012
+268	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3552985
+269	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#2336174
+270	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#2518197
+271	
+A
+B
+C
+D
+E
+ Errou	15/06/2026	#3411200
+272	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3967009
+273	
+A
+B
+C
+D
+E
+ Errou	06/06/2026	#3967014
+274	
+A
+B
+C
+D
+E
+ Errou	26/06/2026	#3643898
+275	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#2827754
+276	
+A
+B
+C
+D
+E
+ Errou	15/06/2026	#2827816
+277	
+A
+B
+C
+D
+E
+ Errou	26/06/2026	#2893036
+278	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3551996
+279	
+A
+B
+C
+D
+E
+ Acertou	26/05/2026	#3553028
+280	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#1039458
+281	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#3399064
+282	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#3411183
+283	
+A
+B
+C
+D
+E
+ Errou	25/06/2026	#3421380
+284	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#3532227
+285	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3532247
+286	
+A
+B
+C
+D
+E
+ Errou	21/06/2026	#3619452
+287	
+A
+B
+C
+D
+E
+ Acertou	16/06/2026	#3552953
+288	
+A
+B
+C
+D
+E
+ Acertou	13/06/2026	#2769255
+289	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#2147795
+290	
+
+C
+
+E
+Não resolvida		#2525822
+291	
+C
+E
+ Acertou	11/06/2026	#2527669
+292	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#2272408
+293	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#3399072
+294	
+A
+B
+C
+D
+E
+ Errou	07/06/2026	#3532204
+295	
+A
+B
+C
+D
+E
+ Errou	25/05/2026	#2893022
+296	
+C
+E
+ Acertou	25/05/2026	#2525825
+297	
+
+C
+
+E
+Não resolvida		#2525833
+298	
+C
+E
+ Acertou	16/06/2026	#2527699
+299	
+A
+B
+C
+D
+E
+ Errou	16/06/2026	#3421365
+300	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#3421369
+301	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#3966992
+302	
+A
+B
+C
+D
+E
+ Acertou	18/06/2026	#3966997
+303	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#3532200
+304	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#3643861
+305	
+A
+B
+C
+D
+E
+ Errou	26/05/2026	#3726729
+306	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#2827772
+307	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#2893015
+308	
+A
+B
+C
+D
+E
+ Acertou	16/06/2026	#2903118
+309	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2336178
+310	
+A
+B
+C
+D
+E
+ Errou	13/06/2026	#2769233
+311	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#2271245
+312	
+A
+B
+C
+D
+E
+ Errou	20/06/2026	#2271258
+313	
+C
+E
+ Acertou	08/06/2026	#2525893
+314	
+C
+E
+ Errou	15/06/2026	#2525898
+315	
+C
+E
+ Acertou	09/06/2026	#2527819
+316	
+C
+E
+ Acertou	23/06/2026	#2527825
+317	
+A
+B
+C
+D
+E
+ Errou	18/06/2026	#1693281
+318	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#2272329
+319	
+A
+B
+C
+D
+E
+ Errou	06/06/2026	#452366
+320	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#452368
+321	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#1039446
+322	
+A
+B
+C
+D
+E
+ Acertou	26/05/2026	#3411110
+323	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#3412406
+324	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#3412407
+325	
+A
+B
+C
+D
+E
+ Acertou	04/06/2026	#3412414
+326	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#3412418
+327	
+A
+B
+C
+D
+E
+ Errou	08/06/2026	#3412422
+328	
+A
+B
+C
+D
+E
+ Errou	09/06/2026	#3412485
+329	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3415601
+330	
+A
+B
+C
+D
+E
+ Errou	29/06/2026	#3415641
+331	
+A
+B
+C
+D
+E
+ Errou	10/06/2026	#3421356
+332	
+A
+B
+C
+D
+E
+ Acertou	16/06/2026	#3421363
+333	
+A
+B
+C
+D
+E
+ Errou	12/06/2026	#3421415
+334	
+A
+B
+C
+D
+E
+ Errou	24/06/2026	#3967003
+335	
+A
+B
+C
+D
+E
+ Errou	19/06/2026	#3532222
+336	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#3726726
+337	
+A
+B
+C
+D
+E
+ Errou	16/06/2026	#2903111
+338	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#2518176
+339	
+A
+B
+C
+D
+E
+ Errou	15/06/2026	#2147793
+340	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2147794
+341	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#2199241
+342	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#1693284
+343	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#2272426
+344	
+A
+B
+C
+D
+E
+ Acertou	31/05/2026	#1045300
+345		Anulada		
+346		Anulada		
+347		Anulada		
+348	
+A
+B
+C
+D
+E
+ Errou	26/06/2026	#370792
+349	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#3399086
+350	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#3415593
+351	
+A
+B
+C
+D
+E
+ Errou	10/06/2026	#3532220
+352	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#2518248
+353	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2769302
+354	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#2769438
+355	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#2199115
+356	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#2199266
+357	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#2147800
+358	
+A
+B
+C
+D
+E
+ Errou	21/06/2026	#3411083
+359	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3619432
+360	
+A
+B
+C
+D
+E
+ Acertou	29/05/2026	#3726854
+361	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#2893021
+362	
+A
+B
+C
+D
+E
+ Acertou	28/06/2026	#3027317
+363	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3553033
+364	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#452364
+365	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#3399073
+366	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#3411253
+367	
+A
+B
+C
+D
+E
+ Errou	25/06/2026	#3415580
+368	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3553060
+369	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#2769399
+370	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3532234
+371	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3726856
+372	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#3552979
+373	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3553079
+374	
+A
+B
+C
+D
+E
+ Errou	26/05/2026	#600482
+375	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#3415629
+376	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#1098201
+377	
+A
+B
+C
+D
+E
+ Acertou	13/06/2026	#3553063
+378	
+A
+B
+C
+D
+E
+ Errou	03/06/2026	#3415578
+379	
+A
+B
+C
+D
+E
+ Acertou	27/06/2026	#600484
+380	
+A
+B
+C
+D
+E
+ Errou	27/06/2026	#3967001
+381	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#3619415
+382	
+A
+B
+C
+D
+E
+ Acertou	31/05/2026	#2827752
+383	
+A
+B
+C
+D
+E
+ Acertou	04/06/2026	#2827821
+384	
+A
+B
+C
+D
+E
+ Errou	25/06/2026	#2903142
+385	
+A
+B
+C
+D
+E
+ Errou	12/06/2026	#3552970
+386	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#2769234
+387	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#2199090
+388	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#2199107
+389	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2199108
+390	
+A
+B
+C
+D
+E
+ Errou	27/05/2026	#2199109
+391	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#2199111
+392	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#2271281
+393	
+C
+E
+ Acertou	08/06/2026	#2525864
+394	
+C
+E
+ Acertou	09/06/2026	#2525895
+395	
+C
+E
+ Acertou	29/06/2026	#2527761
+396	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#3415612
+397	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#3532244
+398	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#3619429
+399	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#2827828
+400	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2903115
+401	
+A
+B
+C
+D
+E
+ Acertou	29/06/2026	#3552982
+402	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3553086
+403	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#2147837
+404	
+A
+B
+C
+D
+E
+ Acertou	18/06/2026	#2199086
+405	
+A
+B
+C
+D
+E
+ Acertou	14/06/2026	#2199088
+406	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#2271263
+407	
+A
+B
+C
+D
+E
+ Acertou	21/06/2026	#2271271
+408	
+A
+B
+C
+D
+E
+ Errou	03/06/2026	#2271282
+409	
+C
+E
+ Acertou	08/06/2026	#2525860
+410	
+C
+E
+ Acertou	24/06/2026	#2527752
+411	
+A
+B
+C
+D
+E
+ Acertou	13/06/2026	#2272299
+412	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2272301
+413	
+A
+B
+C
+D
+E
+ Errou	10/06/2026	#3398997
+414	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#3399058
+415	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#3399062
+416	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#3399075
+417	
+A
+B
+C
+D
+E
+ Errou	09/06/2026	#3411205
+418	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#3411208
+419	
+A
+B
+C
+D
+E
+ Errou	08/06/2026	#3415604
+420	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#3415646
+421	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421227
+422	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#3726846
+423	
+A
+B
+C
+D
+E
+ Errou	06/06/2026	#2903137
+424	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2903139
+425	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#2903144
+426	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2271274
+427	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2272436
+428	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3399084
+429	
+A
+B
+C
+D
+E
+ Errou	21/06/2026	#3421240
+430	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3967013
+431	
+A
+B
+C
+D
+E
+ Errou	27/06/2026	#3619421
+432	
+A
+B
+C
+D
+E
+ Acertou	26/05/2026	#2893017
+433	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#2903112
+434	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#3027321
+435	
+A
+B
+C
+D
+E
+ Errou	18/06/2026	#3027327
+436	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#3027367
+437	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2336162
+438	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#2518246
+439	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#2769252
+440	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#2199081
+441	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#2199083
+442	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2271246
+443	
+A
+B
+C
+D
+E
+ Acertou	07/06/2026	#2271252
+444	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#2271267
+445	
+A
+B
+C
+D
+E
+ Acertou	25/05/2026	#2271269
+446	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#2271277
+447	
+C
+E
+ Errou	11/06/2026	#2525857
+448	
+
+C
+
+E
+Não resolvida		#2525858
+449	
+C
+E
+ Errou	24/06/2026	#2527743
+450		Anulada		
+451	
+A
+B
+C
+D
+E
+ Errou	11/06/2026	#2272292
+452	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2272297
+453	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#2272309
+454	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#2272431
+455	
+A
+B
+C
+D
+E
+ Acertou	21/06/2026	#452371
+456	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#2199084
+457	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2271276
+458	
+A
+B
+C
+D
+E
+ Acertou	29/06/2026	#2272313
+459	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#2827835
+460	
+A
+B
+C
+D
+E
+ Errou	25/06/2026	#2827782
+461	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2271272
+462	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#2271280
+463	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#3532197
+464	
+A
+B
+C
+D
+E
+ Errou	24/06/2026	#3726733
+465	
+A
+B
+C
+D
+E
+ Errou	13/06/2026	#3552954
+466	
+A
+B
+C
+D
+E
+ Errou	28/06/2026	#2769335
+467	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2271244
+468	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#2271273
+469	
+C
+E
+ Acertou	26/06/2026	#2525842
+470	
+C
+E
+ Acertou	19/06/2026	#2525844
+471	
+
+C
+
+E
+Não resolvida		#2527709
+472	
+C
+E
+ Errou	11/06/2026	#2527710
+473	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2272420
+474	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2272421
+475		Anulada		
+476	
+A
+B
+C
+D
+E
+ Errou	09/06/2026	#3619460
+477	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#2147821
+478	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#452369
+479	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#600483
+480	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#1039443
+481	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#1039461
+482	
+A
+B
+C
+D
+E
+ Errou	29/06/2026	#3532251
+483	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#3619455
+484	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2893032
+485	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#3553031
+486	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#2769324
+487	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#2272411
+488	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#2272412
+489	
+A
+B
+C
+D
+E
+ Errou	27/06/2026	#452365
+490	
+A
+B
+C
+D
+E
+ Errou	11/06/2026	#1039464
+491	
+A
+B
+C
+D
+E
+ Acertou	28/06/2026	#3532228
+492	
+A
+B
+C
+D
+E
+ Errou	13/06/2026	#3532242
+493	
+A
+B
+C
+D
+E
+ Errou	18/06/2026	#3619461
+494	
+A
+B
+C
+D
+E
+ Acertou	21/06/2026	#3551867
+495	
+A
+B
+C
+D
+E
+ Errou	03/06/2026	#3553059
+496	
+A
+B
+C
+D
+E
+ Errou	24/06/2026	#3553062
+497	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2336171
+498	
+A
+B
+C
+D
+E
+ Acertou	04/06/2026	#2769321
+499	
+C
+E
+ Errou	24/06/2026	#2525824
+500	
+
+C
+
+E
+Não resolvida		#2525837
+501	
+C
+E
+ Errou	26/06/2026	#2525839
+502	
+C
+E
+ Acertou	25/06/2026	#2527677
+503	
+C
+E
+ Acertou	27/06/2026	#2527683
+504	
+C
+E
+ Acertou	11/06/2026	#2527707
+505	
+C
+E
+ Errou	12/06/2026	#2527708
+506	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#2272415
+507	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#2272416
+508	
+A
+B
+C
+D
+E
+ Acertou	27/06/2026	#3399018
+509	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#3399052
+510	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#3399056
+511	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3619458
+512	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#2827840
+513	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3552974
+514	
+C
+E
+ Acertou	19/06/2026	#2525830
+515	
+
+C
+
+E
+Não resolvida		#2525834
+516	
+
+C
+
+E
+Não resolvida		#2527697
+517	
+C
+E
+ Acertou	03/06/2026	#2527704
+518	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#2272418
+519	
+A
+B
+C
+D
+E
+ Acertou	18/06/2026	#2272419
+520	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#1039465
+521	
+A
+B
+C
+D
+E
+ Errou	09/06/2026	#3399015
+522	
+A
+B
+C
+D
+E
+ Acertou	13/06/2026	#2769328
+523	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#2769400
+524	
+A
+B
+C
+D
+E
+ Acertou	20/06/2026	#2271275
+525	
+
+C
+
+E
+Não resolvida		#2525848
+526	
+C
+E
+ Acertou	16/06/2026	#2527713
+527	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2272423
+528	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411088
+529	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#3532216
+530		Anulada		
+531	
+A
+B
+C
+D
+E
+ Errou	12/06/2026	#3553076
+532	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3643894
+533	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#2199112
+534	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3619454
+535	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#3726850
+536	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3553053
+537		Anulada		
+538		Anulada		
+539	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#3399022
+540	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3399041
+541		Anulada		
+542	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#2893031
+543	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#2336173
+544	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2518232
+545	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2769269
+546	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#2147796
+547	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2271247
+548	
+C
+E
+ Acertou	25/06/2026	#2525829
+549	
+C
+E
+ Acertou	19/06/2026	#2525846
+550	
+C
+E
+ Acertou	25/05/2026	#2525852
+551	
+C
+E
+ Acertou	03/06/2026	#2527695
+552	
+
+C
+
+E
+Não resolvida		#2527711
+553	
+C
+E
+ Acertou	17/06/2026	#2527723
+554	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#2272403
+555	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2272444
+556	
+A
+B
+C
+D
+E
+ Errou	29/06/2026	#600492
+557	
+A
+B
+C
+D
+E
+ Errou	21/06/2026	#1098207
+558	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#3412412
+559	
+A
+B
+C
+D
+E
+ Errou	15/06/2026	#3552950
+560	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#1693150
+561	
+A
+B
+C
+D
+E
+ Acertou	13/06/2026	#1039462
+562	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#370765
+563	
+A
+B
+C
+D
+E
+ Errou	09/06/2026	#2769501
+564	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2769378
+565	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#1693145
+566	
+A
+B
+C
+D
+E
+ Errou	06/06/2026	#1693383
+567		Anulada		
+568	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#1045294
+569	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#1045295
+570	
+A
+B
+C
+D
+E
+ Errou	15/06/2026	#3532191
+571	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#2903116
+572	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#2769497
+573	
+A
+B
+C
+D
+E
+ Acertou	21/06/2026	#2769502
+574	
+A
+B
+C
+D
+E
+ Acertou	18/06/2026	#1693164
+575	
+A
+B
+C
+D
+E
+ Errou	07/06/2026	#2272424
+576	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#1045298
+577	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#1045299
+578	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#1045301
+579		Anulada		
+580	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#1045306
+581	
+A
+B
+C
+D
+E
+ Errou	29/06/2026	#1045309
+582	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#1045412
+583	
+A
+B
+C
+D
+E
+ Errou	19/06/2026	#3399078
+584	
+A
+B
+C
+D
+E
+ Acertou	18/06/2026	#3967011
+585	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#3552990
+586	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2769397
+587	
+A
+B
+C
+D
+E
+ Errou	25/06/2026	#2769413
+588	
+A
+B
+C
+D
+E
+ Acertou	07/06/2026	#1045297
+589	
+A
+B
+C
+D
+E
+ Errou	11/06/2026	#3643891
+590	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#2769405
+591	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#2903117
+592	
+A
+B
+C
+D
+E
+ Acertou	20/06/2026	#2903120
+593	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2903143
+594	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#2769388
+595	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#2769491
+596	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#370777
+597	
+A
+B
+C
+D
+E
+ Acertou	25/05/2026	#370779
+598	
+A
+B
+C
+D
+E
+ Acertou	07/06/2026	#2769401
+599	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#2769403
+600	
+A
+B
+C
+D
+E
+ Acertou	20/06/2026	#2769468
+601	
+A
+B
+C
+D
+E
+ Acertou	29/06/2026	#2769474
+602	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#2769486
+603	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#3726735
+604	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#3726840
+605	
+A
+B
+C
+D
+E
+ Acertou	29/06/2026	#3411218
+606	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3412342
+607	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#3415515
+608	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#3415525
+609	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421403
+610	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421662
+611	
+A
+B
+C
+D
+E
+ Errou	29/05/2026	#3421723
+612	
+A
+B
+C
+D
+E
+ Acertou	29/06/2026	#3726848
+613	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#2893030
+614	
+A
+B
+C
+D
+E
+ Acertou	18/06/2026	#2893034
+615	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3553057
+616		Anulada		
+617	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3643867
+618	
+A
+B
+C
+D
+E
+ Acertou	29/06/2026	#3415645
+619	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#3553052
+620	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3412454
+621	
+A
+B
+C
+D
+E
+ Errou	18/06/2026	#3412464
+622	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#3967002
+623	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3553054
+624	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#452360
+625	
+A
+B
+C
+D
+E
+ Acertou	29/06/2026	#3412425
+626	
+A
+B
+C
+D
+E
+ Errou	20/06/2026	#3643912
+627	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#2147810
+628	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#2893024
+629	
+A
+B
+C
+D
+E
+ Acertou	27/06/2026	#452358
+630	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#452381
+631	
+A
+B
+C
+D
+E
+ Errou	21/06/2026	#600489
+632	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#600487
+633	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#452357
+634	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3643865
+635	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#2827827
+636	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#2903123
+637	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#3553088
+638	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#2147803
+639	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3399156
+640	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#3415605
+641	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3967000
+642	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3643887
+643	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#2893033
+644	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#2903124
+645	
+A
+B
+C
+D
+E
+ Acertou	29/06/2026	#3552987
+646	
+A
+B
+C
+D
+E
+ Errou	12/06/2026	#452385
+647	
+A
+B
+C
+D
+E
+ Errou	06/06/2026	#1098193
+648	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2336157
+649	
+A
+B
+C
+D
+E
+ Errou	18/06/2026	#3415582
+650	
+A
+B
+C
+D
+E
+ Errou	24/06/2026	#3415584
+651	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3415586
+652	
+A
+B
+C
+D
+E
+ Acertou	20/06/2026	#3421418
+653	
+A
+B
+C
+D
+E
+ Errou	08/06/2026	#3643908
+654	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411104
+655	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421407
+656	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#3421712
+657	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#3421738
+658	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3726860
+659	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2903109
+660	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#2147826
+661	
+A
+B
+C
+D
+E
+ Errou	15/06/2026	#3415643
+662	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421390
+663	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#2903108
+664	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2903136
+665	
+A
+B
+C
+D
+E
+ Errou	25/06/2026	#3643882
+666	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#2893016
+667	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3438013
+668	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#2147839
+669	
+A
+B
+C
+D
+E
+ Errou	25/06/2026	#1693129
+670		Anulada		
+671	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#3411100
+672	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411217
+673	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3415587
+674	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#2518143
+675	
+A
+B
+C
+D
+E
+ Acertou	13/06/2026	#2147835
+676	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#1693140
+677	
+A
+B
+C
+D
+E
+ Acertou	25/05/2026	#1045293
+678	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#2893029
+679	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#1693134
+680	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#2893018
+681	
+A
+B
+C
+D
+E
+ Acertou	21/06/2026	#3726730
+682	
+A
+B
+C
+D
+E
+ Errou	25/06/2026	#2903110
+683	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2272320
+684	
+A
+B
+C
+D
+E
+ Acertou	27/06/2026	#2272324
+685	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#3532218
+686	
+A
+B
+C
+D
+E
+ Acertou	18/06/2026	#3532249
+687	
+A
+B
+C
+D
+E
+ Errou	15/06/2026	#3726843
+688	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#3027354
+689	
+A
+B
+C
+D
+E
+ Errou	15/06/2026	#2147806
+690	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#1693257
+691	
+A
+B
+C
+D
+E
+ Errou	08/06/2026	#1693292
+692	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#452362
+693	
+A
+B
+C
+D
+E
+ Acertou	27/06/2026	#452386
+694	
+A
+B
+C
+D
+E
+ Acertou	28/06/2026	#2827834
+695	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2147802
+696		Anulada		
+697	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#1045410
+698	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3643914
+699	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#2199243
+700	
+A
+B
+C
+D
+E
+ Errou	09/06/2026	#2199128
+701	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#3726731
+702	
+A
+B
+C
+D
+E
+ Errou	08/06/2026	#3553084
+703	
+A
+B
+C
+D
+E
+ Errou	12/06/2026	#2769345
+704	
+A
+B
+C
+D
+E
+ Errou	12/06/2026	#2769386
+705	
+A
+B
+C
+D
+E
+ Acertou	31/05/2026	#2199283
+706	
+C
+E
+ Errou	03/06/2026	#2525817
+707	
+C
+E
+ Acertou	23/06/2026	#2525870
+708	
+
+C
+
+E
+Não resolvida		#2525871
+709	
+C
+E
+ Acertou	11/06/2026	#2525902
+710	
+C
+E
+ Errou	28/06/2026	#2527652
+711	
+C
+E
+ Acertou	29/06/2026	#2527773
+712	
+C
+E
+ Acertou	23/06/2026	#2527779
+713	
+C
+E
+ Acertou	06/06/2026	#2527781
+714	
+
+C
+
+E
+Não resolvida		#2527823
+715	
+C
+E
+ Acertou	18/06/2026	#2527828
+716		Anulada		
+717	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#370767
+718	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3412490
+719	
+A
+B
+C
+D
+E
+ Acertou	15/06/2026	#1045411
+720	
+A
+B
+C
+D
+E
+ Acertou	04/06/2026	#2903131
+721	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#2769450
+722	
+A
+B
+C
+D
+E
+ Acertou	21/06/2026	#2769451
+723		Anulada		
+724	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#3415529
+725	
+A
+B
+C
+D
+E
+ Errou	24/06/2026	#2903129
+726	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#2769332
+727	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#2147792
+728	
+A
+B
+C
+D
+E
+ Errou	24/06/2026	#3552994
+729	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#2199129
+730	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#3532185
+731	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3643910
+732	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#2518203
+733	
+A
+B
+C
+D
+E
+ Acertou	28/06/2026	#2271262
+734	
+A
+B
+C
+D
+E
+ Acertou	13/06/2026	#2271266
+735	
+A
+B
+C
+D
+E
+ Errou	06/06/2026	#3411158
+736	
+A
+B
+C
+D
+E
+ Errou	19/06/2026	#3411214
+737	
+A
+B
+C
+D
+E
+ Acertou	28/06/2026	#3415572
+738	
+A
+B
+C
+D
+E
+ Errou	06/06/2026	#3421338
+739	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#2336164
+740	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#2336165
+741	
+A
+B
+C
+D
+E
+ Acertou	20/06/2026	#2518216
+742	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2147816
+743	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#1693155
+744	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#370772
+745	
+A
+B
+C
+D
+E
+ Errou	12/06/2026	#370773
+746		Anulada		
+747	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#2903113
+748	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2769292
+749	
+A
+B
+C
+D
+E
+ Errou	15/06/2026	#3421340
+750	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3421342
+751	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#3619462
+752	
+A
+B
+C
+D
+E
+ Acertou	20/06/2026	#2336159
+753	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#2518149
+754	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#2518223
+755	
+A
+B
+C
+D
+E
+ Acertou	16/06/2026	#2769350
+756	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#370758
+757	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#3726861
+758	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3553037
+759	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#2199245
+760	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#370760
+761	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#3553056
+762	
+
+C
+
+E
+Não resolvida		#2525865
+763	
+C
+E
+ Acertou	12/06/2026	#2527768
+764	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#2903127
+765	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#2769246
+766	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2769342
+767	
+A
+B
+C
+D
+E
+ Errou	12/06/2026	#3966996
+768	
+A
+B
+C
+D
+E
+ Acertou	23/06/2026	#2769431
+769	
+A
+B
+C
+D
+E
+ Acertou	08/06/2026	#3421588
+770	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2769273
+771	
+A
+B
+C
+D
+E
+ Errou	18/06/2026	#3967010
+772	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2769287
+773	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#1098190
+774	
+A
+B
+C
+D
+E
+ Errou	13/06/2026	#2769329
+775	
+A
+B
+C
+D
+E
+ Acertou	25/05/2026	#3726727
+776	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2903130
+777	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#3431302
+778	
+A
+B
+C
+D
+E
+ Errou	24/06/2026	#2769227
+779	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#2769384
+780	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#2769433
+781	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2272429
+782	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3553085
+783	
+A
+B
+C
+D
+E
+ Errou	21/06/2026	#370763
+784	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#2769472
+785	
+A
+B
+C
+D
+E
+ Errou	11/06/2026	#370778
+786	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3643919
+787	
+A
+B
+C
+D
+E
+ Acertou	26/05/2026	#2769307
+788	
+A
+B
+C
+D
+E
+ Errou	26/06/2026	#2769312
+789	
+C
+E
+ Acertou	17/06/2026	#2525863
+790	
+C
+E
+ Errou	06/06/2026	#2527759
+791		Anulada		
+792	
+A
+B
+C
+D
+E
+ Acertou	20/06/2026	#2199250
+793	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2199278
+794	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#2271268
+795	
+C
+E
+ Acertou	08/06/2026	#2525867
+796	
+C
+E
+ Acertou	18/06/2026	#2527770
+797	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#2272405
+798	
+A
+B
+C
+D
+E
+ Errou	11/06/2026	#370771
+799	
+A
+B
+C
+D
+E
+ Errou	06/06/2026	#3967015
+800	
+A
+B
+C
+D
+E
+ Errou	03/06/2026	#3532198
+801	
+A
+B
+C
+D
+E
+ Acertou	11/06/2026	#3532231
+802	
+A
+B
+C
+D
+E
+ Errou	25/06/2026	#3532236
+803	
+A
+B
+C
+D
+E
+ Errou	29/06/2026	#3726865
+804	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3726867
+805	
+A
+B
+C
+D
+E
+ Acertou	21/06/2026	#2769288
+806	
+A
+B
+C
+D
+E
+ Acertou	28/06/2026	#2769436
+807	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2199249
+808	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#2271256
+809	
+A
+B
+C
+D
+E
+ Acertou	10/06/2026	#2271283
+810	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2272413
+811	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2272427
+812	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#452383
+813	
+A
+B
+C
+D
+E
+ Errou	26/05/2026	#370755
+814	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#370784
+815	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#370786
+816	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#370787
+817	
+A
+B
+C
+D
+E
+ Acertou	12/06/2026	#370789
+818		Anulada		
+819	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#370793
+820	
+A
+B
+C
+D
+E
+ Errou	23/06/2026	#370795
+821	
+A
+B
+C
+D
+E
+ Acertou	29/06/2026	#3399004
+822	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3966995
+823	
+A
+B
+C
+D
+E
+ Acertou	03/06/2026	#3643869
+824	
+A
+B
+C
+D
+E
+ Acertou	28/06/2026	#3726866
+825	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2827830
+826	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2769392
+827	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2199242
+828	
+C
+E
+ Acertou	17/06/2026	#2525861
+829	
+C
+E
+ Acertou	10/06/2026	#2527756
+830	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#452370
+831	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#600485
+832	
+A
+B
+C
+D
+E
+ Errou	09/06/2026	#370796
+833	
+A
+B
+C
+D
+E
+ Errou	25/05/2026	#370798
+834	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3399091
+835	
+A
+B
+C
+D
+E
+ Errou	09/06/2026	#2769316
+836	
+A
+B
+C
+D
+E
+ Acertou	19/06/2026	#2271270
+837	
+A
+B
+C
+D
+E
+ Acertou	29/05/2026	#3399088
+838	
+A
+B
+C
+D
+E
+ Errou	16/06/2026	#2893020
+839	
+A
+B
+C
+D
+E
+ Acertou	25/05/2026	#3027344
+840	
+A
+B
+C
+D
+E
+ Errou	13/06/2026	#2769300
+841	
+A
+B
+C
+D
+E
+ Acertou	29/05/2026	#2199252
+842	
+A
+B
+C
+D
+E
+ Acertou	24/06/2026	#3966994
+843	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3967006
+844	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3619456
+845	
+A
+B
+C
+D
+E
+ Errou	11/06/2026	#3643878
+846	
+A
+B
+C
+D
+E
+ Acertou	06/06/2026	#2518207
+847	
+A
+B
+C
+D
+E
+ Acertou	26/06/2026	#2769271
+848	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3411203
+849	
+A
+B
+C
+D
+E
+ Errou	25/05/2026	#3411212
+850	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3415607
+851	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3532201
+852	
+A
+B
+C
+D
+E
+ Acertou	25/05/2026	#3532207
+853	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3532210
+854	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3532237
+855	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3619404
+856	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3619405
+857	
+A
+B
+C
+D
+E
+ Acertou	29/06/2026	#3619410
+858	
+A
+B
+C
+D
+E
+ Acertou	17/06/2026	#3619423
+859	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3619430
+860	
+A
+B
+C
+D
+E
+ Acertou	09/06/2026	#3619445
+861	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#3619457
+862	
+A
+B
+C
+D
+E
+ Errou	17/06/2026	#2827818
+863	
+A
+B
+C
+D
+E
+ Errou	21/06/2026	#2827832
+864	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2893019
+865	
+A
+B
+C
+D
+E
+ Errou	27/06/2026	#2893027
+866	
+A
+B
+C
+D
+E
+ Acertou	28/06/2026	#2518177
+867	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2518220
+868	
+A
+B
+C
+D
+E
+ Acertou	21/06/2026	#2518235
+869	
+A
+B
+C
+D
+E
+ Acertou	25/06/2026	#2518251
+870		Anulada		
+871	
+A
+B
+C
+D
+E
+ Errou	26/05/2026	#2769428
+872	
+A
+B
+C
+D
+E
+ Errou	15/06/2026	#2147804
+873	
+
+A
+
+B
+
+C
+
+D
+
+E
+Não resolvida		#2199244
+874	
+A
+B
+C
+D
+E
+ Acertou	21/06/2026	#1693136
+875		Anulada		
+876	
+A
+B
+C
+D
+E
+ Errou	24/06/2026	#1045296

@@ -69,7 +69,7 @@ interface CadernoPayload {
 interface QuestaoExterna {
   found: boolean;
   questao?: {
-    id: number; id_externo: number; status: string | null;
+    id: number; id_externo?: number; status: string | null;
     gabarito: string | null; tipo: string | null;
     banca: string | null; materia: string | null; preview: string;
   };

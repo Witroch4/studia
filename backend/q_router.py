@@ -71,6 +71,30 @@ DEFAULT_FACETS = [
 
 MEILI_INDEX = "questoes"
 
+
+def _is_admin(user: CurrentUser | None) -> bool:
+    # Segurança: role vem da sessão validada pelo backend, nunca de query/body do cliente.
+    return bool(user and user.is_admin)
+
+
+def _add_id_externo_if_admin(
+    payload: dict[str, Any],
+    id_externo: Any,
+    user: CurrentUser | None,
+) -> dict[str, Any]:
+    if _is_admin(user):
+        payload["id_externo"] = id_externo
+    return payload
+
+
+def _strip_id_externo_for_non_admin(
+    hits: list[dict[str, Any]],
+    user: CurrentUser | None,
+) -> list[dict[str, Any]]:
+    if _is_admin(user):
+        return hits
+    return [{k: v for k, v in hit.items() if k != "id_externo"} for hit in hits]
+
 # Grupos de facetas para disjunctive faceting (padrão TC): a contagem de cada
 # grupo é calculada IGNORANDO os filtros do próprio grupo (mas respeitando os
 # demais). Sem isso, marcar 1 assunto zera todas as outras matérias/bancas.
@@ -349,15 +373,18 @@ async def search(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Lista paginada de questões + facetas."""
+    attributes = [
+        "id", "enunciado", "banca", "orgao", "cargo", "ano", "materia",
+        "assuntos", "tipo", "gabarito", "status",
+    ]
+    if _is_admin(user):
+        attributes.insert(1, "id_externo")
     payload = {
         "q": req.q,
         "limit": req.page_size,
         "offset": (req.page - 1) * req.page_size,
         "facets": DEFAULT_FACETS,
-        "attributesToRetrieve": [
-            "id", "id_externo", "enunciado", "banca", "orgao",
-            "cargo", "ano", "materia", "assuntos", "tipo", "gabarito", "status",
-        ],
+        "attributesToRetrieve": attributes,
     }
     f = _to_meili_filter(req.filtros)
     if req.favoritas:
@@ -371,7 +398,7 @@ async def search(
         payload["sort"] = req.sort
     data = await _meili_search(payload)
     return {
-        "hits": data.get("hits", []),
+        "hits": _strip_id_externo_for_non_admin(data.get("hits", []), user),
         "total": data.get("estimatedTotalHits", 0),
         "facets": data.get("facetDistribution", {}),
         "ms": data.get("processingTimeMs", 0),
@@ -1109,13 +1136,15 @@ async def buscar_questao_externo(
         ORDER BY created_at DESC
         """
     ), {"uid": user.id, "qid": qid})).mappings().all()
+    questao_payload = {
+        "id": qid, "status": row["status"],
+        "gabarito": row["gabarito"], "tipo": row["tipo"], "banca": row["banca"],
+        "materia": row["materia"], "preview": (row["preview"] or "").strip(),
+    }
+    _add_id_externo_if_admin(questao_payload, row["id_externo"], user)
     return {
         "found": True,
-        "questao": {
-            "id": qid, "id_externo": row["id_externo"], "status": row["status"],
-            "gabarito": row["gabarito"], "tipo": row["tipo"], "banca": row["banca"],
-            "materia": row["materia"], "preview": (row["preview"] or "").strip(),
-        },
+        "questao": questao_payload,
         "cadernos": [{"id": c["id"], "nome": c["nome"], "pasta": c["pasta"]} for c in cad_rows],
     }
 
@@ -1807,15 +1836,18 @@ async def stats_detalhe(
         "por_assunto": _format_grupo(por_assunto),
         "por_banca": _format_grupo(por_banca),
         "ultimas_resolucoes": [
-            {
-                "id": r.id,
-                "questao_id": r.questao_id,
-                "id_externo": r.id_externo,
-                "resposta": r.resposta,
-                "acertou": r.acertou,
-                "tempo_segundos": r.tempo_segundos,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
-            }
+            _add_id_externo_if_admin(
+                {
+                    "id": r.id,
+                    "questao_id": r.questao_id,
+                    "resposta": r.resposta,
+                    "acertou": r.acertou,
+                    "tempo_segundos": r.tempo_segundos,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                },
+                r.id_externo,
+                user,
+            )
             for r in ultimas
         ],
     }
@@ -1840,13 +1872,16 @@ async def gabarito_caderno(
     by_id = {r.id: r for r in rows}
 
     items = [
-        {
-            "n": i + 1,
-            "questao_id": qid,
-            "id_externo": by_id[qid].id_externo if qid in by_id else None,
-            "gabarito": by_id[qid].gabarito if qid in by_id else None,
-            "status": by_id[qid].status if qid in by_id else None,
-        }
+        _add_id_externo_if_admin(
+            {
+                "n": i + 1,
+                "questao_id": qid,
+                "gabarito": by_id[qid].gabarito if qid in by_id else None,
+                "status": by_id[qid].status if qid in by_id else None,
+            },
+            by_id[qid].id_externo if qid in by_id else None,
+            user,
+        )
         for i, qid in enumerate(ids)
     ]
     return {"caderno_id": caderno_id, "total": len(items), "items": items}
@@ -1888,16 +1923,16 @@ async def indice_caderno(
         r = by_id.get(qid)
         if not r:
             continue
-        items.append({
+        item = {
             "n": i + 1,
             "questao_id": qid,
-            "id_externo": r.id_externo,
             "banca": r.banca,
             "materia": r.materia,
             "gabarito": r.gabarito,
             "tipo": r.tipo,
             "preview": (r.preview or "").strip()[:140],
-        })
+        }
+        items.append(_add_id_externo_if_admin(item, r.id_externo, user))
     return {"caderno_id": caderno_id, "total": len(items), "items": items}
 
 
@@ -2819,9 +2854,8 @@ async def detalhe(
             for c in cad_rows
         ]
 
-    return {
+    response = {
         "id": q.id,
-        "id_externo": q.id_externo,
         "enunciado_md": q.enunciado_md,
         "enunciado_html": q.enunciado_html,
         "tipo": q.tipo,
@@ -2854,3 +2888,4 @@ async def detalhe(
         "minha_resolucao": minha_resolucao,
         "cadernos": cadernos,
     }
+    return _add_id_externo_if_admin(response, q.id_externo, user)

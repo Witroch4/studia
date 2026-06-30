@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from models import CadernoQuestoes, Questao, QuestaoFavorita, Resolucao
-from tests.conftest import USER_B
+from tests.conftest import ADMIN_USER, USER_B
 
 pytestmark = pytest.mark.asyncio
 
@@ -40,6 +40,29 @@ async def test_detalhe_questao_inclui_estado_do_usuario(client, db_session):
     assert body["favorita"] is True
     assert body["minha_resolucao"] == {"resposta": "B", "acertou": False}
     assert body["cadernos"] == [{"id": 70, "nome": "Meu caderno", "pasta": "OAB"}]
+    assert body["id_externo"] == 900701
+
+
+async def test_detalhe_questao_admin_ve_id_externo(client, db_session, auth_state):
+    db_session.add(Questao(id=703, id_externo=900703, enunciado_md="Q", gabarito="A"))
+    await db_session.commit()
+    auth_state["user"] = ADMIN_USER
+
+    response = await client.get("/api/q/703")
+
+    assert response.status_code == 200
+    assert response.json()["id_externo"] == 900703
+
+
+async def test_detalhe_questao_usuario_comum_nao_recebe_id_externo(client, db_session, auth_state):
+    db_session.add(Questao(id=704, id_externo=900704, enunciado_md="Q", gabarito="A"))
+    await db_session.commit()
+    auth_state["user"] = USER_B
+
+    response = await client.get("/api/q/704?is_admin=true&role=admin")
+
+    assert response.status_code == 200
+    assert "id_externo" not in response.json()
 
 
 async def test_detalhe_questao_publico_nao_expoe_estado_de_usuario(client, db_session, auth_state):
@@ -64,6 +87,7 @@ async def test_detalhe_questao_publico_nao_expoe_estado_de_usuario(client, db_se
     assert body["favorita"] is False
     assert body["minha_resolucao"] is None
     assert body["cadernos"] == []
+    assert "id_externo" not in body
 
 
 async def test_adicionar_questao_a_caderno_existente_e_idempotente(client, db_session):
