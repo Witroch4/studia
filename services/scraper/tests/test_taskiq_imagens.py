@@ -60,6 +60,92 @@ async def test_image_asset_discovery_and_upsert(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_image_asset_discovery_accepts_s3_figuras_bucket(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
+    engine = create_async_engine(TEST_DATABASE_URL)
+    uuid = "fb576b90-a932-4a95-b152-7e82a67d0513"
+    url = f"https://s3-sa-east-1.amazonaws.com/figuras.tecconcursos.com.br/{uuid}"
+    try:
+        async with engine.begin() as conn:
+            await ensure_ledger_schema(conn)
+            await conn.execute(text("DELETE FROM tc_image_assets WHERE uuid = :uuid"), {"uuid": uuid})
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO questoes (id_externo, enunciado_html, status)
+                    VALUES (:id_externo, :html, 'ATIVA')
+                    ON CONFLICT (id_externo) DO UPDATE
+                    SET enunciado_html = EXCLUDED.enunciado_html
+                    """
+                ),
+                {"id_externo": 990000011, "html": f"<img src=\"{url}\">"},
+            )
+
+        Session = async_sessionmaker(engine, expire_on_commit=False)
+        async with Session.begin() as session:
+            urls = await discover_image_urls(session)
+            assert url in urls
+            await upsert_image_assets(session, {url})
+            assets = await list_enqueueable_image_assets(session, limit=10)
+
+        assert any(asset["uuid"] == uuid for asset in assets)
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_image_asset_upsert_rewrites_s3_url_when_uuid_already_done(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
+    engine = create_async_engine(TEST_DATABASE_URL)
+    uuid = "abababab-bbbb-cccc-dddd-eeeeeeeeeeee"
+    cdn_url = f"https://cdn.tecconcursos.com.br/figuras/{uuid}"
+    s3_url = f"https://s3-sa-east-1.amazonaws.com/figuras.tecconcursos.com.br/{uuid}"
+    minio_url = f"https://objstoreapi.witdev.com.br/studia/figuras/{uuid}.png"
+    try:
+        async with engine.begin() as conn:
+            await ensure_ledger_schema(conn)
+            await conn.execute(text("DELETE FROM tc_image_assets WHERE uuid = :uuid"), {"uuid": uuid})
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO tc_image_assets (uuid, source_url, status, minio_url)
+                    VALUES (:uuid, :source_url, 'done', :minio_url)
+                    """
+                ),
+                {"uuid": uuid, "source_url": cdn_url, "minio_url": minio_url},
+            )
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO questoes (id_externo, enunciado_html, status)
+                    VALUES (:id_externo, :html, 'ATIVA')
+                    ON CONFLICT (id_externo) DO UPDATE
+                    SET enunciado_html = EXCLUDED.enunciado_html
+                    """
+                ),
+                {"id_externo": 990000012, "html": f"<img src=\"{s3_url}\">"},
+            )
+
+        Session = async_sessionmaker(engine, expire_on_commit=False)
+        async with Session.begin() as session:
+            await upsert_image_assets(session, {s3_url})
+            assets = await list_enqueueable_image_assets(session, limit=10)
+
+        async with engine.connect() as conn:
+            html = (
+                await conn.execute(
+                    text("SELECT enunciado_html FROM questoes WHERE id_externo = 990000012")
+                )
+            ).scalar_one()
+
+        assert minio_url in html
+        assert s3_url not in html
+        assert uuid not in {asset["uuid"] for asset in assets}
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_execute_image_asset_unit_marks_done_and_rewrites(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
     uuid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -233,6 +319,7 @@ async def test_enqueue_image_assets_to_target_only_fills_delta(monkeypatch):
 def test_image_url_helpers():
     uuid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
     assert uuid_from_url(f"https://cdn.tecconcursos.com.br/figuras/{uuid}") == uuid
+    assert uuid_from_url(f"https://s3-sa-east-1.amazonaws.com/figuras.tecconcursos.com.br/{uuid}") == uuid
     assert minio_object_key(uuid, "image/png") == f"figuras/{uuid}.png"
     assert public_figuras_policy("studia")["Statement"][0]["Resource"] == [
         "arn:aws:s3:::studia/figuras/*"

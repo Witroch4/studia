@@ -11,6 +11,7 @@ import { CanvasToolbar } from "./components/CanvasToolbar";
 import { QuestionCanvasOverlay } from "./components/QuestionCanvasOverlay";
 import { ScientificCalculator } from "./components/ScientificCalculator";
 import { StrikableAlternative } from "./components/StrikableAlternative";
+import { formatAnswerFeedback } from "./answerFeedback";
 import QuestionHtml from "../../../components/QuestionHtml";
 import { ForumPanel } from "./components/ForumPanel";
 import { apiFetch, apiJson, apiPost } from "@/lib/api";
@@ -88,6 +89,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const [fontSize, setFontSize] = useState(16);
   const [tab, setTab] = useState<Tab>("Questoes");
   const [tempo, setTempo] = useState(0);
+  const [tempoInicioQuestao, setTempoInicioQuestao] = useState(0);
   const [pausado, setPausado] = useState(false);
   const [canvasActive, setCanvasActive] = useState(false);
   const [canvasTool, setCanvasTool] = useState<CanvasTool>("pen");
@@ -109,13 +111,8 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     usado: number; limite: number; restantes: number | null; ilimitado: boolean;
   } | null>(null);
   const questionCardRef = useRef<HTMLDivElement | null>(null);
-  const startedAt = useRef<number>(0);
 
   // ─── Timer global (preservado) ───
-  useEffect(() => {
-    startedAt.current = Date.now();
-  }, []);
-
   useEffect(() => {
     if (pausado) return;
     const t = setInterval(() => setTempo((x) => x + 1), 1000);
@@ -307,7 +304,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
 
   async function resolverQuestao() {
     if (!selecionada || !questao || !caderno || resolvida || anulada) return;
-    const tempo_segundos = Math.round((Date.now() - startedAt.current) / 1000);
+    const tempo_segundos = Math.max(0, tempo - tempoInicioQuestao);
     setRespostaQid(questao.id);
     setRespostaState((prev) => ({ ...prev, resolvida: true }));
     responderMutation.mutate({
@@ -355,12 +352,22 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const souProfOuAdmin = meuRole === "professor" || meuRole === "admin";
 
   const annotations = useQuestionAnnotations(caderno?.id ?? null, currentQid ?? null);
+  const strikeTargetsCount = annotations.strikes.targets.length;
+  const clearStrikes = annotations.clearStrikes;
+
+  useEffect(() => {
+    if (resolvida && acertou === true && strikeTargetsCount > 0) {
+      clearStrikes();
+    }
+  }, [resolvida, acertou, strikeTargetsCount, clearStrikes]);
 
   async function mudarIndice(proximoIdx: number) {
     if (!caderno) return;
     await annotations.flush();
     const novo = Math.max(0, Math.min(caderno.total - 1, proximoIdx));
-    startedAt.current = Date.now();
+    setTempoInicioQuestao(tempo);
+    setForumAberto(false);
+    setForumProfAberto(false);
     setRespostaQid(null); // reseta estado de resposta para a nova questão
     setIdx(novo);
   }
@@ -441,10 +448,16 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const temFlagCorreta = questao.alternativas.some((a) => a.correta === true);
   const ehCorreta = (alt: Alternativa) =>
     temFlagCorreta ? alt.correta === true : alt.letra === questao.gabarito;
-  const altCorreta = questao.alternativas.find(ehCorreta);
-  const gabaritoLabel = temFlagCorreta
-    ? `${altCorreta?.letra ?? "?"} (${(altCorreta?.texto_md || "").replace(/<[^>]+>/g, "").trim() || questao.gabarito})`
-    : questao.gabarito;
+  const feedbackResposta =
+    acertou === null
+      ? null
+      : formatAnswerFeedback({
+          acertou,
+          selecionada,
+          gabarito: questao.gabarito,
+          tipo: questao.tipo,
+          alternativas: questao.alternativas,
+        });
 
   function isStruck(target: StrikeTarget) {
     return annotations.strikes.targets.some((item) => {
@@ -749,6 +762,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                       selected={selecionada === alt.letra}
                       disabled={resolvida || anulada}
                       struck={isStruck({ type: "alternative", id: alt.id })}
+                      selectionHotspotOnly={canvasActive}
                       onSelect={() => {
                         // Estado FRESCO p/ a questão atual: não espalhar `prev`, que
                         // ainda carrega resolvida/acertou da questão anterior (bug:
@@ -777,7 +791,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               <button
                 onClick={resolverQuestao}
                 disabled={!selecionada}
-                className="bg-green-600 hover:bg-green-500 disabled:bg-surface-2 disabled:cursor-not-allowed px-6 py-2 rounded font-semibold uppercase tracking-wide text-sm"
+                className="relative z-30 bg-green-600 hover:bg-green-500 disabled:pointer-events-none disabled:bg-surface-2 disabled:cursor-not-allowed px-6 py-2 rounded font-semibold uppercase tracking-wide text-sm"
               >
                 Resolver Questão
               </button>
@@ -794,12 +808,12 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
                 acertou ? "bg-success/15 border border-success/40 text-success" :
                 "bg-error/15 border border-error/40 text-error"
               }`}>
-                {acertou ? "✓ Você acertou!" : `✗ Resposta esperada: ${gabaritoLabel}`}
+                {acertou ? feedbackResposta : `✗ ${feedbackResposta}`}
               </div>
             )}
 
             {/* ─── Bottom nav (estilo TC) ─── */}
-            <nav className="mt-6 pt-4 border-t border-border/60 flex items-center gap-1 flex-wrap">
+            <nav className="relative z-30 mt-6 pt-4 border-t border-border/60 flex items-center gap-1 flex-wrap">
               <NavBtn icon="←" title="Anterior (←)" onClick={() => avancar(-1)} disabled={idx === 0} />
               <NavBtn icon="→" title="Próxima (→)" onClick={() => avancar(1)} disabled={idx === caderno.total - 1} />
               <NavBtn icon="🔀" title="Aleatória não resolvida (L)" onClick={aleatoria} />
@@ -965,7 +979,7 @@ function NavBtn({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="w-10 h-10 border border-border hover:bg-surface-2 disabled:opacity-30 rounded flex items-center justify-center text-base"
+      className="w-10 h-10 border border-border hover:bg-surface-2 disabled:pointer-events-none disabled:opacity-30 rounded flex items-center justify-center text-base"
     >
       {icon}
     </button>

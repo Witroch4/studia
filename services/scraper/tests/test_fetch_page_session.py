@@ -58,14 +58,24 @@ def session_env(monkeypatch, tmp_path):
     relogins: list[bool] = []
     fetched: list[tuple[int, int, int]] = []
 
-    monkeypatch.setattr(caderno_tasks, "load_cookies_for_httpx", lambda: {})
+    monkeypatch.setattr(caderno_tasks, "load_cookies_for_httpx", lambda **kwargs: {})
+    monkeypatch.setattr(
+        caderno_tasks,
+        "select_tc_account_for_task",
+        lambda task: {"id": "acct-test", "email": "tc@example.com"},
+    )
+    monkeypatch.setattr(
+        caderno_tasks,
+        "tc_account_storage_path",
+        lambda account_id, settings=None: tmp_path / "storage_state.json",
+    )
     monkeypatch.setattr(
         caderno_tasks,
         "get_settings",
         lambda: _FakeSettings(tc_storage_state_path=tmp_path / "storage_state.json"),
     )
 
-    async def fake_login(*, headless: bool = True) -> str:
+    async def fake_login(*, headless: bool = True, **kwargs) -> str:
         relogins.append(headless)
         return str(tmp_path / "storage_state.json")
 

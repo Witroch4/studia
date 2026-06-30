@@ -38,7 +38,7 @@ async def _post_import(questao_id: int, quadro: str, *, _sleep: Any = asyncio.sl
     s = get_settings()
     url = (
         f"{s.backend_url}/api/q/questoes/{questao_id}"
-        f"/importar-comentarios-tc?quadro={quadro}"
+        f"/importar-comentarios-tc?quadro={quadro}&task=forum_mass"
     )
     headers = {"X-Internal-Token": s.studia_internal_token}
     ultimo: Exception | None = None

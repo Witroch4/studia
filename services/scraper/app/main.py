@@ -25,10 +25,19 @@ from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
 from app.auth import (
+    NoEligibleTcAccount,
+    TC_TASK_CADERNO,
+    TC_TASK_FORUM_LAZY,
+    TC_TASK_FORUM_MASS,
+    TC_TASK_GABARITO,
+    TC_TASK_GUIA,
+    TC_TASK_IMAGEM,
     clear_tc_session,
     login_and_save_state,
+    select_tc_account_for_task,
     save_runtime_credentials,
     tc_auth_status,
+    update_tc_account_capabilities,
 )
 from app.client import TcClient
 from app.config import get_settings
@@ -175,6 +184,12 @@ class DiscoverQuestaoBody(BaseModel):
 class TcAuthLoginBody(BaseModel):
     email: str | None = None
     password: str | None = None
+    account_id: str | None = None
+    capabilities: dict[str, bool] | None = None
+
+
+class TcAuthCapabilitiesBody(BaseModel):
+    capabilities: dict[str, bool]
 
 
 class EnqueueCadernoBody(BaseModel):
@@ -222,22 +237,37 @@ async def tc_auth_login_endpoint(body: TcAuthLoginBody) -> dict[str, Any]:
     if has_new_credentials and (not email or not password):
         raise HTTPException(422, "email e senha do TC são obrigatórios")
     try:
-        await login_and_save_state(
-            headless=True,
-            email=email if has_new_credentials else None,
-            password=password if has_new_credentials else None,
-        )
+        login_kwargs: dict[str, Any] = {"headless": True}
+        if has_new_credentials:
+            login_kwargs.update({"email": email, "password": password})
+        elif body.account_id:
+            login_kwargs["account_id"] = body.account_id
+        await login_and_save_state(**login_kwargs)
     except Exception as exc:
         raise HTTPException(502, f"login TC falhou: {exc}") from exc
     if has_new_credentials:
-        save_runtime_credentials(email, password)
+        save_runtime_credentials(email, password, capabilities=body.capabilities)
     return {"ok": True, **tc_auth_status()}
 
 
 @api.delete("/tc/auth/session")
-async def tc_auth_logout_endpoint() -> dict[str, Any]:
-    removed = clear_tc_session()
+async def tc_auth_logout_endpoint(account_id: str | None = None) -> dict[str, Any]:
+    try:
+        removed = clear_tc_session(account_id=account_id)
+    except KeyError as exc:
+        raise HTTPException(404, "conta TC não encontrada") from exc
     return {"ok": True, "storage_state_removed": removed, **tc_auth_status()}
+
+
+@api.patch("/tc/auth/accounts/{account_id}/capabilities")
+async def tc_auth_capabilities_endpoint(
+    account_id: str, body: TcAuthCapabilitiesBody
+) -> dict[str, Any]:
+    try:
+        update_tc_account_capabilities(account_id, body.capabilities)
+    except KeyError as exc:
+        raise HTTPException(404, "conta TC não encontrada") from exc
+    return {"ok": True, **tc_auth_status()}
 
 
 class ResolverGuiaBody(BaseModel):
@@ -249,13 +279,23 @@ class SalvarCadernosBody(BaseModel):
     tc_guia_id: int
 
 
-async def _with_tc_client(coro_factory, *, relogin: bool = False):
+async def _with_tc_client(
+    coro_factory,
+    *,
+    relogin: bool = False,
+    task: str = TC_TASK_CADERNO,
+):
     from app.auth import load_cookies_for_httpx
     from app.schemas import SessionExpired
 
+    try:
+        account = select_tc_account_for_task(task)
+    except NoEligibleTcAccount as exc:
+        raise HTTPException(409, str(exc)) from exc
+    account_id = account["id"]
     if relogin:
-        await login_and_save_state(headless=True)
-    cookies = load_cookies_for_httpx()
+        await login_and_save_state(headless=True, account_id=account_id)
+    cookies = load_cookies_for_httpx(account_id=account_id)
     async with TcClient(cookies) as client:
         try:
             return await coro_factory(client)
@@ -263,9 +303,9 @@ async def _with_tc_client(coro_factory, *, relogin: bool = False):
             # Sessão queimada no meio da operação (401/302 → login). Reloga uma
             # vez e retenta com cookies novos — as ops de guia (resolver/salvar)
             # passam a se auto-curar igual à coleta de caderno.
-            log.warning("tc_with_client.relogin_retry")
-            await login_and_save_state(headless=True)
-            async with TcClient(load_cookies_for_httpx()) as client2:
+            log.warning("tc_with_client.relogin_retry", task=task, account_id=account_id)
+            await login_and_save_state(headless=True, account_id=account_id)
+            async with TcClient(load_cookies_for_httpx(account_id=account_id)) as client2:
                 return await coro_factory(client2)
 
 
@@ -279,7 +319,9 @@ async def gabarito_endpoint(caderno_id: int, relogin: bool = False) -> dict[str,
     from app.scrapers.tc_gabarito import fetch_gabarito
 
     return await _with_tc_client(
-        lambda c: fetch_gabarito(c, caderno_id), relogin=relogin
+        lambda c: fetch_gabarito(c, caderno_id),
+        relogin=relogin,
+        task=TC_TASK_GABARITO,
     )
 
 
@@ -298,13 +340,20 @@ def _host_permitido(host: str) -> bool:
 
 @api.get("/questao/{id_questao}/comentarios")
 async def comentarios_endpoint(
-    id_questao: int, quadro: str = "alunos", relogin: bool = False
+    id_questao: int,
+    quadro: str = "alunos",
+    relogin: bool = False,
+    task: str = TC_TASK_FORUM_LAZY,
 ) -> dict[str, Any]:
     from app.scrapers.tc_comentarios import fetch_comentarios
     if quadro not in ("alunos", "professores"):
         raise HTTPException(422, "quadro inválido")
+    if task not in (TC_TASK_FORUM_LAZY, TC_TASK_FORUM_MASS):
+        raise HTTPException(422, "task inválida")
     return await _with_tc_client(
-        lambda c: fetch_comentarios(c, id_questao, quadro), relogin=relogin
+        lambda c: fetch_comentarios(c, id_questao, quadro),
+        relogin=relogin,
+        task=task,
     )
 
 
@@ -323,7 +372,7 @@ async def tc_imagem_endpoint(u: str) -> Response:
         return Response(content=r.content,
                         media_type=r.headers.get("content-type", "image/png"))
 
-    return await _with_tc_client(_baixar)
+    return await _with_tc_client(_baixar, task=TC_TASK_IMAGEM)
 
 
 @api.post("/guia/resolver")
@@ -332,7 +381,9 @@ async def resolver_guia_endpoint(body: ResolverGuiaBody) -> dict[str, Any]:
     from app.scrapers.tc_guia import resolver_guia
 
     guia = await _with_tc_client(
-        lambda c: resolver_guia(c, body.url), relogin=body.relogin
+        lambda c: resolver_guia(c, body.url),
+        relogin=body.relogin,
+        task=TC_TASK_GUIA,
     )
     return {
         "tc_guia_id": guia.tc_guia_id,
@@ -360,7 +411,7 @@ async def buscar_guias_endpoint(termo: str) -> dict[str, Any]:
     """Busca guias do TC por palavra-chave (ex.: 'oab')."""
     from app.scrapers.tc_guia import buscar_guias
 
-    resultados = await _with_tc_client(lambda c: buscar_guias(c, termo))
+    resultados = await _with_tc_client(lambda c: buscar_guias(c, termo), task=TC_TASK_GUIA)
     return {"termo": termo, "guias": resultados}
 
 
@@ -374,7 +425,7 @@ async def salvar_cadernos_endpoint(body: SalvarCadernosBody) -> dict[str, Any]:
         itens = await listar_itens_pasta(client, pasta_id) if pasta_id else []
         return {"pasta_id": pasta_id, "itens": itens}
 
-    return await _with_tc_client(_run)
+    return await _with_tc_client(_run, task=TC_TASK_GUIA)
 
 
 @api.post("/enqueue/caderno", response_model=EnqueueCadernoResponse)
@@ -391,6 +442,10 @@ async def enqueue_caderno(body: EnqueueCadernoBody) -> EnqueueCadernoResponse:
     )
 
     settings = get_settings()
+    try:
+        select_tc_account_for_task(TC_TASK_CADERNO, touch_usage=False)
+    except NoEligibleTcAccount as exc:
+        raise HTTPException(409, str(exc)) from exc
     expected_total = body.expected_total
     if expected_total is None and body.discover_total:
         from app.scrapers.tc_total import discover_caderno_total
@@ -468,6 +523,10 @@ async def enqueue_comentarios(body: EnqueueComentariosBody) -> EnqueueCadernoRes
     )
 
     settings = get_settings()
+    try:
+        select_tc_account_for_task(TC_TASK_FORUM_MASS, touch_usage=False)
+    except NoEligibleTcAccount as exc:
+        raise HTTPException(409, str(exc)) from exc
     engine = create_async_engine(settings.database_url)
     try:
         async with engine.begin() as conn:

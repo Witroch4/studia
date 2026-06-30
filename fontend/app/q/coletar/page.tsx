@@ -98,6 +98,31 @@ interface ComentarioJobsResponse {
   jobs: ComentarioJob[];
 }
 
+type TcAccountTask = "caderno" | "forum_lazy" | "forum_mass";
+
+const TC_TASK_OPTIONS: { key: TcAccountTask; label: string }[] = [
+  { key: "caderno", label: "Questões" },
+  { key: "forum_lazy", label: "Fórum lazy" },
+  { key: "forum_mass", label: "Fórum em massa" },
+];
+
+const DEFAULT_TC_LOGIN_CAPABILITIES: Record<TcAccountTask, boolean> = {
+  caderno: true,
+  forum_lazy: true,
+  forum_mass: true,
+};
+
+interface TcAccountStatus {
+  id: string;
+  email: string;
+  source: "runtime" | "env" | "none" | string;
+  capabilities: Record<string, boolean>;
+  storage_state_exists: boolean;
+  storage_state_mtime: string | null;
+  storage_state_age_seconds: number | null;
+  usage?: Record<string, number>;
+}
+
 interface TcAuthStatus {
   ok?: boolean;
   configured: boolean;
@@ -107,6 +132,7 @@ interface TcAuthStatus {
   storage_state_mtime: string | null;
   storage_state_age_seconds: number | null;
   storage_state_removed?: boolean;
+  accounts?: TcAccountStatus[];
 }
 
 function statusTexto(status: string): string {
@@ -370,6 +396,9 @@ export default function ColetarPage() {
   const [tcEmail, setTcEmail] = useState("");
   const [tcSenha, setTcSenha] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [tcLoginCapabilities, setTcLoginCapabilities] = useState<Record<TcAccountTask, boolean>>({
+    ...DEFAULT_TC_LOGIN_CAPABILITIES,
+  });
   const [carregando, setCarregando] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -408,8 +437,8 @@ export default function ColetarPage() {
     },
   });
 
-  const loginTc = useMutation<TcAuthStatus, Error, void>({
-    mutationFn: async () => {
+  const loginTc = useMutation<TcAuthStatus, Error, { accountId?: string } | void>({
+    mutationFn: async (input) => {
       const email = tcEmail.trim();
       const senha = tcSenha;
       const enviandoNovaCredencial = Boolean(email || senha);
@@ -417,9 +446,11 @@ export default function ColetarPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          enviandoNovaCredencial
-            ? { email, password: senha }
-            : { email: null, password: null }
+          input?.accountId
+            ? { email: null, password: null, account_id: input.accountId }
+            : enviandoNovaCredencial
+              ? { email, password: senha, capabilities: tcLoginCapabilities }
+              : { email: null, password: null },
         ),
       });
       if (!r.ok) throw new Error(await parseApiError(r, `HTTP ${r.status}`));
@@ -432,11 +463,34 @@ export default function ColetarPage() {
     },
   });
 
-  const logoutTc = useMutation<TcAuthStatus, Error, void>({
-    mutationFn: async () => {
-      const r = await apiFetch("/api/q/coletar/tc-auth/session", {
+  const logoutTc = useMutation<TcAuthStatus, Error, string | undefined>({
+    mutationFn: async (accountId) => {
+      const suffix = accountId ? `?account_id=${encodeURIComponent(accountId)}` : "";
+      const r = await apiFetch(`/api/q/coletar/tc-auth/session${suffix}`, {
         method: "DELETE",
       });
+      if (!r.ok) throw new Error(await parseApiError(r, `HTTP ${r.status}`));
+      return (await r.json()) as TcAuthStatus;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(qk.tcAuth(), data);
+    },
+  });
+
+  const updateTcCapability = useMutation<
+    TcAuthStatus,
+    Error,
+    { accountId: string; task: TcAccountTask; enabled: boolean }
+  >({
+    mutationFn: async ({ accountId, task, enabled }) => {
+      const r = await apiFetch(
+        `/api/q/coletar/tc-auth/accounts/${encodeURIComponent(accountId)}/capabilities`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ capabilities: { [task]: enabled } }),
+        },
+      );
       if (!r.ok) throw new Error(await parseApiError(r, `HTTP ${r.status}`));
       return (await r.json()) as TcAuthStatus;
     },
@@ -598,12 +652,29 @@ export default function ColetarPage() {
     ? Number(expectedTotalText)
     : knownTotal;
   const jobAtual = id ? jobs.find((job) => String(job.caderno_id) === id) : null;
+  const contasTc: TcAccountStatus[] = tcAuth?.accounts?.length
+    ? tcAuth.accounts
+    : tcAuth?.email
+      ? [
+          {
+            id: "legacy",
+            email: tcAuth.email,
+            source: tcAuth.source,
+            capabilities: DEFAULT_TC_LOGIN_CAPABILITIES,
+            storage_state_exists: tcAuth.storage_state_exists,
+            storage_state_mtime: tcAuth.storage_state_mtime,
+            storage_state_age_seconds: tcAuth.storage_state_age_seconds,
+            usage: {},
+          },
+        ]
+      : [];
   const novaCredencialTc = Boolean(tcEmail.trim() || tcSenha);
   const loginTcIncompleto = novaCredencialTc && (!tcEmail.trim() || !tcSenha);
+  const loginTcAccountId = (loginTc.variables as { accountId?: string } | undefined)?.accountId;
   const podeLoginTc =
     !loginTc.isPending &&
     !loginTcIncompleto &&
-    (novaCredencialTc || Boolean(tcAuth?.configured));
+    novaCredencialTc;
 
   async function coletar() {
     if (!id) {
@@ -687,59 +758,145 @@ export default function ColetarPage() {
         </p>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+      <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
         <section className="border border-border rounded-lg bg-page/70 p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <h2 className="flex items-center gap-2 text-sm font-semibold text-fg-strong">
                 <span className="material-symbols-outlined text-primary text-[18px]">key</span>
-                Credencial TC
+                Contas TC
               </h2>
-              <div className="mt-2 min-h-6">
+              <div className="mt-2 min-h-6 text-xs text-fg-faint">
                 {carregandoTcAuth ? (
                   <Skeleton className="h-5 w-64" />
                 ) : (
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold ${
-                        tcAuth?.storage_state_exists
-                          ? "border-success/40 bg-success/15 text-success"
-                          : "border-warning/40 bg-warning/15 text-warning"
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[13px]">
-                        {tcAuth?.storage_state_exists ? "verified_user" : "lock_open"}
-                      </span>
-                      {tcAuth?.storage_state_exists ? "Sessão ativa" : "Sessão ausente"}
-                    </span>
-                    <span className="text-fg-muted">
-                      {tcAuth?.email || "sem email configurado"}
-                    </span>
-                    {tcAuth?.source && tcAuth.source !== "none" && (
-                      <span className="text-fg-faint">
-                        fonte: {tcAuth.source === "runtime" ? "UI" : "env"}
-                      </span>
-                    )}
-                    {tcAuth?.storage_state_mtime && (
-                      <span className="text-fg-faint">
-                        login: {formatarMomento(tcAuth.storage_state_mtime)}
-                      </span>
-                    )}
-                  </div>
+                  <span>
+                    {contasTc.length ? `${contasTc.length} conta(s) configurada(s)` : "nenhuma conta configurada"}
+                  </span>
                 )}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => logoutTc.mutate()}
-              disabled={logoutTc.isPending || carregandoTcAuth || !tcAuth?.storage_state_exists}
-              className="inline-flex items-center justify-center gap-1 rounded border border-border bg-surface-2 px-3 py-2 text-xs font-medium text-fg transition hover:bg-fg-strong/6 disabled:opacity-50"
-            >
-              <span className={`material-symbols-outlined text-[15px] ${logoutTc.isPending ? "animate-spin" : ""}`}>
-                {logoutTc.isPending ? "progress_activity" : "logout"}
-              </span>
-              Deslogar sessão
-            </button>
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded border border-border">
+            <div className="hidden grid-cols-[minmax(180px,1fr)_repeat(3,minmax(110px,auto))_auto] gap-2 border-b border-border bg-surface-2/70 px-3 py-2 text-[11px] font-semibold uppercase text-fg-faint md:grid">
+              <span>Conta</span>
+              {TC_TASK_OPTIONS.map((option) => (
+                <span key={option.key}>{option.label}</span>
+              ))}
+              <span className="text-right">Ações</span>
+            </div>
+
+            {carregandoTcAuth ? (
+              <div className="space-y-2 p-3">
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+            ) : contasTc.length === 0 ? (
+              <div className="px-3 py-4 text-sm text-fg-faint">
+                Adicione uma conta para liberar coleta de questões e fóruns.
+              </div>
+            ) : (
+              contasTc.map((conta) => {
+                const relogandoConta = loginTc.isPending && loginTcAccountId === conta.id;
+                const deslogandoConta = logoutTc.isPending && logoutTc.variables === conta.id;
+                return (
+                  <div
+                    key={conta.id}
+                    className="grid gap-3 border-b border-border px-3 py-3 last:border-b-0 md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(110px,auto))_auto] md:items-center"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-fg">{conta.email}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-fg-faint">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold ${
+                            conta.storage_state_exists
+                              ? "border-success/40 bg-success/15 text-success"
+                              : "border-warning/40 bg-warning/15 text-warning"
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[13px]">
+                            {conta.storage_state_exists ? "verified_user" : "lock_open"}
+                          </span>
+                          {conta.storage_state_exists ? "Sessão ativa" : "Sessão ausente"}
+                        </span>
+                        <span>{conta.source === "runtime" ? "UI" : conta.source}</span>
+                        {conta.storage_state_mtime && (
+                          <span>login: {formatarMomento(conta.storage_state_mtime)}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {TC_TASK_OPTIONS.map((option) => (
+                      <label
+                        key={option.key}
+                        className="inline-flex items-center justify-between gap-2 text-xs text-fg md:justify-start"
+                      >
+                        <span className="md:hidden">{option.label}</span>
+                        <span className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={conta.capabilities?.[option.key] !== false}
+                            disabled={
+                              conta.id === "legacy" ||
+                              updateTcCapability.isPending ||
+                              carregandoTcAuth
+                            }
+                            onChange={(e) =>
+                              updateTcCapability.mutate({
+                                accountId: conta.id,
+                                task: option.key,
+                                enabled: e.currentTarget.checked,
+                              })
+                            }
+                            className="h-4 w-4 rounded border-border accent-primary"
+                          />
+                          <span className="font-mono text-[11px] text-fg-faint">
+                            {conta.usage?.[option.key] ?? 0}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => loginTc.mutate({ accountId: conta.id })}
+                        disabled={
+                          conta.id === "legacy" ||
+                          loginTc.isPending ||
+                          logoutTc.isPending ||
+                          carregandoTcAuth
+                        }
+                        className="inline-flex h-8 items-center justify-center gap-1 rounded border border-border bg-surface-2 px-2 text-xs font-medium text-fg transition hover:bg-fg-strong/6 disabled:opacity-50"
+                      >
+                        <span className={`material-symbols-outlined text-[14px] ${relogandoConta ? "animate-spin" : ""}`}>
+                          {relogandoConta ? "progress_activity" : "sync"}
+                        </span>
+                        Refazer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => logoutTc.mutate(conta.id)}
+                        disabled={
+                          conta.id === "legacy" ||
+                          logoutTc.isPending ||
+                          loginTc.isPending ||
+                          carregandoTcAuth ||
+                          !conta.storage_state_exists
+                        }
+                        className="inline-flex h-8 items-center justify-center gap-1 rounded border border-border bg-surface-2 px-2 text-xs font-medium text-fg transition hover:bg-fg-strong/6 disabled:opacity-50"
+                      >
+                        <span className={`material-symbols-outlined text-[14px] ${deslogandoConta ? "animate-spin" : ""}`}>
+                          {deslogandoConta ? "progress_activity" : "logout"}
+                        </span>
+                        Sair
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
@@ -789,8 +946,29 @@ export default function ColetarPage() {
               <span className={`material-symbols-outlined text-[16px] ${loginTc.isPending ? "animate-spin" : ""}`}>
                 {loginTc.isPending ? "progress_activity" : "login"}
               </span>
-              {novaCredencialTc ? "Entrar e salvar" : "Refazer login"}
+              Entrar e salvar
             </button>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <span className="text-xs font-semibold text-fg-faint">Permissões da conta</span>
+            {TC_TASK_OPTIONS.map((option) => (
+              <label key={option.key} className="inline-flex items-center gap-2 text-xs text-fg-muted">
+                <input
+                  type="checkbox"
+                  checked={tcLoginCapabilities[option.key]}
+                  onChange={(e) =>
+                    setTcLoginCapabilities((atual) => ({
+                      ...atual,
+                      [option.key]: e.currentTarget.checked,
+                    }))
+                  }
+                  className="h-4 w-4 rounded border-border accent-primary"
+                  disabled={loginTc.isPending}
+                />
+                {option.label}
+              </label>
+            ))}
           </div>
 
           <div className="mt-3 min-h-20">
@@ -809,6 +987,11 @@ export default function ColetarPage() {
             {!loginTc.isPending && logoutTc.error && (
               <div className="rounded border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
                 {logoutTc.error.message}
+              </div>
+            )}
+            {!loginTc.isPending && updateTcCapability.error && (
+              <div className="rounded border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
+                {updateTcCapability.error.message}
               </div>
             )}
             {!loginTc.isPending && loginTc.data?.ok && (

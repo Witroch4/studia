@@ -32,6 +32,8 @@ def test_runtime_credentials_override_env_without_exposing_password(tmp_path):
     assert status["email"] == "runtime@example.com"
     assert status["source"] == "runtime"
     assert "password" not in status
+    assert status["accounts"][0]["email"] == "runtime@example.com"
+    assert "password" not in status["accounts"][0]
 
 
 def test_effective_credentials_falls_back_to_env(tmp_path):
@@ -62,6 +64,68 @@ def test_clear_tc_session_removes_storage_state_only(tmp_path):
     assert removed is True
     assert not settings.tc_storage_state_path.exists()
     assert tc_auth.effective_tc_credentials(settings=settings)[0] == "runtime@example.com"
+
+
+def test_select_tc_account_respects_task_capabilities_and_balances_usage(tmp_path):
+    settings = _Settings(
+        tc_email=None,
+        tc_password=None,
+        tc_storage_state_path=tmp_path / "storage_state.json",
+    )
+    tc_auth.save_tc_account(
+        "a@example.com",
+        "a-pass",
+        capabilities={
+            tc_auth.TC_TASK_CADERNO: True,
+            tc_auth.TC_TASK_FORUM_LAZY: False,
+            tc_auth.TC_TASK_FORUM_MASS: False,
+        },
+        settings=settings,
+    )
+    tc_auth.save_tc_account(
+        "b@example.com",
+        "b-pass",
+        capabilities={
+            tc_auth.TC_TASK_CADERNO: False,
+            tc_auth.TC_TASK_FORUM_LAZY: True,
+            tc_auth.TC_TASK_FORUM_MASS: True,
+        },
+        settings=settings,
+    )
+    tc_auth.save_tc_account(
+        "c@example.com",
+        "c-pass",
+        capabilities={
+            tc_auth.TC_TASK_CADERNO: True,
+            tc_auth.TC_TASK_FORUM_LAZY: True,
+            tc_auth.TC_TASK_FORUM_MASS: False,
+        },
+        settings=settings,
+    )
+
+    first = tc_auth.select_tc_account_for_task(tc_auth.TC_TASK_CADERNO, settings=settings)
+    second = tc_auth.select_tc_account_for_task(tc_auth.TC_TASK_CADERNO, settings=settings)
+    lazy = tc_auth.select_tc_account_for_task(tc_auth.TC_TASK_FORUM_LAZY, settings=settings)
+
+    assert {first["email"], second["email"]} == {"a@example.com", "c@example.com"}
+    assert lazy["email"] == "b@example.com"
+
+
+def test_select_tc_account_raises_when_no_enabled_account(tmp_path):
+    settings = _Settings(
+        tc_email=None,
+        tc_password=None,
+        tc_storage_state_path=tmp_path / "storage_state.json",
+    )
+    tc_auth.save_tc_account(
+        "a@example.com",
+        "a-pass",
+        capabilities={tc_auth.TC_TASK_FORUM_MASS: False},
+        settings=settings,
+    )
+
+    with pytest.raises(tc_auth.NoEligibleTcAccount):
+        tc_auth.select_tc_account_for_task(tc_auth.TC_TASK_FORUM_MASS, settings=settings)
 
 
 @pytest.mark.asyncio

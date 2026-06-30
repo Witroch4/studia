@@ -11,8 +11,12 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.auth import NoEligibleTcAccount
+from app.auth import TC_TASK_CADERNO
 from app.auth import load_cookies_for_httpx
 from app.auth import login_and_save_state
+from app.auth import select_tc_account_for_task
+from app.auth import tc_account_storage_path
 from app.client import TcClient
 from app.config import get_settings
 from app.observability import get_logger
@@ -126,10 +130,23 @@ async def execute_caderno_page_unit(
                 )
 
         try:
+            account_id: str | None = None
+            if fetcher is None:
+                account = select_tc_account_for_task(TC_TASK_CADERNO)
+                account_id = account["id"]
             if relogin:
-                await _ensure_fresh_session()
+                await _ensure_fresh_session(account_id=account_id)
 
-            questoes_raw = await fetch(caderno_id, inicio, page_size)
+            questoes_raw = (
+                await _fetch_page_from_tc(
+                    caderno_id,
+                    inicio,
+                    page_size,
+                    account_id=account_id,
+                )
+                if fetcher is None
+                else await fetch(caderno_id, inicio, page_size)
+            )
             if not questoes_raw:
                 raise EmptyCadernoPage(
                     f"empty page for caderno={caderno_id} inicio={inicio}"
@@ -200,7 +217,13 @@ async def execute_caderno_page_unit(
                 attempts=int(unit["attempts"]),
                 enqueued_next_inicio=enqueued_next_inicio,
             )
-        except (SessionExpired, CaptchaChallenge, AccessBlocked, RateLimited) as exc:
+        except (
+            NoEligibleTcAccount,
+            SessionExpired,
+            CaptchaChallenge,
+            AccessBlocked,
+            RateLimited,
+        ) as exc:
             reason, cooldown_seconds = _block_policy(exc)
             async with Session.begin() as session:
                 await mark_caderno_unit_blocked(
@@ -335,12 +358,18 @@ async def _capturar_caderno_nome_best_effort(caderno_id: int, html: str) -> None
 
 
 async def _fetch_page_from_tc(
-    caderno_id: int, inicio: int, page_size: int
+    caderno_id: int,
+    inicio: int,
+    page_size: int,
+    *,
+    account_id: str | None = None,
 ) -> list[dict[str, Any]]:
     # Warmup redirect (302 → /login) = sessão morta. Reloga uma vez e retenta;
     # se continuar redirecionando, deixa o block policy aplicar o cooldown.
+    if account_id is None:
+        account_id = select_tc_account_for_task(TC_TASK_CADERNO)["id"]
     for attempt in (1, 2):
-        cookies = load_cookies_for_httpx()
+        cookies = load_cookies_for_httpx(account_id=account_id)
         async with TcClient(cookies) as client:
             warm = await client._client.get(  # noqa: SLF001
                 f"/questoes/cadernos/{caderno_id}",
@@ -354,7 +383,7 @@ async def _fetch_page_from_tc(
             )
             if warm.status_code in _REDIRECT_STATUSES:
                 if attempt == 1:
-                    await _ensure_fresh_session()
+                    await _ensure_fresh_session(account_id=account_id)
                     continue
                 raise SessionExpired(
                     "warmup redirecionou para login mesmo após relogin"
@@ -364,18 +393,38 @@ async def _fetch_page_from_tc(
     raise SessionExpired("warmup esgotou tentativas")
 
 
-async def _ensure_fresh_session(*, max_age_seconds: float = 60.0) -> None:
+async def _ensure_fresh_session(
+    *,
+    max_age_seconds: float = 60.0,
+    account_id: str | None = None,
+) -> None:
     """Reloga no TC, exceto se a sessão em disco acabou de ser renovada."""
     settings = get_settings()
+    storage_path = (
+        tc_account_storage_path(account_id, settings=settings)
+        if account_id
+        else settings.tc_storage_state_path
+    )
     try:
-        age = time.time() - settings.tc_storage_state_path.stat().st_mtime
+        age = time.time() - storage_path.stat().st_mtime
     except OSError:
         age = None
     if age is not None and 0 <= age < max_age_seconds:
-        log.info("tc_unit.relogin_skipped", storage_age_seconds=round(age, 1))
+        log.info(
+            "tc_unit.relogin_skipped",
+            storage_age_seconds=round(age, 1),
+            account_id=account_id,
+        )
         return
-    log.info("tc_unit.relogin_start", storage_age_seconds=age and round(age, 1))
-    await login_and_save_state(headless=True)
+    log.info(
+        "tc_unit.relogin_start",
+        storage_age_seconds=age and round(age, 1),
+        account_id=account_id,
+    )
+    if account_id:
+        await login_and_save_state(headless=True, account_id=account_id)
+    else:
+        await login_and_save_state(headless=True)
 
 
 async def _upsert_questao_default(q: QuestaoApi, raw: dict[str, Any]) -> int:
@@ -432,6 +481,8 @@ async def _enqueue_next_caderno_unit(
 
 def _block_policy(exc: Exception) -> tuple[str, int]:
     settings = get_settings()
+    if isinstance(exc, NoEligibleTcAccount):
+        return "no_eligible_account", 300
     if isinstance(exc, SessionExpired):
         return "session_expired", settings.tc_block_401_452_seconds
     if isinstance(exc, CaptchaChallenge):

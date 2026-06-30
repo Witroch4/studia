@@ -21,10 +21,12 @@ from app.tasks.ledger import ensure_ledger_schema
 log = get_logger(__name__)
 _PUBLIC_POLICY_BUCKETS: set[str] = set()
 
-URL_PATTERN = re.compile(
-    r"https?://cdn\.tecconcursos\.com\.br/figuras/[a-f0-9-]+",
-    re.I,
+TC_IMAGE_URL_SQL_PATTERN = (
+    r"https?://(?:cdn\.tecconcursos\.com\.br/figuras|"
+    r"s3-sa-east-1\.amazonaws\.com/figuras\.tecconcursos\.com\.br)/[a-f0-9-]+"
 )
+
+URL_PATTERN = re.compile(TC_IMAGE_URL_SQL_PATTERN, re.I)
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,20 +47,21 @@ async def discover_image_urls(session: AsyncSession) -> set[str]:
         text(
             """
             SELECT DISTINCT m FROM (
-              SELECT (regexp_matches(enunciado_html, '(https?://cdn\\.tecconcursos\\.com\\.br/figuras/[a-f0-9-]+)', 'g'))[1] AS m
-              FROM questoes WHERE enunciado_html LIKE '%cdn.tecconcursos%'
+              SELECT (regexp_matches(enunciado_html, :pattern, 'g'))[1] AS m
+              FROM questoes WHERE enunciado_html LIKE '%tecconcursos.com.br%'
               UNION
-              SELECT (regexp_matches(enunciado_md, '(https?://cdn\\.tecconcursos\\.com\\.br/figuras/[a-f0-9-]+)', 'g'))[1] AS m
-              FROM questoes WHERE enunciado_md LIKE '%cdn.tecconcursos%'
+              SELECT (regexp_matches(enunciado_md, :pattern, 'g'))[1] AS m
+              FROM questoes WHERE enunciado_md LIKE '%tecconcursos.com.br%'
               UNION
-              SELECT (regexp_matches(texto_html, '(https?://cdn\\.tecconcursos\\.com\\.br/figuras/[a-f0-9-]+)', 'g'))[1] AS m
-              FROM alternativas WHERE texto_html LIKE '%cdn.tecconcursos%'
+              SELECT (regexp_matches(texto_html, :pattern, 'g'))[1] AS m
+              FROM alternativas WHERE texto_html LIKE '%tecconcursos.com.br%'
               UNION
-              SELECT (regexp_matches(texto_md, '(https?://cdn\\.tecconcursos\\.com\\.br/figuras/[a-f0-9-]+)', 'g'))[1] AS m
-              FROM alternativas WHERE texto_md LIKE '%cdn.tecconcursos%'
+              SELECT (regexp_matches(texto_md, :pattern, 'g'))[1] AS m
+              FROM alternativas WHERE texto_md LIKE '%tecconcursos.com.br%'
             ) t WHERE m IS NOT NULL
             """
-        )
+        ),
+        {"pattern": TC_IMAGE_URL_SQL_PATTERN},
     )
     return {row[0] for row in result.fetchall()}
 
@@ -67,22 +70,27 @@ async def upsert_image_assets(session: AsyncSession, urls: set[str]) -> int:
     count = 0
     for url in urls:
         uuid = uuid_from_url(url)
-        await session.execute(
-            text(
-                """
-                INSERT INTO tc_image_assets (uuid, source_url, status, updated_at)
-                VALUES (:uuid, :source_url, 'pending', now())
-                ON CONFLICT (uuid) DO UPDATE
-                SET source_url = EXCLUDED.source_url,
-                    updated_at = CASE
-                      WHEN tc_image_assets.source_url IS DISTINCT FROM EXCLUDED.source_url
-                      THEN now()
-                      ELSE tc_image_assets.updated_at
-                    END
-                """
-            ),
-            {"uuid": uuid, "source_url": url},
-        )
+        row = (
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO tc_image_assets (uuid, source_url, status, updated_at)
+                    VALUES (:uuid, :source_url, 'pending', now())
+                    ON CONFLICT (uuid) DO UPDATE
+                    SET source_url = EXCLUDED.source_url,
+                        updated_at = CASE
+                          WHEN tc_image_assets.source_url IS DISTINCT FROM EXCLUDED.source_url
+                          THEN now()
+                          ELSE tc_image_assets.updated_at
+                        END
+                    RETURNING status, minio_url
+                    """
+                ),
+                {"uuid": uuid, "source_url": url},
+            )
+        ).mappings().one()
+        if row["status"] == "done" and row["minio_url"]:
+            await _rewrite_single_url(session, source_url=url, minio_url=row["minio_url"])
         count += 1
     return count
 

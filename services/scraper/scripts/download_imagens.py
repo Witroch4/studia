@@ -1,7 +1,7 @@
 """Baixa figuras do CDN do TecConcursos → MinIO + reescreve URLs no banco.
 
 Estratégia:
-  1. Extrai URLs únicas de `cdn.tecconcursos.com.br/figuras/*` de:
+  1. Extrai URLs únicas de imagens do TecConcursos de:
      - questoes.enunciado_html / .enunciado_md
      - alternativas.texto_html / .texto_md
   2. Dedup por UUID
@@ -58,7 +58,12 @@ PROXY = os.environ.get("RESIDENTIAL_PROXY_URL")
 STATE_DB = Path(os.environ.get("SCRAPE_STATE_PATH", "/state/scrape_state.db"))
 PAUSE_FILE = Path("/state/PAUSE_IMG")
 
-URL_PATTERN = re.compile(r"https?://cdn\.tecconcursos\.com\.br/figuras/[a-f0-9-]+", re.I)
+TC_IMAGE_URL_SQL_PATTERN = (
+    r"https?://(?:cdn\.tecconcursos\.com\.br/figuras|"
+    r"s3-sa-east-1\.amazonaws\.com/figuras\.tecconcursos\.com\.br)/[a-f0-9-]+"
+)
+
+URL_PATTERN = re.compile(TC_IMAGE_URL_SQL_PATTERN, re.I)
 
 
 def state_conn() -> sqlite3.Connection:
@@ -109,19 +114,21 @@ async def extrair_urls_unicas(engine) -> set[str]:
     async with engine.begin() as conn:
         result = await conn.execute(text("""
             SELECT DISTINCT m FROM (
-              SELECT (regexp_matches(enunciado_html, '(https?://cdn\\.tecconcursos\\.com\\.br/figuras/[a-f0-9-]+)', 'g'))[1] AS m
-              FROM questoes WHERE enunciado_html LIKE '%cdn.tecconcursos%'
+              SELECT (regexp_matches(enunciado_html, :pattern, 'g'))[1] AS m
+              FROM questoes WHERE enunciado_html LIKE '%tecconcursos.com.br%'
               UNION
-              SELECT (regexp_matches(enunciado_md, '(https?://cdn\\.tecconcursos\\.com\\.br/figuras/[a-f0-9-]+)', 'g'))[1] AS m
-              FROM questoes WHERE enunciado_md LIKE '%cdn.tecconcursos%'
+              SELECT (regexp_matches(enunciado_md, :pattern, 'g'))[1] AS m
+              FROM questoes WHERE enunciado_md LIKE '%tecconcursos.com.br%'
               UNION
-              SELECT (regexp_matches(texto_html, '(https?://cdn\\.tecconcursos\\.com\\.br/figuras/[a-f0-9-]+)', 'g'))[1] AS m
-              FROM alternativas WHERE texto_html LIKE '%cdn.tecconcursos%'
+              SELECT (regexp_matches(texto_html, :pattern, 'g'))[1] AS m
+              FROM alternativas WHERE texto_html LIKE '%tecconcursos.com.br%'
               UNION
-              SELECT (regexp_matches(texto_md, '(https?://cdn\\.tecconcursos\\.com\\.br/figuras/[a-f0-9-]+)', 'g'))[1] AS m
-              FROM alternativas WHERE texto_md LIKE '%cdn.tecconcursos%'
+              SELECT (regexp_matches(texto_md, :pattern, 'g'))[1] AS m
+              FROM alternativas WHERE texto_md LIKE '%tecconcursos.com.br%'
             ) t WHERE m IS NOT NULL
-        """))
+        """),
+            {"pattern": TC_IMAGE_URL_SQL_PATTERN},
+        )
         return {row[0] for row in result.fetchall()}
 
 

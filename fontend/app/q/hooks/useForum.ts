@@ -59,7 +59,7 @@ export function useImportarComentariosTc(questaoId: number, quadro: Quadro) {
   return useMutation({
     mutationFn: () =>
       apiPost<{ importados: number; count: number; ja_importado: boolean }>(
-        `/api/q/questoes/${questaoId}/importar-comentarios-tc?quadro=${quadro}`, {}),
+        `/api/q/questoes/${questaoId}/importar-comentarios-tc?quadro=${quadro}&task=forum_lazy`, {}),
     onSuccess: invalidar,
   });
 }

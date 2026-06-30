@@ -22,6 +22,7 @@ async def test_post_retry_5xx(monkeypatch):
     chamadas = {"n": 0}
     def handler(req):
         chamadas["n"] += 1
+        assert req.url.params.get("task") == "forum_mass"
         return httpx.Response(502) if chamadas["n"] == 1 else httpx.Response(200, json={"importados": 2, "ja_importado": False})
     _RealAsyncClient = httpx.AsyncClient  # salva referência antes do patch
     monkeypatch.setattr(m.httpx, "AsyncClient",

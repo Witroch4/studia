@@ -201,6 +201,49 @@ async def test_tc_auth_logout_proxy_admin(client, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_tc_auth_capabilities_proxy_admin(client, monkeypatch):
+    import q_router
+
+    calls: list[dict] = []
+
+    class FakeResponse:
+        status_code = 200
+        text = '{"ok": true}'
+
+        def json(self):
+            return {"ok": True, "accounts": []}
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def patch(self, url, json):
+            calls.append({"url": url, "json": json})
+            return FakeResponse()
+
+    monkeypatch.setattr(q_router.httpx, "AsyncClient", FakeAsyncClient)
+
+    response = await client.patch(
+        "/api/q/coletar/tc-auth/accounts/abc123/capabilities",
+        json={"capabilities": {"forum_mass": False}},
+    )
+
+    assert response.status_code == 200
+    assert calls == [
+        {
+            "url": "http://scraper:8090/tc/auth/accounts/abc123/capabilities",
+            "json": {"capabilities": {"forum_mass": False}},
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_coletar_unknown_caderno_requires_expected_total(client, monkeypatch):
     response = await client.post(
         "/api/q/coletar",

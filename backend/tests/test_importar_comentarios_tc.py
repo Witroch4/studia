@@ -7,6 +7,7 @@ from models import Questao, QuestaoComentario, QuestaoTcImport
 
 def _mock_scraper(monkeypatch, comentarios):
     def handler(req):
+        assert req.url.params.get("task") == "forum_lazy"
         return httpx.Response(200, json={"comentarios": comentarios})
     real = httpx.AsyncClient
     def fake_client(*a, **k):

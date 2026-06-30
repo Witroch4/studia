@@ -201,6 +201,13 @@ export function useQuestionAnnotations(cadernoId: number | null, questaoId: numb
     scheduleSave(next, strikesRef.current);
   }, [scheduleSave]);
 
+  const clearStrikes = useCallback(() => {
+    const next = emptyStrikes();
+    strikesRef.current = next;
+    setStrikesState(next);
+    scheduleSave(canvasRef.current, next);
+  }, [scheduleSave]);
+
   const flush = useCallback(async () => {
     if (!currentQuestion) return;
     const pending: PendingSave = { ...currentQuestion, canvas: canvasRef.current, strikes: strikesRef.current };
@@ -231,6 +238,7 @@ export function useQuestionAnnotations(cadernoId: number | null, questaoId: numb
     setCanvas,
     toggleStrike,
     clearCanvas,
+    clearStrikes,
     flush,
   };
 }
