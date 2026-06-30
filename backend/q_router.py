@@ -1558,7 +1558,9 @@ async def estatisticas_caderno(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     cad = await _caderno_acessivel(db, caderno_id, user)
-    return await _estatisticas_caderno_payload(db, caderno_id, user.id, cad.total)
+    return await _estatisticas_caderno_payload(
+        db, caderno_id, user.id, cad.total, cad.question_ids
+    )
 
 
 async def _estatisticas_caderno_payload(
@@ -1566,22 +1568,40 @@ async def _estatisticas_caderno_payload(
     caderno_id: int,
     usuario_uid: str,
     questoes_total: int,
+    question_ids: list[Any] | None = None,
 ) -> dict[str, Any]:
+    question_ids_set = _normalizar_question_ids(question_ids)
+    conditions = [
+        Resolucao.caderno_id == caderno_id,
+        Resolucao.usuario_uid == usuario_uid,
+        or_(Questao.status.is_(None), Questao.status != "ANULADA"),
+        ~func.upper(func.coalesce(Questao.gabarito, "")).like("ANULADA%"),
+    ]
+    if question_ids_set is not None:
+        if not question_ids_set:
+            return {
+                "caderno_id": caderno_id,
+                "questoes_total": questoes_total,
+                "resolvidas": 0,
+                "acertos": 0,
+                "erros": 0,
+            }
+        conditions.append(Resolucao.questao_id.in_(question_ids_set))
+
     total = (
         await db.execute(
-            select(func.count()).where(
-                Resolucao.caderno_id == caderno_id,
-                Resolucao.usuario_uid == usuario_uid,
-            )
+            select(func.count())
+            .select_from(Resolucao)
+            .join(Questao, Questao.id == Resolucao.questao_id)
+            .where(*conditions)
         )
     ).scalar_one()
     acertos = (
         await db.execute(
-            select(func.count()).where(
-                Resolucao.caderno_id == caderno_id,
-                Resolucao.usuario_uid == usuario_uid,
-                Resolucao.acertou == True,  # noqa: E712
-            )
+            select(func.count())
+            .select_from(Resolucao)
+            .join(Questao, Questao.id == Resolucao.questao_id)
+            .where(*conditions, Resolucao.acertou == True)  # noqa: E712
         )
     ).scalar_one()
     return {
@@ -1591,6 +1611,18 @@ async def _estatisticas_caderno_payload(
         "acertos": acertos,
         "erros": total - acertos,
     }
+
+
+def _normalizar_question_ids(question_ids: list[Any] | None) -> set[int] | None:
+    if question_ids is None:
+        return None
+    ids: set[int] = set()
+    for qid in question_ids:
+        try:
+            ids.add(int(qid))
+        except (TypeError, ValueError):
+            continue
+    return ids
 
 
 class ImportarGabaritoReq(BaseModel):
@@ -1656,6 +1688,12 @@ _TEXTO_STATS_NAO_RESOLVIDA_RE = _re.compile(
     _re.I,
 )
 _TEXTO_STATS_NUMERO_RE = _re.compile(r"(?m)^\s*(?P<n>\d{1,5})(?:\s*$|\t)")
+
+
+def _questao_anulada(status: Any, gabarito: Any) -> bool:
+    return str(status or "").upper() == "ANULADA" or str(gabarito or "").upper().startswith(
+        "ANULADA"
+    )
 
 
 def _parse_texto_estatistica_tc(texto: str) -> dict[str, Any]:
@@ -1745,20 +1783,31 @@ async def importar_gabarito_tec(
             raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:300]}")
         payload = r.json()
     itens: list[dict[str, Any]] = payload.get("itens") or []
+    if fonte == "scraper":
+        anuladas_no_tec = sum(1 for it in itens if it.get("anulada"))
+    question_ids_caderno = _normalizar_question_ids(cad.question_ids) or set()
+    filtrar_por_caderno = bool(question_ids_caderno)
 
     # idQuestao (TEC) → Questao.id (studIA), via id_externo.
     ids_externos = [it["idQuestao"] for it in itens if it.get("idQuestao") is not None]
-    mapa: dict[int, int] = {}
+    questoes_por_externo: dict[int, dict[str, Any]] = {}
     if ids_externos:
-        mapa = dict(
-            (
+        questoes_por_externo = {
+            int(row["id_externo"]): row
+            for row in (
                 await db.execute(
-                    select(Questao.id_externo, Questao.id).where(
-                        Questao.id_externo.in_(ids_externos)
-                    )
+                    select(
+                        Questao.id_externo,
+                        Questao.id,
+                        Questao.status,
+                        Questao.gabarito,
+                    ).where(Questao.id_externo.in_(ids_externos))
                 )
-            ).all()
-        )
+            )
+            .mappings()
+            .all()
+            if row["id_externo"] is not None
+        }
 
     resolucoes_por_qid: dict[int, Resolucao] = {
         r.questao_id: r
@@ -1775,16 +1824,42 @@ async def importar_gabarito_tec(
     }
 
     importadas = atualizadas = acertos_importados = erros_importados = 0
-    ja_tinha = nao_resolvidas = nao_mapeadas = 0
+    ja_tinha = nao_resolvidas = nao_mapeadas = desvinculadas = fora_do_caderno = 0
+    if req.sobrescrever and filtrar_por_caderno:
+        for qid, existente in list(resolucoes_por_qid.items()):
+            if qid not in question_ids_caderno:
+                existente.caderno_id = None
+                resolucoes_por_qid.pop(qid, None)
+                desvinculadas += 1
+
     for it in itens:
-        if it.get("acertou") is None:  # não resolvida no TEC
-            nao_resolvidas += 1
-            continue
-        qid = mapa.get(it.get("idQuestao"))
+        qinfo = questoes_por_externo.get(it.get("idQuestao"))
+        qid = qinfo["id"] if qinfo else None
         if qid is None:  # questão não existe no studIA (caderno não coletado por completo)
+            if it.get("acertou") is None:
+                nao_resolvidas += 1
+                continue
             nao_mapeadas += 1
             continue
         existente = resolucoes_por_qid.get(qid)
+        item_anulado = bool(it.get("anulada")) or _questao_anulada(
+            qinfo.get("status"), qinfo.get("gabarito")
+        )
+        if it.get("acertou") is None or item_anulado:
+            if it.get("acertou") is None:
+                nao_resolvidas += 1
+            if existente is not None and req.sobrescrever:
+                existente.caderno_id = None
+                resolucoes_por_qid.pop(qid, None)
+                desvinculadas += 1
+            continue
+        if filtrar_por_caderno and qid not in question_ids_caderno:
+            fora_do_caderno += 1
+            if existente is not None and req.sobrescrever:
+                existente.caderno_id = None
+                resolucoes_por_qid.pop(qid, None)
+                desvinculadas += 1
+            continue
         if existente is not None:
             ja_tinha += 1
             if req.sobrescrever:
@@ -1827,7 +1902,9 @@ async def importar_gabarito_tec(
             erros_importados += 1
 
     await db.commit()
-    stats = await _estatisticas_caderno_payload(db, caderno_id, user.id, cad.total)
+    stats = await _estatisticas_caderno_payload(
+        db, caderno_id, user.id, cad.total, cad.question_ids
+    )
     return {
         "caderno_id": caderno_id,
         "tc_caderno_id": tc_cid,
@@ -1841,6 +1918,8 @@ async def importar_gabarito_tec(
         "nao_resolvidas_no_tec": nao_resolvidas,
         "anuladas_no_tec": anuladas_no_tec,
         "nao_mapeadas": nao_mapeadas,
+        "fora_do_caderno": fora_do_caderno,
+        "desvinculadas": desvinculadas,
         **stats,
     }
 

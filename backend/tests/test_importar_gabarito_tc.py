@@ -208,3 +208,127 @@ Não resolvida\t\t#3027342
         )
     ).scalar_one()
     assert total == 2
+
+
+async def test_estatistica_caderno_ignora_resolucao_fora_da_lista_do_caderno(
+    client, db_session
+):
+    await _seed_caderno(db_session)
+    db_session.add(
+        Questao(
+            id=1999,
+            id_externo=9991999,
+            tipo="MULTIPLA_ESCOLHA",
+            gabarito="A",
+            status="ATIVA",
+            enunciado_html="<p>fora</p>",
+        )
+    )
+    db_session.add_all(
+        [
+            Resolucao(
+                questao_id=1001,
+                caderno_id=501,
+                usuario_uid="admin-1",
+                resposta="A",
+                acertou=True,
+            ),
+            Resolucao(
+                questao_id=1999,
+                caderno_id=501,
+                usuario_uid="admin-1",
+                resposta="A",
+                acertou=True,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    r = await client.get("/api/q/cadernos/501/estatisticas")
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["resolvidas"] == 1
+    assert body["acertos"] == 1
+    assert body["erros"] == 0
+
+
+async def test_importar_gabarito_sobrescrever_desvincula_nao_resolvida_antiga(
+    client, db_session, monkeypatch
+):
+    await _seed_caderno(db_session)
+    db_session.add(
+        Questao(
+            id=1999,
+            id_externo=9991999,
+            tipo="MULTIPLA_ESCOLHA",
+            gabarito="A",
+            status="ATIVA",
+            enunciado_html="<p>fora</p>",
+        )
+    )
+    db_session.add(
+        Resolucao(
+            questao_id=1999,
+            caderno_id=501,
+            usuario_uid="admin-1",
+            resposta="A",
+            acertou=True,
+        )
+    )
+    await db_session.commit()
+    _mock_scraper(
+        monkeypatch,
+        {
+            "total": 4,
+            "itens": [
+                {
+                    "idQuestao": 3643888,
+                    "alternativa": 1,
+                    "tipoQuestao": "MULTIPLA_ESCOLHA",
+                    "acertou": True,
+                    "data": "24/05/2026",
+                },
+                {
+                    "idQuestao": 2893013,
+                    "alternativa": 2,
+                    "tipoQuestao": "MULTIPLA_ESCOLHA",
+                    "acertou": False,
+                    "data": "04/06/2026",
+                },
+                {
+                    "idQuestao": 3027342,
+                    "alternativa": None,
+                    "tipoQuestao": "MULTIPLA_ESCOLHA",
+                    "acertou": None,
+                    "data": None,
+                },
+                {
+                    "idQuestao": 9991999,
+                    "alternativa": 1,
+                    "tipoQuestao": "MULTIPLA_ESCOLHA",
+                    "acertou": None,
+                    "data": None,
+                },
+            ],
+        },
+    )
+
+    r = await client.post(
+        "/api/q/cadernos/501/importar-gabarito",
+        json={"sobrescrever": True},
+    )
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["resolvidas"] == 2
+    assert body["acertos"] == 1
+    assert body["erros"] == 1
+    assert body["desvinculadas"] == 1
+
+    stale = (
+        await db_session.execute(
+            select(Resolucao).where(Resolucao.questao_id == 1999)
+        )
+    ).scalar_one()
+    assert stale.caderno_id is None
