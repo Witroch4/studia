@@ -327,9 +327,9 @@ async def test_dashboard_agrega_e_isola_por_usuario(client, db_session, auth_sta
     assert disc["Direito Constitucional"]["tempo_segundos"] == 50
 
 
-async def test_dashboard_ultimas_pastas_por_recencia(client, db_session, auth_state):
-    """Últimas pastas acessadas = pastas dos cadernos com Resolução mais recente
-    do usuário, ordenadas por recência; isoladas por usuário."""
+async def test_dashboard_ultimos_cadernos_por_recencia(client, db_session, auth_state):
+    """Últimos cadernos acessados = cadernos com Resolução mais recente do
+    usuário, ordenados por recência; isolados por usuário."""
     db_session.add(Questao(id=90, enunciado_md="Q90"))
     db_session.add_all(
         [
@@ -346,7 +346,7 @@ async def test_dashboard_ultimas_pastas_por_recencia(client, db_session, auth_st
             Resolucao(id=42, questao_id=90, caderno_id=100, usuario_uid="user-A", acertou=True, created_at=hoje),
             # B em OAB não deve vazar para o de A
             Resolucao(id=43, questao_id=90, caderno_id=100, usuario_uid="user-B", acertou=True, created_at=hoje),
-            # Resolução avulsa (sem caderno) é ignorada (não tem pasta)
+            # Resolução avulsa (sem caderno) é ignorada (não tem caderno)
             Resolucao(id=44, questao_id=90, caderno_id=None, usuario_uid="user-A", acertou=True, created_at=hoje),
         ]
     )
@@ -354,13 +354,14 @@ async def test_dashboard_ultimas_pastas_por_recencia(client, db_session, auth_st
 
     auth_state["user"] = A
     body = (await client.get("/api/q/dashboard")).json()
-    pastas = body["ultimas_pastas"]
-    # OAB (hoje) > sem classificação/None (ontem) > ENEM (3d)
-    assert [p["pasta"] for p in pastas] == ["OAB", None, "ENEM"]
-    assert all(p["cadernos"] == 1 for p in pastas)
-    assert all(p["ultimo_acesso"] for p in pastas)
+    cadernos = body["ultimas_pastas"]
+    # Const/OAB (hoje) > Solto/None (ontem) > Mat/ENEM (3d)
+    assert [c["caderno_id"] for c in cadernos] == [100, 102, 101]
+    assert [c["nome"] for c in cadernos] == ["Const", "Solto", "Mat"]
+    assert [c["pasta"] for c in cadernos] == ["OAB", None, "ENEM"]
+    assert all(c["ultimo_acesso"] for c in cadernos)
 
     # B só enxerga a própria atividade
     auth_state["user"] = B
     body_b = (await client.get("/api/q/dashboard")).json()
-    assert [p["pasta"] for p in body_b["ultimas_pastas"]] == ["OAB"]
+    assert [c["caderno_id"] for c in body_b["ultimas_pastas"]] == [100]

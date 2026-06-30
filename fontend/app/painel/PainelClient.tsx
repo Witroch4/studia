@@ -21,9 +21,10 @@ interface Atividade {
   acertos: number;
 }
 
-interface UltimaPasta {
+interface UltimoCaderno {
+  caderno_id: number;
+  nome: string;
   pasta: string | null;
-  cadernos: number;
   ultimo_acesso: string | null; // ISO
 }
 
@@ -36,7 +37,7 @@ interface Dashboard {
   por_disciplina: Disciplina[];
   atividade_recente: Atividade[];
   streak_dias: number;
-  ultimas_pastas: UltimaPasta[];
+  ultimas_pastas: UltimoCaderno[];
 }
 
 function fmtDuracao(seg: number): string {
@@ -69,10 +70,6 @@ function tempoRelativo(iso: string): string {
 
 function pastaLabel(pasta: string | null): string {
   return pasta && pasta.trim() ? pasta : "Sem classificação";
-}
-
-function pastaHref(pasta: string | null): string {
-  return pasta && pasta.trim() ? `/q/cadernos?pasta=${encodeURIComponent(pasta)}` : "/q/cadernos?pasta=";
 }
 
 function ultimosDias(n: number): string[] {
@@ -241,32 +238,32 @@ function PainelDados({ data }: { data: Dashboard }) {
         </div>
       </div>
 
-      {/* Últimas pastas acessadas */}
+      {/* Últimos cadernos acessados */}
       {data.ultimas_pastas.length > 0 && (
         <div className="bg-surface p-6 rounded-xl shadow-sm border border-border mb-8">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">
-              Últimas pastas acessadas
+              Últimos cadernos acessados
             </h3>
             <Link href="/q/cadernos" className="text-xs text-primary hover:underline">
               Ver todas
             </Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {data.ultimas_pastas.map((p, i) => (
+            {data.ultimas_pastas.map((c) => (
               <Link
-                key={`${p.pasta ?? "__none__"}-${i}`}
-                href={pastaHref(p.pasta)}
+                key={c.caderno_id}
+                href={`/q/caderno/${c.caderno_id}`}
                 className="group flex items-center gap-3 p-3 rounded-lg bg-surface-2/40 border border-border hover:border-primary/50 hover:bg-surface-2 transition-colors"
               >
-                <span className="material-symbols-outlined text-primary shrink-0">folder</span>
+                <span className="material-symbols-outlined text-primary shrink-0">menu_book</span>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-fg-strong truncate group-hover:text-primary">
-                    {pastaLabel(p.pasta)}
+                    {c.nome}
                   </div>
-                  <div className="text-xs text-fg-faint">
-                    {p.cadernos} caderno{p.cadernos === 1 ? "" : "s"}
-                    {p.ultimo_acesso ? ` · ${tempoRelativo(p.ultimo_acesso)}` : ""}
+                  <div className="text-xs text-fg-faint truncate">
+                    {pastaLabel(c.pasta)}
+                    {c.ultimo_acesso ? ` · ${tempoRelativo(c.ultimo_acesso)}` : ""}
                   </div>
                 </div>
                 <span className="material-symbols-outlined text-fg-faint text-base shrink-0 group-hover:text-primary">

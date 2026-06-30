@@ -415,6 +415,12 @@ class ColetarReq(BaseModel):
 class TcAuthLoginReq(BaseModel):
     email: str | None = Field(default=None, max_length=320)
     password: str | None = Field(default=None, max_length=2048)
+    account_id: str | None = Field(default=None, max_length=80)
+    capabilities: dict[str, bool] | None = None
+
+
+class TcAuthCapabilitiesReq(BaseModel):
+    capabilities: dict[str, bool]
 
 
 @router.post("/coletar", status_code=status.HTTP_202_ACCEPTED)
@@ -451,7 +457,8 @@ async def coletar(req: ColetarReq, _admin: CurrentUser = Depends(require_admin))
         raise HTTPException(502, f"scraper indisponivel: {exc}") from exc
 
     if r.status_code != 200:
-        raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:300]}")
+        status_code = 409 if r.status_code == 409 else 502
+        raise HTTPException(status_code, f"scraper falhou: {r.status_code} {r.text[:300]}")
     job = r.json()
 
     message = "job registrado; processamento segue em background"
@@ -478,7 +485,8 @@ def _sem_senha(payload: dict[str, Any]) -> dict[str, Any]:
 
 async def _scraper_json_or_502(response: httpx.Response) -> dict[str, Any]:
     if response.status_code != 200:
-        raise HTTPException(502, f"scraper falhou: {response.status_code} {response.text[:300]}")
+        status_code = response.status_code if response.status_code in {404, 409, 422} else 502
+        raise HTTPException(status_code, f"scraper falhou: {response.status_code} {response.text[:300]}")
     try:
         data = response.json()
     except ValueError as exc:
@@ -505,11 +513,16 @@ async def tc_auth_login(
     _admin: CurrentUser = Depends(require_admin),
 ) -> dict[str, Any]:
     """Salva credencial TC no scraper após login Playwright válido."""
+    payload: dict[str, Any] = {"email": req.email, "password": req.password}
+    if req.account_id:
+        payload["account_id"] = req.account_id
+    if req.capabilities is not None:
+        payload["capabilities"] = req.capabilities
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5, read=75, write=10, pool=80)) as c:
             r = await c.post(
                 f"{SCRAPER_URL}/tc/auth/login",
-                json={"email": req.email, "password": req.password},
+                json=payload,
             )
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"scraper indisponível: {exc}") from exc
@@ -517,11 +530,38 @@ async def tc_auth_login(
 
 
 @router.delete("/coletar/tc-auth/session")
-async def tc_auth_logout(_admin: CurrentUser = Depends(require_admin)) -> dict[str, Any]:
+async def tc_auth_logout(
+    account_id: str | None = None,
+    _admin: CurrentUser = Depends(require_admin),
+) -> dict[str, Any]:
     """Remove o storage_state atual do TC sem apagar a credencial persistida."""
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(connect=3, read=8, write=5, pool=10)) as c:
-            r = await c.delete(f"{SCRAPER_URL}/tc/auth/session")
+            if account_id:
+                r = await c.delete(
+                    f"{SCRAPER_URL}/tc/auth/session",
+                    params={"account_id": account_id},
+                )
+            else:
+                r = await c.delete(f"{SCRAPER_URL}/tc/auth/session")
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"scraper indisponível: {exc}") from exc
+    return await _scraper_json_or_502(r)
+
+
+@router.patch("/coletar/tc-auth/accounts/{account_id}/capabilities")
+async def tc_auth_capabilities(
+    account_id: str,
+    req: TcAuthCapabilitiesReq,
+    _admin: CurrentUser = Depends(require_admin),
+) -> dict[str, Any]:
+    """Atualiza quais tarefas uma conta TC pode executar no scraper."""
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=3, read=8, write=5, pool=10)) as c:
+            r = await c.patch(
+                f"{SCRAPER_URL}/tc/auth/accounts/{account_id}/capabilities",
+                json={"capabilities": req.capabilities},
+            )
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"scraper indisponível: {exc}") from exc
     return await _scraper_json_or_502(r)
@@ -559,7 +599,8 @@ async def importar_comentarios_caderno(
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"scraper indisponível: {exc}") from exc
     if r.status_code != 200:
-        raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:300]}")
+        status_code = 409 if r.status_code == 409 else 502
+        raise HTTPException(status_code, f"scraper falhou: {r.status_code} {r.text[:300]}")
     job = r.json()
     return {
         "caderno_id": caderno_id,
@@ -2485,24 +2526,26 @@ async def dashboard(
     ).scalars().all()
     streak = _compute_streak({_as_date(d) for d in dias_ativos}, date.today())
 
-    # ─── Últimas pastas acessadas (pela Resolucao mais recente do usuário) ───
+    # ─── Últimos cadernos acessados (pela Resolucao mais recente do usuário) ───
     ultimas_rows = (await db.execute(
         select(
+            CadernoQuestoes.id.label("caderno_id"),
+            CadernoQuestoes.nome.label("nome"),
             CadernoQuestoes.pasta.label("pasta"),
             func.max(Resolucao.created_at).label("ultimo"),
-            func.count(func.distinct(Resolucao.caderno_id)).label("cadernos"),
         )
         .select_from(Resolucao)
         .join(CadernoQuestoes, CadernoQuestoes.id == Resolucao.caderno_id)
         .where(*meu)
-        .group_by(CadernoQuestoes.pasta)
+        .group_by(CadernoQuestoes.id, CadernoQuestoes.nome, CadernoQuestoes.pasta)
         .order_by(func.max(Resolucao.created_at).desc())
         .limit(6)
     )).all()
     ultimas_pastas = [
         {
+            "caderno_id": r.caderno_id,
+            "nome": r.nome,
             "pasta": r.pasta,
-            "cadernos": int(r.cadernos or 0),
             "ultimo_acesso": r.ultimo.isoformat() if r.ultimo else None,
         }
         for r in ultimas_rows
@@ -2664,6 +2707,7 @@ async def listar_forum(
 async def importar_comentarios_tc(
     questao_id: int,
     quadro: Literal["alunos", "professores"] = "alunos",
+    task: Literal["forum_lazy", "forum_mass"] = "forum_lazy",
     user: CurrentUser | None = Depends(require_user_or_service),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -2696,10 +2740,12 @@ async def importar_comentarios_tc(
             timeout=httpx.Timeout(connect=5, read=120, write=10, pool=125)
         ) as c:
             r = await c.get(
-                f"{SCRAPER_URL}/questao/{id_externo}/comentarios", params={"quadro": quadro}
+                f"{SCRAPER_URL}/questao/{id_externo}/comentarios",
+                params={"quadro": quadro, "task": task},
             )
             if r.status_code != 200:
-                raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:200]}")
+                status_code = 409 if r.status_code == 409 else 502
+                raise HTTPException(status_code, f"scraper falhou: {r.status_code} {r.text[:200]}")
             coments = (r.json() or {}).get("comentarios") or []
 
             # tc_comentario_id já presentes (dedup global por unique).
