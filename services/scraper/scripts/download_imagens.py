@@ -194,15 +194,22 @@ async def baixar_e_upar(
 
 
 async def reescrever_urls_no_banco(engine, mapping: dict[str, str]):
-    """SQL UPDATE em batch substituindo URLs em todos os campos relevantes."""
+    """SQL UPDATE substituindo URLs em todos os campos relevantes.
+
+    Commit por URL (não uma transação só pro mapping inteiro): cada UPDATE é
+    um full-scan sem índice (LIKE '%url%'), então uma transação única pra
+    milhares de URLs prendia locks de linha em questoes/alternativas por
+    dezenas de minutos e derrubava o app em produção (QueuePool esgotado em
+    cascata pra toda rota, não só as que tocam essas tabelas).
+    """
     if not mapping:
         log.info("reescrever.skip", motivo="mapping_vazio")
         return
 
     log.info("reescrever.iniciando", urls=len(mapping))
 
-    async with engine.begin() as conn:
-        for old_url, new_url in mapping.items():
+    for old_url, new_url in mapping.items():
+        async with engine.begin() as conn:
             # Usa REPLACE em texto — funciona pra HTTP, HTTPS, qualquer aspas
             await conn.execute(
                 text("UPDATE questoes SET enunciado_html = REPLACE(enunciado_html, :o, :n) WHERE enunciado_html LIKE '%' || :o || '%'"),
