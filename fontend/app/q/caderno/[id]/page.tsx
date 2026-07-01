@@ -601,8 +601,12 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
 
       {tab === "Questoes" && (
       <main className="max-w-5xl mx-auto px-6 py-4">
-        {/* ─── Card stats da questão ─── */}
-        <div ref={questionCardRef} className="relative mb-4 rounded-lg border border-border/60 bg-surface">
+        {/* ─── Card stats da questão ───
+            `isolate` cria um stacking context: os z-20/z-30 internos (overlay
+            do canvas, CanvasToolbar, alternativas riscáveis) valem só DENTRO
+            do card e não passam por cima das barras sticky (z-10/z-20) ao
+            rolar a página. */}
+        <div ref={questionCardRef} className="relative isolate mb-4 rounded-lg border border-border/60 bg-surface">
           <QuestionCanvasOverlay
             active={canvasActive}
             canvas={annotations.canvas}
