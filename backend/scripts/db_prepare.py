@@ -27,12 +27,14 @@ import asyncio
 import os
 import subprocess
 import sys
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
@@ -41,6 +43,8 @@ DATABASE_URL = os.getenv(
 RETRIES = int(os.environ.get("DB_CONNECT_RETRIES", "30"))
 RETRY_DELAY_S = float(os.environ.get("DB_CONNECT_SLEEP_MS", "2000")) / 1000
 BOOTSTRAP_LOCK_ID = int(os.environ.get("DB_PREPARE_LOCK_ID", "2026061001"))
+BOOTSTRAP_LOCK_TIMEOUT_S = float(os.environ.get("DB_PREPARE_LOCK_TIMEOUT_S", "180"))
+BOOTSTRAP_LOCK_RETRY_S = float(os.environ.get("DB_PREPARE_LOCK_RETRY_MS", "500")) / 1000
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
@@ -64,9 +68,23 @@ def _print(step: str, msg: str, symbol: str = "✓") -> None:
     print(f"  {symbol} [{step}] {msg}", flush=True)
 
 
+def _engine(url: str, **kwargs):
+    connect_args = kwargs.pop("connect_args", {})
+    server_settings = dict(connect_args.get("server_settings", {}))
+    server_settings.setdefault(
+        "application_name", os.environ.get("DB_APPLICATION_NAME", "studia-db-prepare")
+    )
+    return create_async_engine(
+        url,
+        poolclass=NullPool,
+        connect_args={**connect_args, "server_settings": server_settings},
+        **kwargs,
+    )
+
+
 async def run_alembic() -> None:
     """Roda Alembic. Auto-stamp de bancos legados (tabelas existem, sem alembic_version)."""
-    engine = create_async_engine(DATABASE_URL)
+    engine = _engine(DATABASE_URL)
     try:
         async with engine.connect() as conn:
             # Checa se a tabela alembic_version existe E tem pelo menos 1 registro.
@@ -96,7 +114,7 @@ async def run_alembic() -> None:
 
 
 async def wait_for_postgres(admin_url: str) -> None:
-    engine = create_async_engine(admin_url, isolation_level="AUTOCOMMIT")
+    engine = _engine(admin_url, isolation_level="AUTOCOMMIT")
     try:
         for attempt in range(1, RETRIES + 1):
             try:
@@ -120,7 +138,7 @@ async def wait_for_postgres(admin_url: str) -> None:
 
 
 async def ensure_database(admin_url: str, db_name: str) -> None:
-    engine = create_async_engine(admin_url, isolation_level="AUTOCOMMIT")
+    engine = _engine(admin_url, isolation_level="AUTOCOMMIT")
     try:
         async with engine.connect() as conn:
             exists = (
@@ -144,14 +162,42 @@ async def ensure_database(admin_url: str, db_name: str) -> None:
         await engine.dispose()
 
 
+async def acquire_advisory_lock(
+    conn,
+    *,
+    lock_id: int,
+    timeout_s: float,
+    retry_delay_s: float,
+) -> None:
+    deadline = time.monotonic() + timeout_s
+    while True:
+        acquired = (
+            await conn.execute(
+                text("SELECT pg_try_advisory_lock(:lock_id)"),
+                {"lock_id": lock_id},
+            )
+        ).scalar()
+        if acquired:
+            return
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError(
+                f"timeout aguardando advisory lock {lock_id} por {timeout_s:.1f}s"
+            )
+        await asyncio.sleep(min(retry_delay_s, remaining))
+
+
 @asynccontextmanager
 async def bootstrap_lock(admin_url: str):
     """Serializa o bootstrap entre containers/réplicas concorrentes (Swarm)."""
-    engine = create_async_engine(admin_url, isolation_level="AUTOCOMMIT")
+    engine = _engine(admin_url, isolation_level="AUTOCOMMIT")
     conn = await engine.connect()
     try:
-        await conn.execute(
-            text("SELECT pg_advisory_lock(:lock_id)"), {"lock_id": BOOTSTRAP_LOCK_ID}
+        await acquire_advisory_lock(
+            conn,
+            lock_id=BOOTSTRAP_LOCK_ID,
+            timeout_s=BOOTSTRAP_LOCK_TIMEOUT_S,
+            retry_delay_s=BOOTSTRAP_LOCK_RETRY_S,
         )
         _print("lock", f"advisory lock {BOOTSTRAP_LOCK_ID} adquirido")
         yield
@@ -177,7 +223,7 @@ async def verify_schema() -> None:
     from models import Base  # mesmos models que o backend usa em runtime
 
     expected = {t.name for t in Base.metadata.sorted_tables}
-    engine = create_async_engine(DATABASE_URL)
+    engine = _engine(DATABASE_URL)
     try:
         async with engine.connect() as conn:
             rows = (
@@ -208,7 +254,7 @@ async def ensure_scraper_compat_columns() -> None:
     nunca dar 500 caso suba antes do scraper aplicar o ledger novo, garantimos a
     coluna aqui de forma idempotente (IF EXISTS — não cria a tabela se ausente).
     """
-    engine = create_async_engine(DATABASE_URL, isolation_level="AUTOCOMMIT")
+    engine = _engine(DATABASE_URL, isolation_level="AUTOCOMMIT")
     try:
         async with engine.connect() as conn:
             await conn.execute(
@@ -227,7 +273,7 @@ async def ensure_scraper_compat_columns() -> None:
     # colunas legadas VARCHAR(...) para TEXT. As migrações não alteram tipo de
     # coluna já existente em banco legado, então um cargo com area longa derrubava a faixa inteira
     # (StringDataRightTruncationError). ALTER ... TYPE TEXT é idempotente.
-    engine = create_async_engine(DATABASE_URL, isolation_level="AUTOCOMMIT")
+    engine = _engine(DATABASE_URL, isolation_level="AUTOCOMMIT")
     try:
         async with engine.connect() as conn:
             for col in ("nome", "escolaridade", "area"):
