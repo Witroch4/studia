@@ -69,13 +69,30 @@ function formatTempo(s: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
+// Posição salva por caderno (não por usuário: navegador compartilhado entre
+// contas é caso raro e a posição não é dado sensível — evita depender da
+// sessão, que carrega async e reintroduziria o flash de questão 1).
+const idxStorageKey = (id: string) => `studia:caderno:${id}:idx`;
+
+function readSavedIdx(id: string): number {
+  if (typeof window === "undefined") return 0;
+  const raw = window.localStorage.getItem(idxStorageKey(id));
+  const n = raw ? parseInt(raw, 10) : NaN;
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
 export default function CadernoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const queryClient = useQueryClient();
 
   // ─── UI state (preserved 100%) ───
-  const [idx, setIdx] = useState(0);
+  // Lazy init: lê a última posição salva ANTES do primeiro render, senão o
+  // gate de loading mostraria "questão 1" por um instante até um efeito
+  // corrigir — viola a regra de dado não pular na tela.
+  // idxRaw é o valor bruto (pode ficar fora do range se o caderno encolheu);
+  // `idx`, derivado logo abaixo após o caderno carregar, é sempre válido.
+  const [idxRaw, setIdx] = useState(() => readSavedIdx(id));
   // Resposta vinculada à questão atual: ao trocar de qid o estado é descartado sem useEffect
   const [respostaQid, setRespostaQid] = useState<number | null>(null);
   const [respostaState, setRespostaState] = useState<{
@@ -125,6 +142,10 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     queryFn: () => apiJson(`/api/q/cadernos/${id}`),
     staleTime: 5 * 60 * 1000,
   });
+
+  // idxRaw pode vir da posição salva e não existir mais (caderno editado/
+  // encolhido) — deriva o índice válido em vez de sincronizar via efeito.
+  const idx = caderno ? Math.min(idxRaw, Math.max(0, caderno.total - 1)) : idxRaw;
 
   // ─── Stats do caderno ───
   const { data: statsData } = useQuery<Stats>({
@@ -370,6 +391,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
     setForumProfAberto(false);
     setRespostaQid(null); // reseta estado de resposta para a nova questão
     setIdx(novo);
+    window.localStorage.setItem(idxStorageKey(id), String(novo));
   }
 
   function avancar(delta: number) {
