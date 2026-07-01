@@ -12,6 +12,42 @@ const tableMarkdown = `| Alternativa | Descrição na Questão | Nomenclatura Co
 | **A** | Perfil utilizado verticalmente na composição de painéis de parede. | **Montante** *(Stud)* | É a "coluna" do painel. |
 | **B (Correta)** | Perfil utilizado como base e topo... e aberturas. | **Guia** *(Track)* | É o "trilho" horizontal. |`;
 
+function render(md) {
+  return renderToStaticMarkup(
+    React.createElement(
+      ReactMarkdown,
+      { remarkPlugins: forumRemarkPlugins, rehypePlugins: forumRehypePlugins },
+      md
+    )
+  );
+}
+
+test("span de formatação (data-cor/data-fundo/data-tam) sobrevive à sanitização", () => {
+  const html = render(
+    'Texto <span data-cor="#ff0000" data-fundo="#1e1e1e" data-tam="20">colorido</span> normal'
+  );
+  assert.match(html, /data-cor="#ff0000"/);
+  assert.match(html, /data-fundo="#1e1e1e"/);
+  assert.match(html, /data-tam="20"/);
+  assert.match(html, /colorido/);
+});
+
+test("sanitização remove atributos e tags perigosos do HTML do usuário", () => {
+  const html = render(
+    '<span onclick="alert(1)" style="position:fixed" data-cor="#f00">oi</span><script>alert(2)</script>'
+  );
+  assert.doesNotMatch(html, /onclick/);
+  assert.doesNotMatch(html, /position:fixed/);
+  assert.doesNotMatch(html, /<script/);
+  assert.match(html, /data-cor="#f00"/);
+});
+
+test("fórmulas KaTeX continuam funcionando com o pipeline de HTML cru", () => {
+  const html = render('Energia: $E=mc^2$ <span data-cor="#0af">fim</span>');
+  assert.match(html, /class="katex"/);
+  assert.match(html, /data-cor="#0af"/);
+});
+
 test("renderiza tabelas Markdown GFM do forum como tabela HTML real", () => {
   const html = renderToStaticMarkup(
     React.createElement(
