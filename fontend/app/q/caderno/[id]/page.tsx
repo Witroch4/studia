@@ -19,6 +19,7 @@ import { qk } from "@/lib/queryKeys";
 import { useSession } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { celebrarMetaDiaria } from "@/lib/confetti";
+import { ComboOverlay } from "../../../components/ds/ComboOverlay";
 
 interface Alternativa {
   id: number;
@@ -116,6 +117,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const [forumAberto, setForumAberto] = useState(false);
   const [forumProfAberto, setForumProfAberto] = useState(false);
   const [paywall, setPaywall] = useState<string | null>(null);
+  const [combo, setCombo] = useState<2 | 3 | 4 | null>(null);
 
   // Toolbar de questão: classe base (hover de fundo + press no clique) e a
   // variante ATIVA (fórum aberto). Emoji não muda com text-color → o feedback
@@ -291,7 +293,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       return r.json() as Promise<{
         acertou: boolean;
         limite?: typeof limiteQuery;
-        meta_diaria?: { meta: number; total: number; batida_agora: boolean };
+        meta_diaria?: { meta: number; total: number; batida_agora: boolean; combo?: 2 | 3 | 4 | null };
       }>;
     },
     onSuccess: (data) => {
@@ -301,6 +303,12 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
         celebrarMetaDiaria();
         toast.success("🎯 Meta diária batida!", {
           description: "Você resolveu 15 questões hoje. Continue assim! 🔥",
+        });
+      }
+      if (data.meta_diaria?.combo) {
+        setCombo(data.meta_diaria.combo);
+        toast.success(`🔥 COMBO X${data.meta_diaria.combo}!`, {
+          description: `${data.meta_diaria.total} questões hoje. Você está pegando fogo!`,
         });
       }
       // Invalidações: estatísticas + limite + gabarito
@@ -495,6 +503,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
       className="min-h-screen bg-page text-fg"
       style={{ fontSize }}
     >
+      {combo && <ComboOverlay nivel={combo} onDone={() => setCombo(null)} />}
       {/* ─── Top breadcrumb + timer ─── */}
       <div className="border-b border-border/60 px-6 py-2 flex items-center gap-3 text-xs sticky top-0 bg-page z-20">
         <span className="text-fg-faint">Estudo</span>

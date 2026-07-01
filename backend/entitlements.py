@@ -92,6 +92,11 @@ async def contagem_questoes_hoje(db: AsyncSession, uid: str) -> int:
 
 META_DIARIA_PRO = 15  # questões/dia que disparam a celebração de meta (só conta ilimitada)
 
+# Metas OCULTAS além da meta diária: a cada +10 questões o aluno sobe um combo
+# (25→x2, 35→x3, 45→x4 = teto do dia). Não aparecem como progresso na UI — só
+# a surpresa do efeito quando o marco exato é atingido.
+COMBOS_META_DIARIA = {25: 2, 35: 3, 45: 4}
+
 
 async def meta_diaria_status(db: AsyncSession, user, *, era_nova: bool) -> dict:
     """Status da meta diária p/ a celebração no front.
@@ -101,13 +106,18 @@ async def meta_diaria_status(db: AsyncSession, user, *, era_nova: bool) -> dict:
     DISTINTAS de hoje bateu exatamente META_DIARIA_PRO — i.e. a transição
     14→15. Dispara uma única vez por dia; recarregar/repetir não re-dispara
     (o caminho idempotente passa era_nova=False) e o grátis nunca chega lá.
+
+    `combo` segue a mesma regra nos marcos ocultos de COMBOS_META_DIARIA:
+    vem com o nível (2/3/4) só na transição exata, senão None.
     """
     total = await contagem_questoes_hoje(db, user.id)
     ilimitado = user.is_admin or await acesso_pro_ativo(db, user.id)
+    dispara = era_nova and ilimitado
     return {
         "meta": META_DIARIA_PRO,
         "total": total,
-        "batida_agora": era_nova and ilimitado and total == META_DIARIA_PRO,
+        "batida_agora": dispara and total == META_DIARIA_PRO,
+        "combo": COMBOS_META_DIARIA.get(total) if dispara else None,
     }
 
 

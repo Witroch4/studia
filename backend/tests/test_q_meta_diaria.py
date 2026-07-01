@@ -64,6 +64,29 @@ async def test_gratis_nunca_dispara(client, db_session, auth_state):
     assert r11.status_code == 402
 
 
+async def test_combos_ocultos_disparam_nos_marcos_exatos(client, db_session):
+    """Metas ocultas: 25→combo 2, 35→combo 3, 45→combo 4; fora dos marcos, None."""
+    ids = await _seed_caderno(db_session, caderno_id=504, owner_uid="admin-1", n=46)
+    esperado = {25: 2, 35: 3, 45: 4}
+    for i, qid in enumerate(ids, start=1):
+        r = await client.post(f"/api/q/{qid}/responder", json={"resposta": "A", "caderno_id": 504})
+        assert r.status_code == 200, r.text
+        md = r.json()["meta_diaria"]
+        assert md["combo"] == esperado.get(i), f"questão {i}: combo={md['combo']}"
+
+
+async def test_repetir_marco_de_combo_nao_redispara(client, db_session):
+    ids = await _seed_caderno(db_session, caderno_id=505, owner_uid="admin-1", n=25)
+    for qid in ids:
+        await client.post(f"/api/q/{qid}/responder", json={"resposta": "A", "caderno_id": 505})
+    # repetir a 25ª (caminho idempotente) NÃO pode redisparar o combo x2.
+    r = await client.post(f"/api/q/{ids[24]}/responder", json={"resposta": "B", "caderno_id": 505})
+    body = r.json()
+    assert body["ja_resolvida"] is True
+    assert body["meta_diaria"]["combo"] is None
+    assert body["meta_diaria"]["total"] == 25
+
+
 async def test_assinante_dispara_meta(client, db_session, auth_state):
     auth_state["user"] = USER_A
     db_session.add(Assinatura(

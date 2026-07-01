@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useHotkeys, ATALHOS_TC } from "../../../hooks/useHotkeys";
 import QuestionHtml from "../../../components/QuestionHtml";
 import { Skeleton } from "../../../components/ds/Skeleton";
+import { ComboOverlay } from "../../../components/ds/ComboOverlay";
 import { ForumPanel } from "../../caderno/[id]/components/ForumPanel";
 import { ApiError, apiJson, apiPost } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
@@ -55,7 +56,7 @@ interface ResponderResp {
   gabarito: string;
   ja_resolvida?: boolean;
   limite?: { usado: number; limite: number; restantes: number | null; ilimitado: boolean };
-  meta_diaria?: { meta: number; total: number; batida_agora: boolean };
+  meta_diaria?: { meta: number; total: number; batida_agora: boolean; combo?: 2 | 3 | 4 | null };
 }
 
 interface CadernoActionResp {
@@ -96,6 +97,7 @@ function QuestaoScreen({ id }: { id: string }) {
   const [forumProfAberto, setForumProfAberto] = useState(false);
   const [cadernoOpen, setCadernoOpen] = useState(false);
   const [paywall, setPaywall] = useState<string | null>(null);
+  const [combo, setCombo] = useState<2 | 3 | 4 | null>(null);
   const [tempo, setTempo] = useState(0);
   const [pausado, setPausado] = useState(false);
   const startedAt = useRef<number>(0);
@@ -156,6 +158,12 @@ function QuestaoScreen({ id }: { id: string }) {
         celebrarMetaDiaria();
         toast.success("Meta diária batida!", {
           description: "Voce resolveu 15 questoes hoje.",
+        });
+      }
+      if (data.meta_diaria?.combo) {
+        setCombo(data.meta_diaria.combo);
+        toast.success(`COMBO X${data.meta_diaria.combo}!`, {
+          description: `${data.meta_diaria.total} questoes hoje. Voce esta pegando fogo!`,
         });
       }
       void queryClient.invalidateQueries({ queryKey: qk.questao(id) });
@@ -258,6 +266,7 @@ function QuestaoScreen({ id }: { id: string }) {
 
   return (
     <div className="min-h-screen bg-page text-fg" style={{ fontSize }}>
+      {combo && <ComboOverlay nivel={combo} onDone={() => setCombo(null)} />}
       <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-border/60 bg-page px-6 py-2 text-xs">
         <button onClick={() => router.push("/q/filtrar")} className="text-fg-faint hover:text-primary hover:underline">
           Questoes
