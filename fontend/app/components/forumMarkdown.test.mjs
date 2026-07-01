@@ -22,6 +22,25 @@ function render(md) {
   );
 }
 
+test("HTML emitido pelo editor TipTap renderiza inteiro", () => {
+  const html = render(
+    '<p><strong>a</strong> <em>b</em></p><blockquote><p>cit</p></blockquote>'
+    + '<ul><li>um</li></ul>'
+    + '<p><span data-fundo="#eab308"><span data-cor="#ef4444">forte</span></span></p>'
+  );
+  assert.match(html, /<strong>a<\/strong>/);
+  assert.match(html, /<blockquote/);
+  assert.match(html, /<li[^>]*>um<\/li>/);
+  assert.match(html, /data-fundo="#eab308"/);
+  assert.match(html, /data-cor="#ef4444"/);
+});
+
+test("style inline salvo pelo editor é descartado no render", () => {
+  const html = render('<p><span data-cor="#ef4444" style="color:#ef4444;position:fixed">x</span></p>');
+  assert.doesNotMatch(html, /position:fixed/);
+  assert.match(html, /data-cor="#ef4444"/);
+});
+
 test("span de formatação (data-cor/data-fundo/data-tam) sobrevive à sanitização", () => {
   const html = render(
     'Texto <span data-cor="#ff0000" data-fundo="#1e1e1e" data-tam="20">colorido</span> normal'
