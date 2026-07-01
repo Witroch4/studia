@@ -1,11 +1,9 @@
 "use client";
 
 import ReactMarkdown, { type Components } from "react-markdown";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { API_BASE } from "@/lib/api";
 import { normalizeForumMath } from "./forumMath";
+import { forumRehypePlugins, forumRemarkPlugins } from "./forumMarkdown";
 
 /**
  * Renderiza conteúdo de comentário do fórum (gerado por usuário).
@@ -16,17 +14,6 @@ import { normalizeForumMath } from "./forumMath";
  *    higienizado e só então o KaTeX renderiza as fórmulas a partir dos nós math.
  *  - <img> só é aceito se apontar para o endpoint de imagem do fórum.
  */
-const schema = {
-  ...defaultSchema,
-  // span e div já estão em defaultSchema.tagNames; sem override necessário
-  attributes: {
-    ...defaultSchema.attributes,
-    span: [...(defaultSchema.attributes?.span ?? []), ["className", "math", "math-inline", "math-display"]],
-    div: [...(defaultSchema.attributes?.div ?? []), ["className", "math", "math-display"]],
-    img: [...(defaultSchema.attributes?.img ?? []), "src", "alt", "title"],
-  },
-};
-
 /**
  * Permite src APENAS se for o endpoint de imagem do fórum:
  *  - relativo:  /api/q/forum/imagem/...
@@ -60,6 +47,20 @@ const components: Components = {
   blockquote: ({ children }) => (
     <blockquote className="border-l-4 border-primary/40 pl-3 my-2 text-fg-muted italic">{children}</blockquote>
   ),
+  table: ({ children }) => (
+    <div className="my-3 overflow-x-auto rounded-lg border border-border bg-surface/40">
+      <table className="w-full min-w-[640px] border-collapse text-left text-sm">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="bg-white/5 text-fg-strong">{children}</thead>,
+  tbody: ({ children }) => <tbody className="divide-y divide-border/70">{children}</tbody>,
+  tr: ({ children }) => <tr className="align-top">{children}</tr>,
+  th: ({ children }) => (
+    <th className="border-r border-border/70 px-3 py-2 font-semibold last:border-r-0">{children}</th>
+  ),
+  td: ({ children }) => (
+    <td className="border-r border-border/70 px-3 py-2 leading-relaxed text-fg last:border-r-0">{children}</td>
+  ),
   img: ({ src, alt }) => {
     const url = typeof src === "string" ? src : "";
     if (!imagemPermitida(url)) {
@@ -82,8 +83,8 @@ export default function ForumContent({ content, className = "" }: ForumContentPr
   return (
     <div className={`forum-content ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkMath]}
-        rehypePlugins={[[rehypeSanitize, schema], rehypeKatex]}
+        remarkPlugins={forumRemarkPlugins}
+        rehypePlugins={forumRehypePlugins}
         components={components}
       >
         {normalizedContent}
