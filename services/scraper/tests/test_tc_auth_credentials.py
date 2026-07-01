@@ -66,6 +66,31 @@ def test_clear_tc_session_removes_storage_state_only(tmp_path):
     assert tc_auth.effective_tc_credentials(settings=settings)[0] == "runtime@example.com"
 
 
+def test_saving_second_account_preserves_previous_legacy_session(tmp_path):
+    settings = _Settings(
+        tc_email=None,
+        tc_password=None,
+        tc_storage_state_path=tmp_path / "storage_state.json",
+    )
+    settings.tc_storage_state_path.write_text('{"cookies": []}', encoding="utf-8")
+    tc_auth.save_runtime_credentials("old@example.com", "old-pass", settings=settings)
+    old_account_id = tc_auth.tc_auth_status(settings=settings)["accounts"][0]["id"]
+
+    new_account_id = tc_auth._account_id_for_email("new@example.com")
+    new_storage = tmp_path / "tc_accounts" / f"{new_account_id}.storage_state.json"
+    new_storage.parent.mkdir(parents=True, exist_ok=True)
+    new_storage.write_text('{"cookies": []}', encoding="utf-8")
+    tc_auth.save_runtime_credentials("new@example.com", "new-pass", settings=settings)
+
+    accounts = {
+        account["email"]: account
+        for account in tc_auth.tc_auth_status(settings=settings)["accounts"]
+    }
+
+    assert accounts["old@example.com"]["storage_state_exists"] is True
+    assert (tmp_path / "tc_accounts" / f"{old_account_id}.storage_state.json").exists()
+
+
 def test_select_tc_account_respects_task_capabilities_and_balances_usage(tmp_path):
     settings = _Settings(
         tc_email=None,

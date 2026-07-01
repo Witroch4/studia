@@ -112,6 +112,9 @@ const DEFAULT_TC_LOGIN_CAPABILITIES: Record<TcAccountTask, boolean> = {
   forum_mass: true,
 };
 
+const TC_ACCOUNTS_GRID_COLUMNS =
+  "md:grid-cols-[minmax(260px,1fr)_112px_132px_156px_196px]";
+
 interface TcAccountStatus {
   id: string;
   email: string;
@@ -778,125 +781,127 @@ export default function ColetarPage() {
             </div>
           </div>
 
-          <div className="mt-4 overflow-hidden rounded border border-border">
-            <div className="hidden grid-cols-[minmax(180px,1fr)_repeat(3,minmax(110px,auto))_auto] gap-2 border-b border-border bg-surface-2/70 px-3 py-2 text-[11px] font-semibold uppercase text-fg-faint md:grid">
-              <span>Conta</span>
-              {TC_TASK_OPTIONS.map((option) => (
-                <span key={option.key}>{option.label}</span>
-              ))}
-              <span className="text-right">Ações</span>
-            </div>
+          <div className="mt-4 overflow-x-auto rounded border border-border">
+            <div className="md:min-w-[900px]">
+              <div className={`hidden gap-2 border-b border-border bg-surface-2/70 px-3 py-2 text-[11px] font-semibold uppercase text-fg-faint md:grid ${TC_ACCOUNTS_GRID_COLUMNS}`}>
+                <span>Conta</span>
+                {TC_TASK_OPTIONS.map((option) => (
+                  <span key={option.key} className="text-center">{option.label}</span>
+                ))}
+                <span className="text-right">Ações</span>
+              </div>
 
-            {carregandoTcAuth ? (
-              <div className="space-y-2 p-3">
-                <Skeleton className="h-9 w-full" />
-                <Skeleton className="h-9 w-full" />
-              </div>
-            ) : contasTc.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-fg-faint">
-                Adicione uma conta para liberar coleta de questões e fóruns.
-              </div>
-            ) : (
-              contasTc.map((conta) => {
-                const relogandoConta = loginTc.isPending && loginTcAccountId === conta.id;
-                const deslogandoConta = logoutTc.isPending && logoutTc.variables === conta.id;
-                return (
-                  <div
-                    key={conta.id}
-                    className="grid gap-3 border-b border-border px-3 py-3 last:border-b-0 md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(110px,auto))_auto] md:items-center"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-fg">{conta.email}</div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-fg-faint">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold ${
-                            conta.storage_state_exists
-                              ? "border-success/40 bg-success/15 text-success"
-                              : "border-warning/40 bg-warning/15 text-warning"
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-[13px]">
-                            {conta.storage_state_exists ? "verified_user" : "lock_open"}
+              {carregandoTcAuth ? (
+                <div className="space-y-2 p-3">
+                  <Skeleton className="h-9 w-full" />
+                  <Skeleton className="h-9 w-full" />
+                </div>
+              ) : contasTc.length === 0 ? (
+                <div className="px-3 py-4 text-sm text-fg-faint">
+                  Adicione uma conta para liberar coleta de questões e fóruns.
+                </div>
+              ) : (
+                contasTc.map((conta) => {
+                  const relogandoConta = loginTc.isPending && loginTcAccountId === conta.id;
+                  const deslogandoConta = logoutTc.isPending && logoutTc.variables === conta.id;
+                  return (
+                    <div
+                      key={conta.id}
+                      className={`grid gap-3 border-b border-border px-3 py-3 last:border-b-0 md:items-center ${TC_ACCOUNTS_GRID_COLUMNS}`}
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-fg">{conta.email}</div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-fg-faint">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold ${
+                              conta.storage_state_exists
+                                ? "border-success/40 bg-success/15 text-success"
+                                : "border-warning/40 bg-warning/15 text-warning"
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-[13px]">
+                              {conta.storage_state_exists ? "verified_user" : "lock_open"}
+                            </span>
+                            {conta.storage_state_exists ? "Sessão ativa" : "Sessão ausente"}
                           </span>
-                          {conta.storage_state_exists ? "Sessão ativa" : "Sessão ausente"}
-                        </span>
-                        <span>{conta.source === "runtime" ? "UI" : conta.source}</span>
-                        {conta.storage_state_mtime && (
-                          <span>login: {formatarMomento(conta.storage_state_mtime)}</span>
-                        )}
+                          <span>{conta.source === "runtime" ? "UI" : conta.source}</span>
+                          {conta.storage_state_mtime && (
+                            <span>login: {formatarMomento(conta.storage_state_mtime)}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {TC_TASK_OPTIONS.map((option) => (
+                        <label
+                          key={option.key}
+                          className="inline-flex items-center justify-between gap-2 text-xs text-fg md:justify-center"
+                        >
+                          <span className="md:hidden">{option.label}</span>
+                          <span className="inline-flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={conta.capabilities?.[option.key] !== false}
+                              disabled={
+                                conta.id === "legacy" ||
+                                updateTcCapability.isPending ||
+                                carregandoTcAuth
+                              }
+                              onChange={(e) =>
+                                updateTcCapability.mutate({
+                                  accountId: conta.id,
+                                  task: option.key,
+                                  enabled: e.currentTarget.checked,
+                                })
+                              }
+                              className="h-4 w-4 rounded border-border accent-primary"
+                            />
+                            <span className="font-mono text-[11px] text-fg-faint">
+                              {conta.usage?.[option.key] ?? 0}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => loginTc.mutate({ accountId: conta.id })}
+                          disabled={
+                            conta.id === "legacy" ||
+                            loginTc.isPending ||
+                            logoutTc.isPending ||
+                            carregandoTcAuth
+                          }
+                          className="inline-flex h-8 items-center justify-center gap-1 rounded border border-border bg-surface-2 px-2 text-xs font-medium text-fg transition hover:bg-fg-strong/6 disabled:opacity-50"
+                        >
+                          <span className={`material-symbols-outlined text-[14px] ${relogandoConta ? "animate-spin" : ""}`}>
+                            {relogandoConta ? "progress_activity" : "sync"}
+                          </span>
+                          Refazer
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => logoutTc.mutate(conta.id)}
+                          disabled={
+                            conta.id === "legacy" ||
+                            logoutTc.isPending ||
+                            loginTc.isPending ||
+                            carregandoTcAuth ||
+                            !conta.storage_state_exists
+                          }
+                          className="inline-flex h-8 items-center justify-center gap-1 rounded border border-border bg-surface-2 px-2 text-xs font-medium text-fg transition hover:bg-fg-strong/6 disabled:opacity-50"
+                        >
+                          <span className={`material-symbols-outlined text-[14px] ${deslogandoConta ? "animate-spin" : ""}`}>
+                            {deslogandoConta ? "progress_activity" : "logout"}
+                          </span>
+                          Sair
+                        </button>
                       </div>
                     </div>
-
-                    {TC_TASK_OPTIONS.map((option) => (
-                      <label
-                        key={option.key}
-                        className="inline-flex items-center justify-between gap-2 text-xs text-fg md:justify-start"
-                      >
-                        <span className="md:hidden">{option.label}</span>
-                        <span className="inline-flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={conta.capabilities?.[option.key] !== false}
-                            disabled={
-                              conta.id === "legacy" ||
-                              updateTcCapability.isPending ||
-                              carregandoTcAuth
-                            }
-                            onChange={(e) =>
-                              updateTcCapability.mutate({
-                                accountId: conta.id,
-                                task: option.key,
-                                enabled: e.currentTarget.checked,
-                              })
-                            }
-                            className="h-4 w-4 rounded border-border accent-primary"
-                          />
-                          <span className="font-mono text-[11px] text-fg-faint">
-                            {conta.usage?.[option.key] ?? 0}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => loginTc.mutate({ accountId: conta.id })}
-                        disabled={
-                          conta.id === "legacy" ||
-                          loginTc.isPending ||
-                          logoutTc.isPending ||
-                          carregandoTcAuth
-                        }
-                        className="inline-flex h-8 items-center justify-center gap-1 rounded border border-border bg-surface-2 px-2 text-xs font-medium text-fg transition hover:bg-fg-strong/6 disabled:opacity-50"
-                      >
-                        <span className={`material-symbols-outlined text-[14px] ${relogandoConta ? "animate-spin" : ""}`}>
-                          {relogandoConta ? "progress_activity" : "sync"}
-                        </span>
-                        Refazer
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => logoutTc.mutate(conta.id)}
-                        disabled={
-                          conta.id === "legacy" ||
-                          logoutTc.isPending ||
-                          loginTc.isPending ||
-                          carregandoTcAuth ||
-                          !conta.storage_state_exists
-                        }
-                        className="inline-flex h-8 items-center justify-center gap-1 rounded border border-border bg-surface-2 px-2 text-xs font-medium text-fg transition hover:bg-fg-strong/6 disabled:opacity-50"
-                      >
-                        <span className={`material-symbols-outlined text-[14px] ${deslogandoConta ? "animate-spin" : ""}`}>
-                          {deslogandoConta ? "progress_activity" : "logout"}
-                        </span>
-                        Sair
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">

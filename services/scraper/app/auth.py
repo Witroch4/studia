@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import hashlib
+import shutil
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -152,6 +153,49 @@ def _write_accounts_file(accounts: list[dict[str, Any]], *, settings: Any | None
     os.chmod(tmp, 0o600)
     tmp.replace(path)
     return path
+
+
+def _materialize_current_legacy_storage(settings: Any | None = None) -> None:
+    settings = settings or get_settings()
+    if not settings.tc_storage_state_path.exists():
+        return
+    email, password, source = effective_tc_credentials(settings=settings)
+    email = (email or "").strip()
+    if not email or not password:
+        return
+
+    account_id = _account_id_for_email(email)
+    accounts = _read_accounts_file(settings)
+    account_exists = any(
+        account["id"] == account_id
+        or str(account["email"]).strip().lower() == email.lower()
+        for account in accounts
+    )
+    if not account_exists:
+        accounts.append(
+            {
+                "id": account_id,
+                "email": email,
+                "password": password,
+                "source": source,
+                "capabilities": dict(DEFAULT_TC_ACCOUNT_CAPABILITIES),
+                "usage": {task: 0 for task in TC_ACCOUNT_TASKS},
+                "last_used_at": {task: "" for task in TC_ACCOUNT_TASKS},
+            }
+        )
+        _write_accounts_file(accounts, settings=settings)
+
+    account_storage = _account_storage_path(account_id, settings=settings)
+    if account_storage.exists():
+        return
+    account_storage.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(settings.tc_storage_state_path, account_storage)
+    os.chmod(account_storage, 0o600)
+    log.info(
+        "tc.session.legacy_materialized",
+        email=email,
+        storage=str(account_storage),
+    )
 
 
 def _legacy_account(
@@ -312,6 +356,8 @@ def save_runtime_credentials(
     settings: Any | None = None,
     capabilities: dict[str, bool] | None = None,
 ) -> Path:
+    settings = settings or get_settings()
+    _materialize_current_legacy_storage(settings=settings)
     email = email.strip()
     if not email or not password:
         raise ValueError("email e senha do TC são obrigatórios")
