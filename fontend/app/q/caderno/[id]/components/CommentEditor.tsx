@@ -1,20 +1,19 @@
 "use client";
 
-import { useDeferredValue, useRef, useState } from "react";
-import TurndownService from "turndown";
-import ForumContent from "../../../../components/ForumContent";
+import Image from "@tiptap/extension-image";
+import { Mathematics, migrateMathStrings } from "@tiptap/extension-mathematics";
+import { Placeholder } from "@tiptap/extensions";
+import { EditorContent, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import { useState } from "react";
+import {
+  escaparHtml, htmlEditorVazio, limparImagensExternas,
+  markdownParaHtml, mathHtmlParaDelimitadores, pareceHtml,
+} from "../../../../components/editor/forumEditorHtml";
+import { CorMark, FundoMark, TamMark } from "../../../../components/editor/forumEditorMarks";
 import { imagensDoClipboard } from "../../../../components/forumClipboard";
 import { normalizeForumMath } from "../../../../components/forumMath";
 import { uploadImagemForum } from "../../../hooks/useForum";
-
-// Converte HTML colado (chat do Gemini, Word, páginas) em markdown, preservando
-// títulos, negrito/itálico, listas numeradas e citações — como o editor do TC.
-const turndown = new TurndownService({
-  headingStyle: "atx",
-  bulletListMarker: "-",
-  codeBlockStyle: "fenced",
-  emDelimiter: "_",
-});
 
 const PALETA = [
   "#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4",
@@ -38,97 +37,102 @@ interface CommentEditorProps {
   placeholder?: string;
 }
 
+/** valorInicial pode ser HTML (editor novo) ou markdown legado. Nunca perde conteúdo. */
+function conteudoInicial(valor: string): string {
+  const v = valor.trim();
+  if (!v) return "";
+  if (pareceHtml(v)) return v;
+  try {
+    return markdownParaHtml(v);
+  } catch {
+    return `<p>${escaparHtml(v)}</p>`;
+  }
+}
+
 export function CommentEditor({
   onSubmit, onCancel, submitting = false, valorInicial = "", autoFocus = false,
   placeholder = "Escreva aqui seu comentário",
 }: CommentEditorProps) {
-  const [texto, setTexto] = useState(valorInicial);
-  const [enviandoImg, setEnviandoImg] = useState(false);
   const [menu, setMenu] = useState<Menu>(null);
-  const ref = useRef<HTMLTextAreaElement | null>(null);
-  const seqImg = useRef(0);
-  // preview ao vivo: adia o valor pra não travar a digitação com KaTeX/markdown
-  const textoPreview = useDeferredValue(texto);
+  const [uploads, setUploads] = useState(0);
+  const [temConteudo, setTemConteudo] = useState(!!valorInicial.trim());
 
-  function envolver(antes: string, depois = antes) {
-    const el = ref.current;
-    if (!el) return;
-    const [a, b] = [el.selectionStart, el.selectionEnd];
-    const novo = texto.slice(0, a) + antes + texto.slice(a, b) + depois + texto.slice(b);
-    setTexto(novo);
-    requestAnimationFrame(() => { el.focus(); el.selectionStart = el.selectionEnd = b + antes.length + depois.length; });
-  }
+  const editor = useEditor({
+    immediatelyRender: false,
+    autofocus: autoFocus,
+    extensions: [
+      StarterKit,
+      Image,
+      Mathematics.configure({
+        katexOptions: { throwOnError: false },
+        inlineOptions: {
+          onClick: (node, pos) => {
+            const latex = prompt("Editar fórmula (LaTeX):", node.attrs.latex);
+            if (latex) editor?.chain().setNodeSelection(pos).updateInlineMath({ latex }).focus().run();
+          },
+        },
+      }),
+      Placeholder.configure({ placeholder }),
+      CorMark, FundoMark, TamMark,
+    ],
+    content: conteudoInicial(valorInicial),
+    onCreate: ({ editor: e }) => {
+      migrateMathStrings(e); // $...$ do conteúdo legado viram nós de fórmula
+      setTemConteudo(!htmlEditorVazio(e.getHTML()));
+    },
+    onUpdate: ({ editor: e }) => setTemConteudo(!htmlEditorVazio(e.getHTML())),
+    editorProps: {
+      transformPastedHTML: (html) => limparImagensExternas(html),
+      handlePaste: (_view, event) => {
+        const imagens = event.clipboardData ? imagensDoClipboard(event.clipboardData) : [];
+        if (!imagens.length) return false; // segue o paste nativo do TipTap
+        event.preventDefault();
+        void subirImagens(imagens);
+        return true;
+      },
+    },
+  });
 
-  function inserir(trecho: string) {
-    const el = ref.current;
-    const pos = el ? el.selectionStart : texto.length;
-    setTexto(texto.slice(0, pos) + trecho + texto.slice(pos));
-  }
-
-  function formatar(attr: "data-cor" | "data-fundo" | "data-tam", valor: string) {
-    setMenu(null);
-    envolver(`<span ${attr}="${valor}">`, "</span>");
-  }
-
-  // Sobe imagens (coladas ou escolhidas) pro MinIO: insere um marcador no
-  // cursor na hora e o troca pela URL nossa quando o upload termina — a URL
-  // externa nunca entra no texto (seria bloqueada pelo sanitizador).
+  /** Preview instantâneo (blob local) → upload MinIO → troca o src pela URL nossa. */
   async function subirImagens(arquivos: File[]) {
-    if (!arquivos.length) return;
-    const el = ref.current;
-    const start = el ? el.selectionStart : texto.length;
-    const end = el ? el.selectionEnd : texto.length;
-    const entradas = arquivos.map((file) => {
-      seqImg.current += 1;
-      return { file, marcador: `_(enviando imagem ${seqImg.current}…)_` };
-    });
-    const bloco = entradas.map((e) => e.marcador).join("\n");
-    setEnviandoImg(true);
-    setTexto((t) => t.slice(0, start) + bloco + t.slice(end));
-    try {
-      await Promise.all(entradas.map(async ({ file, marcador }) => {
-        try {
-          const url = await uploadImagemForum(file);
-          setTexto((t) => t.replace(marcador, `![imagem](${url})`));
-        } catch {
-          setTexto((t) => t.replace(marcador, "_(falha ao subir imagem)_"));
-        }
-      }));
-    } finally {
-      setEnviandoImg(false);
+    if (!editor) return;
+    for (const file of arquivos) {
+      const tempSrc = URL.createObjectURL(file);
+      setUploads((n) => n + 1);
+      editor.chain().focus().setImage({ src: tempSrc, alt: "enviando…" }).run();
+      try {
+        const url = await uploadImagemForum(file);
+        trocarSrcImagem(tempSrc, url);
+      } catch {
+        removerImagem(tempSrc);
+        editor.chain().focus().insertContent("<p><em>(falha ao subir imagem)</em></p>").run();
+      } finally {
+        URL.revokeObjectURL(tempSrc);
+        setUploads((n) => n - 1);
+      }
     }
   }
 
-  function aoColar(e: React.ClipboardEvent<HTMLTextAreaElement>) {
-    // 1) imagem no clipboard (Copiar imagem / print screen) → upload pro MinIO
-    const imagens = imagensDoClipboard(e.clipboardData);
-    if (imagens.length) {
-      e.preventDefault();
-      void subirImagens(imagens);
-      return;
-    }
-    // 2) rich text → markdown via turndown
-    const html = e.clipboardData.getData("text/html");
-    if (!html) return; // sem rich text → paste nativo (texto puro)
-    let md: string;
-    try {
-      md = turndown.turndown(html).trim();
-    } catch {
-      md = "";
-    }
-    if (!md) return; // conversão vazia/erro → deixa o paste nativo seguir
-    e.preventDefault();
-    md = normalizeForumMath(md);
-    const el = ref.current;
-    const start = el ? el.selectionStart : texto.length;
-    const end = el ? el.selectionEnd : texto.length;
-    const novo = texto.slice(0, start) + md + texto.slice(end);
-    setTexto(novo);
-    requestAnimationFrame(() => {
-      if (!el) return;
-      el.focus();
-      el.selectionStart = el.selectionEnd = start + md.length;
+  function trocarSrcImagem(de: string, para: string) {
+    if (!editor) return;
+    const { tr, doc } = editor.state;
+    doc.descendants((node, pos) => {
+      if (node.type.name === "image" && node.attrs.src === de) {
+        tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: para, alt: "imagem" });
+      }
     });
+    editor.view.dispatch(tr);
+  }
+
+  function removerImagem(src: string) {
+    if (!editor) return;
+    const { tr, doc } = editor.state;
+    doc.descendants((node, pos) => {
+      if (node.type.name === "image" && node.attrs.src === src) {
+        tr.delete(pos, pos + node.nodeSize);
+      }
+    });
+    editor.view.dispatch(tr);
   }
 
   function aoEscolherImagem(e: React.ChangeEvent<HTMLInputElement>) {
@@ -137,71 +141,106 @@ export function CommentEditor({
     if (file) void subirImagens([file]);
   }
 
-  async function publicar() {
-    const t = normalizeForumMath(texto.trim());
-    if (!t) return;
-    await onSubmit(t);
-    setTexto("");
+  function inserirFormula() {
+    if (!editor) return;
+    const latex = prompt("Fórmula (LaTeX):", "");
+    if (latex) editor.chain().focus().insertInlineMath({ latex }).run();
   }
 
-  function MenuPaleta({ attr }: { attr: "data-cor" | "data-fundo" }) {
+  async function publicar() {
+    if (!editor) return;
+    const html = mathHtmlParaDelimitadores(editor.getHTML());
+    if (htmlEditorVazio(html)) return;
+    await onSubmit(normalizeForumMath(html));
+    editor.commands.clearContent(true);
+    setTemConteudo(false);
+  }
+
+  function Btn({ titulo, ativo = false, onClick, children }: {
+    titulo: string; ativo?: boolean; onClick: () => void; children: React.ReactNode;
+  }) {
+    return (
+      <button type="button" title={titulo} onClick={onClick}
+        className={`px-1.5 rounded hover:text-fg ${ativo ? "bg-surface text-fg" : ""}`}>
+        {children}
+      </button>
+    );
+  }
+
+  function MenuPaleta({ aoEscolher, aoRemover }: { aoEscolher: (c: string) => void; aoRemover: () => void }) {
     return (
       <div className="absolute left-0 top-full z-30 mt-1 grid w-max grid-cols-5 gap-1.5 rounded-md border border-border bg-surface p-2 shadow-xl">
         {PALETA.map((c) => (
-          <button key={c} type="button" title={c}
-            onClick={() => formatar(attr, c)}
+          <button key={c} type="button" title={c} onClick={() => aoEscolher(c)}
             className="h-5 w-5 rounded border border-white/20 transition-transform hover:scale-110"
             style={{ backgroundColor: c }} />
         ))}
+        <button type="button" title="Remover" onClick={aoRemover}
+          className="flex h-5 w-5 items-center justify-center rounded border border-white/20 text-[10px] text-fg-faint hover:text-fg">✕</button>
       </div>
     );
   }
 
+  if (!editor) {
+    // SSR/primeiro paint: reserva o espaço do editor (regra: dados não pulam)
+    return <div className="min-h-[10.5rem] rounded-lg border border-border bg-surface-2/40" />;
+  }
+
   return (
-    <div className="rounded-lg border border-border bg-surface-2/40">
+    <div className="forum-editor rounded-lg border border-border bg-surface-2/40">
       <div className="relative flex flex-wrap items-center gap-1 border-b border-border/60 px-2 py-1.5 text-fg-faint">
-        <button type="button" title="Negrito" onClick={() => envolver("**")} className="px-1.5 hover:text-fg font-bold">B</button>
-        <button type="button" title="Itálico" onClick={() => envolver("_")} className="px-1.5 hover:text-fg italic">I</button>
-        <button type="button" title="Lista" onClick={() => inserir("\n- ")} className="px-1.5 hover:text-fg">≡</button>
-        <button type="button" title="Fórmula" onClick={() => envolver("$$", "$$")} className="px-1.5 hover:text-fg font-mono">∑</button>
-        <label title="Imagem" className="px-1.5 hover:text-fg cursor-pointer">
-          {enviandoImg ? "…" : "🖼"}
+        <Btn titulo="Desfazer" onClick={() => editor.chain().focus().undo().run()}>↶</Btn>
+        <Btn titulo="Refazer" onClick={() => editor.chain().focus().redo().run()}>↷</Btn>
+        <span className="mx-1 h-4 w-px bg-border" />
+        <Btn titulo="Negrito" ativo={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><b>B</b></Btn>
+        <Btn titulo="Itálico" ativo={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><i>I</i></Btn>
+        <Btn titulo="Lista" ativo={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}>≡</Btn>
+        <Btn titulo="Citação" ativo={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}>❝</Btn>
+        <Btn titulo="Fórmula" onClick={inserirFormula}><span className="font-mono">∑</span></Btn>
+        <label title="Imagem" className="cursor-pointer px-1.5 hover:text-fg">
+          {uploads > 0 ? "…" : "🖼"}
           <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={aoEscolherImagem} />
         </label>
-
         <span className="mx-1 h-4 w-px bg-border" />
-
         <div className="relative">
-          <button type="button" title="Cor da letra" onClick={() => setMenu(menu === "cor" ? null : "cor")}
-            className={`px-1.5 font-bold hover:text-fg ${menu === "cor" ? "text-fg" : ""}`}>
-            <span className="border-b-2 border-primary">A</span>
-          </button>
-          {menu === "cor" && <MenuPaleta attr="data-cor" />}
+          <Btn titulo="Cor da letra" ativo={editor.isActive("cor") || menu === "cor"} onClick={() => setMenu(menu === "cor" ? null : "cor")}>
+            <span className="border-b-2 border-primary font-bold">A</span>
+          </Btn>
+          {menu === "cor" && (
+            <MenuPaleta
+              aoEscolher={(c) => { setMenu(null); editor.chain().focus().setCor(c).run(); }}
+              aoRemover={() => { setMenu(null); editor.chain().focus().unsetCor().run(); }} />
+          )}
         </div>
-
         <div className="relative">
-          <button type="button" title="Cor do fundo" onClick={() => setMenu(menu === "fundo" ? null : "fundo")}
-            className={`px-1.5 hover:text-fg ${menu === "fundo" ? "text-fg" : ""}`}>
+          <Btn titulo="Cor do fundo" ativo={editor.isActive("fundo") || menu === "fundo"} onClick={() => setMenu(menu === "fundo" ? null : "fundo")}>
             <span className="rounded bg-primary/30 px-1 font-bold">A</span>
-          </button>
-          {menu === "fundo" && <MenuPaleta attr="data-fundo" />}
+          </Btn>
+          {menu === "fundo" && (
+            <MenuPaleta
+              aoEscolher={(c) => { setMenu(null); editor.chain().focus().setFundo(c).run(); }}
+              aoRemover={() => { setMenu(null); editor.chain().focus().unsetFundo().run(); }} />
+          )}
         </div>
-
         <div className="relative">
-          <button type="button" title="Tamanho da letra" onClick={() => setMenu(menu === "tam" ? null : "tam")}
-            className={`px-1.5 hover:text-fg ${menu === "tam" ? "text-fg" : ""}`}>
+          <Btn titulo="Tamanho da letra" ativo={editor.isActive("tam") || menu === "tam"} onClick={() => setMenu(menu === "tam" ? null : "tam")}>
             <span className="font-bold">A</span><span className="text-[10px] font-bold">a</span>
-          </button>
+          </Btn>
           {menu === "tam" && (
             <div className="absolute left-0 top-full z-30 mt-1 w-max rounded-md border border-border bg-surface py-1 shadow-xl">
               {TAMANHOS.map(({ rotulo, px }) => (
                 <button key={px} type="button"
-                  onClick={() => formatar("data-tam", String(px))}
+                  onClick={() => { setMenu(null); editor.chain().focus().setTam(px).run(); }}
                   className="block w-full px-3 py-1 text-left hover:bg-white/5 hover:text-fg"
                   style={{ fontSize: px }}>
                   {rotulo}
                 </button>
               ))}
+              <button type="button"
+                onClick={() => { setMenu(null); editor.chain().focus().unsetTam().run(); }}
+                className="block w-full px-3 py-1 text-left text-xs text-fg-faint hover:bg-white/5 hover:text-fg">
+                Normal
+              </button>
             </div>
           )}
         </div>
@@ -209,28 +248,12 @@ export function CommentEditor({
 
       {menu && <div className="fixed inset-0 z-20" onClick={() => setMenu(null)} />}
 
-      <textarea
-        ref={ref}
-        value={texto}
-        autoFocus={autoFocus}
-        onChange={(e) => setTexto(e.target.value)}
-        onPaste={aoColar}
-        placeholder={placeholder}
-        rows={4}
-        className="w-full resize-y bg-transparent px-3 py-2 text-sm text-fg outline-none placeholder:text-fg-faint"
-      />
-
-      <div className="border-t border-border/60 px-3 py-2">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-fg-faint">Pré-visualização</div>
-        {textoPreview.trim()
-          ? <ForumContent content={textoPreview} />
-          : <p className="text-xs text-fg-faint">O que você escrever aparece aqui já formatado.</p>}
-      </div>
+      <EditorContent editor={editor} />
 
       <div className="flex items-center gap-2 border-t border-border/60 px-2 py-1.5">
-        <button type="button" onClick={publicar} disabled={submitting || enviandoImg || !texto.trim()}
+        <button type="button" onClick={publicar} disabled={submitting || uploads > 0 || !temConteudo}
           className="rounded bg-primary px-3 py-1 text-xs font-semibold text-black disabled:opacity-50">
-          {submitting ? "Publicando…" : enviandoImg ? "Enviando imagem…" : "Publicar"}
+          {submitting ? "Publicando…" : uploads > 0 ? "Enviando imagem…" : "Publicar"}
         </button>
         {onCancel && (
           <button type="button" onClick={onCancel} className="text-xs text-fg-faint hover:text-fg">Cancelar</button>
