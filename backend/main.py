@@ -169,6 +169,10 @@ app.include_router(auth_router)
 from admin_llm_router import router as admin_llm_router  # noqa: E402
 app.include_router(admin_llm_router)
 
+# Mapa da Aprovação: extração IA do edital + verticalização (feature PRO)
+from mapa_router import router as mapa_router  # noqa: E402
+app.include_router(mapa_router)
+
 
 # ─── Health ──────────────────────────────────────────────
 
