@@ -140,3 +140,21 @@ def test_quantidade_float_inteiro_de_json_vira_int():
             {"materia": "LP", "quantidade": 10.0}]}]}
     )
     assert ext.cargos[0].distribuicao_questoes[0].quantidade == 10
+
+
+def test_quantidade_infinito_vira_none_sem_levantar():
+    # int(float("inf")) levanta OverflowError — coercer nunca pode propagar.
+    ext = EditalExtraido.model_validate(
+        {"cargos": [{"nome": "X", "distribuicao_questoes": [
+            {"materia": "LP", "quantidade": "inf"}]}]}
+    )
+    assert ext.cargos[0].distribuicao_questoes[0].quantidade is None
+
+
+def test_peso_infinito_vira_none():
+    # float("inf") converte sem erro mas não é JSON estrito — deve virar None.
+    ext = EditalExtraido.model_validate(
+        {"cargos": [{"nome": "X", "distribuicao_questoes": [
+            {"materia": "LP", "peso": "inf"}]}]}
+    )
+    assert ext.cargos[0].distribuicao_questoes[0].peso is None

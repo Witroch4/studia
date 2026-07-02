@@ -6,6 +6,7 @@ do ISO vira None. NUNCA levantar por campo opcional malformado.
 """
 from __future__ import annotations
 
+import math
 import re
 from typing import Optional
 
@@ -43,15 +44,17 @@ def _int_ou_none(v: object) -> Optional[int]:
     try:
         # JSON costuma trazer float inteiro ("10.0") onde se espera int.
         return int(float(s))
-    except ValueError:
+    except (ValueError, OverflowError):
         return None
 
 
 def _float_ou_none(v: object) -> Optional[float]:
     try:
-        return float(str(v).strip())
+        f = float(str(v).strip())
     except (TypeError, ValueError):
         return None
+    # inf/-inf/nan não são JSON estrito (coluna JSON não aceita).
+    return f if math.isfinite(f) else None
 
 
 def _lista_de_str(v: object) -> list[str]:

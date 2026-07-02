@@ -199,7 +199,7 @@ export default function MapaDetalhePage() {
                             href={`/q/caderno/${c.id}`}
                             className="font-medium text-fg-strong hover:text-primary transition block truncate"
                           >
-                            🗺️ {c.nome} — {c.total} questões
+                            {c.nome} — {c.total} questões
                           </Link>
                           <Link
                             href={`/q/caderno/${c.id}/cronograma`}
