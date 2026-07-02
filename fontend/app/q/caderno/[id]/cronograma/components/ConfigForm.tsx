@@ -8,14 +8,19 @@ export function ConfigForm({
   initial,
   submitLabel,
   onSubmit,
+  sugestaoDataProva,
 }: {
   initial?: Partial<CronogramaInput>;
   submitLabel: string;
   onSubmit: (input: CronogramaInput) => Promise<void>;
+  /** Data da prova sugerida pelo Mapa da Aprovação (usada só quando não há valor salvo). */
+  sugestaoDataProva?: string | null;
 }) {
   const hoje = new Date().toISOString().slice(0, 10);
   const [dataInicio, setDataInicio] = useState(initial?.data_inicio ?? hoje);
-  const [dataProva, setDataProva] = useState(initial?.data_prova ?? "");
+  const [dataProva, setDataProva] = useState(
+    initial?.data_prova ?? sugestaoDataProva ?? ""
+  );
   const [folga, setFolga] = useState<number[]>(initial?.dias_folga ?? [6]);
   const [buffer, setBuffer] = useState(initial?.buffer_dias ?? 21);
   const [discursivas, setDiscursivas] = useState(
@@ -75,6 +80,11 @@ export function ConfigForm({
           className="mt-1 w-full bg-surface-2 border border-border/60 rounded px-3 py-2"
         />
       </label>
+      {!initial?.data_prova && sugestaoDataProva && (
+        <p className="text-xs text-fg-faint">
+          Data preenchida pelo seu Mapa da Aprovação — ajuste se precisar.
+        </p>
+      )}
 
       <label className="block text-sm">
         Início

@@ -33,6 +33,23 @@ export default function CronogramaPage() {
     staleTime: 30_000,
   });
 
+  // Mapa da Aprovação: se este caderno pertence a algum mapa com prova marcada,
+  // usamos a data como sugestão inicial no form de criação (nunca sobrescreve
+  // valor já salvo). Erro na busca não bloqueia — segue com data manual.
+  const {
+    data: mapasData,
+    isPending: mapasPending,
+    isError: mapasError,
+  } = useQuery({
+    queryKey: qk.mapas(),
+    queryFn: async (): Promise<{ mapas: { caderno_ids: number[]; data_prova: string | null }[] }> => {
+      const r = await apiFetch("/api/q/mapas", { cache: "no-store" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    staleTime: 60_000,
+  });
+
   const recalcMutation = useMutation({
     mutationFn: () => recalcular(id),
     onSuccess: (resp) => queryClient.setQueryData(chave, resp),
@@ -91,10 +108,29 @@ export default function CronogramaPage() {
   }
 
   if (!data) {
+    // Espera a query de mapas resolver antes de montar o form — senão a data
+    // "pula" de vazia para preenchida. Em erro, segue sem sugestão (não trava).
+    if (mapasPending && !mapasError) {
+      return (
+        <div className="p-6">
+          <h1 className="text-xl font-semibold mb-4">Criar cronograma</h1>
+          <div className="max-w-lg mx-auto bg-surface border border-border/60 rounded-lg p-6 space-y-4">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </div>
+      );
+    }
+    const sugestaoDataProva =
+      mapasData?.mapas.find((m) => m.caderno_ids.includes(Number(id)))?.data_prova ?? null;
     return (
       <div className="p-6">
         <h1 className="text-xl font-semibold mb-4">Criar cronograma</h1>
-        <ConfigForm submitLabel="Gerar cronograma"
+        <ConfigForm submitLabel="Gerar cronograma" sugestaoDataProva={sugestaoDataProva}
           onSubmit={(input) => criarMutation.mutateAsync(input).then(() => undefined)} />
       </div>
     );
