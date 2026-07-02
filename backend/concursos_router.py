@@ -9,10 +9,11 @@ disparar/acompanhar a coleta.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -25,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from auth import CurrentUser, get_current_user_opt, require_admin
 from database import get_db
 from minio_client import download_bytes
-from models import TcConcurso, TcConcursoArquivo
+from models import AppSetting, TcConcurso, TcConcursoArquivo
 
 router = APIRouter(prefix="/api/q/concursos", tags=["concursos"])
 
@@ -355,22 +356,70 @@ async def coletar_concursos(
     return r.json()
 
 
+# Cache dos filtros (bancas/profissões) em app_settings: cada miss custa 2
+# requests na sessão TC do scraper, e a lista muda raramente — 72h de TTL.
+FILTROS_CACHE_KEY = "tc_concursos.filtros_cache"
+FILTROS_CACHE_TTL = timedelta(hours=72)
+
+
+def _utcnow_naive() -> datetime:
+    """UTC naive (colunas DateTime sem tz), sem o utcnow() deprecado do 3.12."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 @router.get("/filtros")
 async def filtros_concursos(
+    refresh: bool = False,
     _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Bancas/profissões disponíveis para filtrar a coleta. Passthrough do scraper. (admin)"""
+    """Bancas/profissões disponíveis para filtrar a coleta. (admin)
+
+    Servido do cache em `app_settings` (TTL 72h); só consulta o scraper (que
+    vai à fonte externa com sessão) em miss/expiração ou `?refresh=true`.
+    Scraper indisponível + cache existente (mesmo vencido) → serve o cache.
+    """
+    row = (
+        await db.execute(select(AppSetting).where(AppSetting.key == FILTROS_CACHE_KEY))
+    ).scalar_one_or_none()
+    agora = _utcnow_naive()
+    if (
+        row is not None
+        and not refresh
+        and row.updated_at is not None
+        and agora - row.updated_at < FILTROS_CACHE_TTL
+    ):
+        return json.loads(row.value)
+
     try:
         async with httpx.AsyncClient(timeout=_FILTROS_TIMEOUT) as c:
             r = await c.get(f"{SCRAPER_URL}/tc/concursos/filtros")
+        if r.status_code != 200:
+            raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:300]}")
+        data = r.json()
+    except HTTPException:
+        if row is not None:
+            return json.loads(row.value)  # cache velho é melhor que erro
+        raise
     except httpx.TimeoutException as exc:
+        if row is not None:
+            return json.loads(row.value)
         raise HTTPException(504, "scraper demorou para responder os filtros.") from exc
     except httpx.HTTPError as exc:
+        if row is not None:
+            return json.loads(row.value)
         raise HTTPException(502, f"scraper indisponível: {exc}") from exc
 
-    if r.status_code != 200:
-        raise HTTPException(502, f"scraper falhou: {r.status_code} {r.text[:300]}")
-    return r.json()
+    valor = json.dumps(data, ensure_ascii=False)
+    if row is None:
+        db.add(AppSetting(key=FILTROS_CACHE_KEY, value=valor, updated_at=agora))
+    else:
+        row.value = valor
+        # updated_at explícito: se o payload vier idêntico, o onupdate não
+        # dispara (sem UPDATE) e o cache pareceria eternamente vencido.
+        row.updated_at = agora
+    await db.commit()
+    return data
 
 
 @router.get("/arquivo/{arquivo_id}")

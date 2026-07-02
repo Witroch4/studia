@@ -438,6 +438,130 @@ async def test_filtros_proxy_scraper(client, monkeypatch):
     assert r.json() == {"bancas": ["CESPE", "FGV"], "profissoes": ["Analista"]}
     assert calls == ["http://scraper:8090/tc/concursos/filtros"]
 
+    # 2ª chamada dentro do TTL: servida do cache (app_settings), SEM novo hit no scraper
+    r2 = await client.get("/api/q/concursos/filtros")
+    assert r2.status_code == 200
+    assert r2.json() == {"bancas": ["CESPE", "FGV"], "profissoes": ["Analista"]}
+    assert calls == ["http://scraper:8090/tc/concursos/filtros"]
+
+
+async def _seed_cache_filtros(db_session, payload: str, idade_horas: float) -> None:
+    from datetime import timedelta
+
+    from models import AppSetting
+
+    row = AppSetting(
+        key=concursos_router.FILTROS_CACHE_KEY,
+        value=payload,
+        updated_at=concursos_router._utcnow_naive() - timedelta(hours=idade_horas),
+    )
+    db_session.add(row)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_filtros_cache_fresco_nao_bate_no_scraper(client, db_session, monkeypatch):
+    await _seed_cache_filtros(db_session, '{"bancas": [{"key": "95", "name": "IDECAN"}], "profissoes": []}', idade_horas=1)
+
+    def _boom(*a, **k):  # qualquer hit no scraper é falha do teste
+        raise AssertionError("não deveria consultar o scraper com cache fresco")
+
+    monkeypatch.setattr(concursos_router.httpx, "AsyncClient", _boom)
+    r = await client.get("/api/q/concursos/filtros")
+    assert r.status_code == 200
+    assert r.json()["bancas"] == [{"key": "95", "name": "IDECAN"}]
+
+
+@pytest.mark.asyncio
+async def test_filtros_cache_expirado_rebusca_e_atualiza(client, db_session, monkeypatch):
+    from sqlalchemy import select as sa_select
+
+    from models import AppSetting
+
+    await _seed_cache_filtros(db_session, '{"bancas": [], "profissoes": []}', idade_horas=73)
+    calls: list[str] = []
+
+    class FakeResponse:
+        status_code = 200
+        text = "{}"
+
+        def json(self):
+            return {"bancas": [{"key": "1", "name": "Nova"}], "profissoes": []}
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url):
+            calls.append(url)
+            return FakeResponse()
+
+    monkeypatch.setattr(concursos_router.httpx, "AsyncClient", FakeAsyncClient)
+    r = await client.get("/api/q/concursos/filtros")
+    assert r.status_code == 200
+    assert r.json()["bancas"] == [{"key": "1", "name": "Nova"}]
+    assert calls == ["http://scraper:8090/tc/concursos/filtros"]
+
+    row = (
+        await db_session.execute(
+            sa_select(AppSetting).where(AppSetting.key == concursos_router.FILTROS_CACHE_KEY)
+        )
+    ).scalar_one()
+    assert '"Nova"' in row.value  # cache atualizado
+    from datetime import timedelta
+
+    assert concursos_router._utcnow_naive() - row.updated_at < timedelta(minutes=5)  # timestamp renovado
+
+
+@pytest.mark.asyncio
+async def test_filtros_scraper_fora_serve_cache_expirado(client, db_session, monkeypatch):
+    """Cache velho é melhor que erro: scraper fora do ar → serve o que temos."""
+    await _seed_cache_filtros(db_session, '{"bancas": [{"key": "9", "name": "Velha"}], "profissoes": []}', idade_horas=100)
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url):
+            raise concursos_router.httpx.ConnectError("scraper fora")
+
+    monkeypatch.setattr(concursos_router.httpx, "AsyncClient", FakeAsyncClient)
+    r = await client.get("/api/q/concursos/filtros")
+    assert r.status_code == 200
+    assert r.json()["bancas"] == [{"key": "9", "name": "Velha"}]
+
+
+@pytest.mark.asyncio
+async def test_filtros_sem_cache_scraper_fora_502(client, monkeypatch):
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url):
+            raise concursos_router.httpx.ConnectError("scraper fora")
+
+    monkeypatch.setattr(concursos_router.httpx, "AsyncClient", FakeAsyncClient)
+    r = await client.get("/api/q/concursos/filtros")
+    assert r.status_code == 502
+
 
 @pytest.mark.asyncio
 async def test_jobs_sem_tabela_ledger_retorna_vazio(client):
