@@ -6,6 +6,8 @@ export const qk = {
   decks: () => ["decks"] as const,
   deckCards: (id: string) => ["flashcards", id] as const,
   dashboard: () => ["q", "dashboard"] as const,
+  dashboardDisciplina: (id: string | number) =>
+    ["q", "dashboard", "disciplina", String(id)] as const,
   billing: () => ["billing", "status"] as const,
   pastas: () => ["q", "pastas"] as const,
   cadernos: (pasta?: string | null) => ["q", "cadernos", pasta ?? null] as const,

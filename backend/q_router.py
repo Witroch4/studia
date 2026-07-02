@@ -2513,6 +2513,7 @@ async def dashboard(
     # ─── Por disciplina (Resolucao → Questao → Materia) ───
     por_disc_rows = (await db.execute(
         select(
+            Materia.id.label("materia_id"),
             Materia.nome.label("nome"),
             func.count(Resolucao.id).label("total"),
             func.sum(func.cast(Resolucao.acertou, Integer)).label("acertos"),
@@ -2522,7 +2523,7 @@ async def dashboard(
         .join(Questao, Questao.id == Resolucao.questao_id)
         .join(Materia, Materia.id == Questao.materia_id)
         .where(*meu)
-        .group_by(Materia.nome)
+        .group_by(Materia.id, Materia.nome)
         .order_by(func.count(Resolucao.id).desc())
         .limit(20)
     )).all()
@@ -2531,6 +2532,7 @@ async def dashboard(
         t = int(r.total or 0)
         ac = int(r.acertos or 0)
         por_disciplina.append({
+            "materia_id": r.materia_id,
             "nome": r.nome,
             "tempo_segundos": int(r.tempo or 0),
             "acertos": ac,
@@ -2602,6 +2604,107 @@ async def dashboard(
         "atividade_recente": atividade_recente,
         "streak_dias": streak,
         "ultimas_pastas": ultimas_pastas,
+    }
+
+
+@router.get("/dashboard/disciplina/{materia_id}")
+async def dashboard_disciplina(
+    materia_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Estatísticas do usuário DENTRO de uma matéria: resumo, por assunto e atividade.
+
+    Tudo filtrado por Resolucao.usuario_uid == user.id (mesmo isolamento do /dashboard).
+    """
+    from models import Assunto, questao_assunto
+
+    materia = (
+        await db.execute(select(Materia).where(Materia.id == materia_id))
+    ).scalar_one_or_none()
+    if not materia:
+        raise HTTPException(404, f"materia {materia_id} not found")
+
+    meu = (Resolucao.usuario_uid == user.id, Questao.materia_id == materia_id)
+
+    resumo_row = (await db.execute(
+        select(
+            func.count(Resolucao.id).label("total"),
+            func.sum(func.cast(Resolucao.acertou, Integer)).label("acertos"),
+            func.coalesce(func.sum(Resolucao.tempo_segundos), 0).label("tempo"),
+        )
+        .select_from(Resolucao)
+        .join(Questao, Questao.id == Resolucao.questao_id)
+        .where(*meu)
+    )).one()
+    total = int(resumo_row.total or 0)
+    acertos = int(resumo_row.acertos or 0)
+
+    # ─── Por assunto (Resolucao → Questao → questao_assunto → Assunto) ───
+    # Uma questão pode ter N assuntos; a resolução conta em cada um deles.
+    por_assunto_rows = (await db.execute(
+        select(
+            Assunto.nome.label("nome"),
+            func.count(Resolucao.id).label("total"),
+            func.sum(func.cast(Resolucao.acertou, Integer)).label("acertos"),
+            func.coalesce(func.sum(Resolucao.tempo_segundos), 0).label("tempo"),
+        )
+        .select_from(Resolucao)
+        .join(Questao, Questao.id == Resolucao.questao_id)
+        .join(questao_assunto, questao_assunto.c.questao_id == Questao.id)
+        .join(Assunto, Assunto.id == questao_assunto.c.assunto_id)
+        .where(*meu)
+        .group_by(Assunto.nome)
+        .order_by(func.count(Resolucao.id).desc())
+        .limit(100)
+    )).all()
+    por_assunto = []
+    for r in por_assunto_rows:
+        t = int(r.total or 0)
+        ac = int(r.acertos or 0)
+        por_assunto.append({
+            "nome": r.nome,
+            "tempo_segundos": int(r.tempo or 0),
+            "acertos": ac,
+            "erros": t - ac,
+            "total": t,
+            "pct": round((ac / t) * 100, 1) if t else 0,
+        })
+
+    # ─── Atividade recente nesta matéria (group by dia, últimos 30) ───
+    dia = func.date(Resolucao.created_at)
+    atividade_rows = (await db.execute(
+        select(
+            dia.label("dia"),
+            func.count(Resolucao.id).label("resolvidas"),
+            func.sum(func.cast(Resolucao.acertou, Integer)).label("acertos"),
+        )
+        .select_from(Resolucao)
+        .join(Questao, Questao.id == Resolucao.questao_id)
+        .where(*meu)
+        .group_by(dia)
+        .order_by(dia.desc())
+        .limit(30)
+    )).all()
+    atividade_recente = [
+        {
+            "data": _as_date(r.dia).isoformat(),
+            "resolvidas": int(r.resolvidas or 0),
+            "acertos": int(r.acertos or 0),
+        }
+        for r in reversed(atividade_rows)
+    ]
+
+    return {
+        "materia_id": materia.id,
+        "nome": materia.nome,
+        "tempo_segundos": int(resumo_row.tempo or 0),
+        "resolvidas": total,
+        "acertos": acertos,
+        "erros": total - acertos,
+        "taxa": round((acertos / total) * 100, 1) if total else 0,
+        "por_assunto": por_assunto,
+        "atividade_recente": atividade_recente,
     }
 
 

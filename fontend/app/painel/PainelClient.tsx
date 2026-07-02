@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { StatCard } from "@/app/components/ds";
 import { apiJson } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
 
 interface Disciplina {
+  materia_id: number;
   nome: string;
   tempo_segundos: number;
   acertos: number;
@@ -167,6 +169,7 @@ function EstadoVazio() {
 }
 
 function PainelDados({ data }: { data: Dashboard }) {
+  const router = useRouter();
   const ativos = new Set(data.atividade_recente.filter((a) => a.resolvidas > 0).map((a) => a.data));
   const dias = ultimosDias(14);
 
@@ -303,8 +306,23 @@ function PainelDados({ data }: { data: Dashboard }) {
               </thead>
               <tbody className="divide-y divide-border">
                 {data.por_disciplina.map((d, i) => (
-                  <tr key={d.nome} className={`hover:bg-surface-2/30 transition-colors ${i % 2 === 1 ? "bg-surface-2/10" : ""}`}>
-                    <td className="px-4 py-4 font-medium text-primary">{d.nome}</td>
+                  <tr
+                    key={d.nome}
+                    onClick={() => router.push(`/painel/disciplina/${d.materia_id}`)}
+                    className={`group cursor-pointer hover:bg-surface-2/30 transition-colors ${i % 2 === 1 ? "bg-surface-2/10" : ""}`}
+                  >
+                    <td className="px-4 py-4 font-medium">
+                      <Link
+                        href={`/painel/disciplina/${d.materia_id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1 text-primary group-hover:underline"
+                      >
+                        {d.nome}
+                        <span className="material-symbols-outlined text-base text-fg-faint group-hover:text-primary">
+                          chevron_right
+                        </span>
+                      </Link>
+                    </td>
                     <td className="px-4 py-4 text-center text-fg">{fmtDuracao(d.tempo_segundos)}</td>
                     <td className="px-4 py-4 text-center text-accent-success font-medium">{d.acertos}</td>
                     <td className="px-4 py-4 text-center text-accent-error font-medium">{d.erros}</td>

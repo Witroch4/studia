@@ -365,3 +365,76 @@ async def test_dashboard_ultimos_cadernos_por_recencia(client, db_session, auth_
     auth_state["user"] = B
     body_b = (await client.get("/api/q/dashboard")).json()
     assert [c["caderno_id"] for c in body_b["ultimas_pastas"]] == [100]
+
+
+# ─── Dashboard por disciplina (estatísticas da matéria) ──
+
+
+async def test_dashboard_disciplina_exige_login(client, auth_state):
+    auth_state["user"] = None
+    r = await client.get("/api/q/dashboard/disciplina/1")
+    assert r.status_code == 401
+
+
+async def test_dashboard_disciplina_inexistente_404(client, auth_state):
+    auth_state["user"] = A
+    r = await client.get("/api/q/dashboard/disciplina/99999")
+    assert r.status_code == 404
+
+
+async def test_dashboard_disciplina_agrega_por_assunto_e_isola(client, db_session, auth_state):
+    from models import Assunto
+
+    db_session.add(Materia(id=1, nome="Direito Constitucional"))
+    db_session.add(Materia(id=2, nome="Matemática"))
+    assunto = Assunto(id=1, materia_id=1, nome="Controle de Constitucionalidade")
+    db_session.add(assunto)
+    q_com_assunto = Questao(id=80, enunciado_md="Q80", materia_id=1)
+    q_com_assunto.assuntos = [assunto]
+    db_session.add(q_com_assunto)
+    db_session.add(Questao(id=81, enunciado_md="Q81", materia_id=1))
+    db_session.add(Questao(id=82, enunciado_md="Q82", materia_id=2))
+    # commit em duas etapas: garante questões no banco antes das resoluções
+    # (sem relationship Resolucao→Questao o unit-of-work não ordena os INSERTs)
+    await db_session.commit()
+    hoje = datetime.now()
+    db_session.add_all(
+        [
+            Resolucao(id=30, questao_id=80, usuario_uid="user-A", acertou=True, tempo_segundos=30, created_at=hoje),
+            Resolucao(id=31, questao_id=81, usuario_uid="user-A", acertou=False, tempo_segundos=20, created_at=hoje),
+            # Outra matéria não entra na conta desta
+            Resolucao(id=32, questao_id=82, usuario_uid="user-A", acertou=True, tempo_segundos=99, created_at=hoje),
+            # B não vaza para o A
+            Resolucao(id=33, questao_id=80, usuario_uid="user-B", acertou=True, tempo_segundos=999, created_at=hoje),
+        ]
+    )
+    await db_session.commit()
+
+    auth_state["user"] = A
+    r = await client.get("/api/q/dashboard/disciplina/1")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["materia_id"] == 1
+    assert body["nome"] == "Direito Constitucional"
+    assert body["resolvidas"] == 2
+    assert body["acertos"] == 1
+    assert body["erros"] == 1
+    assert body["taxa"] == 50.0
+    assert body["tempo_segundos"] == 50
+    assuntos = {a["nome"]: a for a in body["por_assunto"]}
+    assert assuntos["Controle de Constitucionalidade"]["total"] == 1
+    assert assuntos["Controle de Constitucionalidade"]["acertos"] == 1
+    assert assuntos["Controle de Constitucionalidade"]["erros"] == 0
+    assert len(body["atividade_recente"]) == 1
+    assert body["atividade_recente"][0]["resolvidas"] == 2
+
+    # /dashboard agora expõe materia_id para linkar a página da matéria
+    body_dash = (await client.get("/api/q/dashboard")).json()
+    disc = {d["nome"]: d for d in body_dash["por_disciplina"]}
+    assert disc["Direito Constitucional"]["materia_id"] == 1
+
+    # B só enxerga o próprio desempenho
+    auth_state["user"] = B
+    body_b = (await client.get("/api/q/dashboard/disciplina/1")).json()
+    assert body_b["resolvidas"] == 1
+    assert body_b["acertos"] == 1
