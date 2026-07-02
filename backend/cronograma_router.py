@@ -126,6 +126,7 @@ async def _montar_resposta(db: AsyncSession, cad: CadernoQuestoes, c: Cronograma
             for d in plano
         ],
         "kpis": kpis.__dict__,
+        "progresso": core.progresso_diario(resolucoes),
         "revisar_hoje": [
             {"questao_id": i.questao_id, "revisar_em": i.revisar_em.isoformat(),
              "intervalo": i.intervalo} for i in revisoes

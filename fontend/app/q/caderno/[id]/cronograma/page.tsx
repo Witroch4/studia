@@ -1,13 +1,20 @@
 "use client";
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { useParams } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { qk } from "@/lib/queryKeys";
+import { Skeleton } from "@/app/components/ds";
 import {
   getCronograma, criarCronograma, recalcular,
   type CronogramaResp, type CronogramaInput,
 } from "./api";
 import { ConfigForm } from "./components/ConfigForm";
-import { KpiStrip } from "./components/KpiStrip";
+import { VereditoHero } from "./components/VereditoHero";
+import { MapaQuestoes } from "./components/MapaQuestoes";
+import { RitmoChart } from "./components/RitmoChart";
+import { DistribuicaoDonut } from "./components/DistribuicaoDonut";
+import { ErrosPorAssunto } from "./components/ErrosPorAssunto";
 import { TimelineTable } from "./components/TimelineTable";
 import { RevisarHoje } from "./components/RevisarHoje";
 import { DiscursivasList } from "./components/DiscursivasList";
@@ -15,47 +22,31 @@ import { SimuladosList } from "./components/SimuladosList";
 
 export default function CronogramaPage() {
   const { id } = useParams<{ id: string }>();
-  const [data, setData] = useState<CronogramaResp | null>(null);
-  const [loading, setLoading] = useState(true);
-  // Contador de reloads para forçar re-fetch sem alterar deps do effect
-  const [reloadKey, setReloadKey] = useState(0);
-  const loadingRef = useRef(false);
+  const queryClient = useQueryClient();
+  const chave = qk.cadernoSub(id, "cronograma");
 
-  // useMemo deve ficar antes de qualquer early return
+  // getCronograma devolve null no 404 (caderno ainda sem cronograma).
+  const { data, isPending, isError, refetch } = useQuery<CronogramaResp | null>({
+    queryKey: chave,
+    queryFn: () => getCronograma(id),
+    staleTime: 30_000,
+  });
+
+  const recalcMutation = useMutation({
+    mutationFn: () => recalcular(id),
+    onSuccess: (resp) => queryClient.setQueryData(chave, resp),
+  });
+  const criarMutation = useMutation({
+    mutationFn: (input: CronogramaInput) => criarCronograma(id, input),
+    onSuccess: (resp) => queryClient.setQueryData(chave, resp),
+  });
+
   const diasAteProva = useMemo(() => {
     if (!data) return 0;
     const agora = new Date();
     agora.setHours(0, 0, 0, 0);
     return Math.max(0, Math.ceil((+new Date(data.config.data_prova) - +agora) / 86400000));
   }, [data]);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadingRef.current = true;
-
-    getCronograma(id).then((resp) => {
-      if (cancelled) return;
-      setData(resp);
-      setLoading(false);
-      loadingRef.current = false;
-    }).catch(() => {
-      if (cancelled) return;
-      setLoading(false);
-      loadingRef.current = false;
-    });
-
-    return () => { cancelled = true; };
-  }, [id, reloadKey]);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    setReloadKey((k) => k + 1);
-  }, []);
-
-  async function onCreate(input: CronogramaInput) {
-    const resp = await criarCronograma(id, input);
-    setData(resp);
-  }
 
   async function baixarXlsx() {
     const r = await apiFetch(`/api/q/cadernos/${id}/cronograma/export.xlsx`);
@@ -66,39 +57,100 @@ export default function CronogramaPage() {
     URL.revokeObjectURL(url);
   }
 
-  if (loading) return <div className="p-6 text-fg-muted">Carregando…</div>;
-  if (!data) {
+  if (isPending) {
+    // Skeleton no formato da página final — nada pula quando os dados chegam.
     return (
-      <div className="p-6">
-        <h1 className="text-xl font-semibold mb-4">Criar cronograma</h1>
-        <ConfigForm submitLabel="Gerar cronograma" onSubmit={onCreate} />
+      <div className="p-6 space-y-6 max-w-6xl mx-auto">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="h-8 w-64" />
+        </div>
+        <Skeleton className="h-44 w-full rounded-xl" />
+        <Skeleton className="h-56 w-full rounded-xl" />
+        <div className="grid lg:grid-cols-5 gap-6">
+          <Skeleton className="h-72 rounded-xl lg:col-span-3" />
+          <Skeleton className="h-72 rounded-xl lg:col-span-2" />
+        </div>
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
 
+  if (isError) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <h1 className="text-xl font-semibold mb-2">Cronograma</h1>
+        <p className="text-sm text-fg-muted mb-4">Não deu para carregar o cronograma.</p>
+        <button onClick={() => refetch()}
+          className="text-sm border border-border/60 rounded px-3 py-1.5 hover:bg-surface-2">
+          Tentar de novo
+        </button>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="p-6">
+        <h1 className="text-xl font-semibold mb-4">Criar cronograma</h1>
+        <ConfigForm submitLabel="Gerar cronograma"
+          onSubmit={(input) => criarMutation.mutateAsync(input).then(() => undefined)} />
+      </div>
+    );
+  }
+
+  const invalidar = () => queryClient.invalidateQueries({ queryKey: chave });
+
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Cronograma</h1>
         <div className="flex gap-2">
-          <button onClick={() => recalcular(id).then(setData)}
-            className="text-sm border border-border/60 rounded px-3 py-1.5">Recalcular automático</button>
+          <button onClick={() => recalcMutation.mutate()} disabled={recalcMutation.isPending}
+            className="text-sm border border-border/60 rounded px-3 py-1.5 hover:bg-surface-2 disabled:opacity-50">
+            {recalcMutation.isPending ? "Recalculando…" : "Recalcular automático"}
+          </button>
           <button onClick={baixarXlsx}
-            className="text-sm bg-primary text-black font-semibold rounded px-3 py-1.5">Baixar .xlsx</button>
+            className="text-sm bg-primary text-black font-semibold rounded px-3 py-1.5 hover:opacity-90">
+            Baixar .xlsx
+          </button>
         </div>
       </div>
-      <KpiStrip kpis={data.kpis} diasAteProva={diasAteProva} />
-      <section><h2 className="text-sm font-semibold mb-2 text-fg-muted">Plano diário</h2>
-        <TimelineTable plano={data.plano} /></section>
+
+      {/* Veredito: a resposta de "estou atrasado?" em uma frase */}
+      <VereditoHero kpis={data.kpis} diasAteProva={diasAteProva} dataProva={data.config.data_prova} />
+
+      {/* O caderno inteiro, questão a questão */}
+      <MapaQuestoes cadernoId={id} />
+
+      {/* Ritmo no tempo + distribuição */}
+      <div className="grid lg:grid-cols-5 gap-6">
+        <section className="bg-surface border border-border/60 rounded-xl p-5 lg:col-span-3">
+          <h2 className="text-sm font-semibold text-fg mb-3">Seu ritmo até a prova</h2>
+          <RitmoChart plano={data.plano} progresso={data.progresso ?? []} />
+        </section>
+        <section className="bg-surface border border-border/60 rounded-xl p-5 lg:col-span-2">
+          <h2 className="text-sm font-semibold text-fg mb-3">Distribuição do caderno</h2>
+          <DistribuicaoDonut kpis={data.kpis} />
+        </section>
+      </div>
+
+      {/* Onde concentrar a revisão */}
+      <ErrosPorAssunto cadernoId={id} />
+
+      <section>
+        <h2 className="text-sm font-semibold mb-2 text-fg-muted">Plano diário</h2>
+        <TimelineTable plano={data.plano} />
+      </section>
       {data.config.incluir_revisao && (
         <section><h2 className="text-sm font-semibold mb-2 text-fg-muted">Revisar hoje</h2>
           <RevisarHoje itens={data.revisar_hoje} /></section>)}
       {data.config.incluir_discursivas && (
         <section><h2 className="text-sm font-semibold mb-2 text-fg-muted">Discursivas</h2>
-          <DiscursivasList id={id} itens={data.discursivas} onChange={load} /></section>)}
+          <DiscursivasList id={id} itens={data.discursivas} onChange={invalidar} /></section>)}
       {data.config.incluir_simulados && (
         <section><h2 className="text-sm font-semibold mb-2 text-fg-muted">Simulados</h2>
-          <SimuladosList id={id} itens={data.simulados} onChange={load} /></section>)}
+          <SimuladosList id={id} itens={data.simulados} onChange={invalidar} /></section>)}
     </div>
   );
 }

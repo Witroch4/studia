@@ -29,6 +29,7 @@ async def test_post_e_get_cronograma(client, db_session, auth_state):
     assert len(body["plano"]) >= 1
     assert body["plano"][-1]["fase"] == "prova"
     assert body["kpis"]["total"] == 120
+    assert body["progresso"] == []  # sem resoluções ainda → curva real vazia
 
     r2 = await client.get(f"/api/q/cadernos/{cad.id}/cronograma")
     assert r2.status_code == 200
