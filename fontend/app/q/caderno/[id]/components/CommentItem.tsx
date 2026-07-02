@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { apiUrl } from "@/lib/api";
 import type { Comentario, Quadro } from "../../../hooks/useForum";
 import {
   useCriarComentario, useEditarComentario, useExcluirComentario, useVotar,
@@ -52,10 +54,23 @@ export function CommentItem({ comentario: c, questaoId, quadro, ordenar, podeRes
       {/* Corpo */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-xs">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary">
-            {c.autor_inicial}
-          </span>
-          <span className="font-semibold text-fg">{c.display_name}</span>
+          {c.autor_avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={apiUrl(c.autor_avatar_url)} alt=""
+              className="h-6 w-6 rounded-full object-cover" />
+          ) : (
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary">
+              {c.autor_inicial}
+            </span>
+          )}
+          {c.autor_apelido ? (
+            <Link href={`/u/${c.autor_apelido}`}
+              className="font-semibold text-fg hover:text-primary hover:underline">
+              {c.display_name}
+            </Link>
+          ) : (
+            <span className="font-semibold text-fg">{c.display_name}</span>
+          )}
           {c.eh_professor && (
             <span className="rounded bg-secondary/20 px-1.5 py-0.5 text-[10px] font-semibold text-secondary">🎓 Professor</span>
           )}

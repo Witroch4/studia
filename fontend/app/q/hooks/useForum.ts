@@ -13,6 +13,8 @@ export interface Comentario {
   eh_professor: boolean;
   display_name: string;
   autor_inicial: string;
+  autor_apelido: string | null;
+  autor_avatar_url: string | null;
   texto_md: string | null;
   score: number;
   meu_voto: -1 | 0 | 1;
