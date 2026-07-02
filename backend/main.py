@@ -8,7 +8,7 @@ from fastapi import Depends, FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sse_starlette.sse import EventSourceResponse
@@ -20,7 +20,7 @@ from models import (
 )
 from parser import parse_markdown
 from minio_client import upload_pdf, get_presigned_url, ensure_bucket
-from auth import require_admin
+from auth import CurrentUser, require_admin, require_user
 from security import CSRF_COOKIE, SESSION_COOKIE
 import concurso_engine as ce
 
@@ -764,10 +764,17 @@ def _db_to_engine(c: Candidato) -> ce.Candidato:
     )
 
 
+def _pode_ver_concurso(c: Concurso, user: CurrentUser) -> bool:
+    """Catálogo público, dono do import, ou admin."""
+    return c.is_public or c.user_id == user.id or user.is_admin
+
+
 @app.post("/api/concursos/import")
 async def import_concurso(
     file: UploadFile = File(...),
     nome: str = Form(""),
+    publico: bool = Form(False),
+    user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
     raw = await file.read()
@@ -789,6 +796,9 @@ async def import_concurso(
         nome=nome_final,
         arquivo_nome=file.filename,
         total_candidatos=len(cands),
+        user_id=user.id,
+        # Só admin publica no catálogo; user comum importa privado.
+        is_public=publico and user.is_admin,
     )
     db.add(concurso)
     await db.flush()
@@ -822,13 +832,20 @@ async def import_concurso(
         "id": concurso.id,
         "nome": concurso.nome,
         "total_candidatos": len(cands),
+        "publico": concurso.is_public,
     }
 
 
 @app.get("/api/concursos")
-async def list_concursos(db: AsyncSession = Depends(get_db)):
+async def list_concursos(
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Catálogo público + concursos privados do próprio usuário."""
     result = await db.execute(
-        select(Concurso).order_by(Concurso.created_at.desc())
+        select(Concurso)
+        .where(or_(Concurso.is_public.is_(True), Concurso.user_id == user.id))
+        .order_by(Concurso.created_at.desc())
     )
     return [
         {
@@ -837,30 +854,45 @@ async def list_concursos(db: AsyncSession = Depends(get_db)):
             "arquivo_nome": c.arquivo_nome,
             "total_candidatos": c.total_candidatos,
             "created_at": c.created_at.isoformat() if c.created_at else None,
+            "publico": c.is_public,
+            "meu": c.user_id == user.id,
+            "pode_excluir": c.user_id == user.id or user.is_admin,
         }
         for c in result.scalars().all()
     ]
 
 
 @app.delete("/api/concursos/{concurso_id}")
-async def delete_concurso(concurso_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_concurso(
+    concurso_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
     c = (await db.execute(
         select(Concurso).where(Concurso.id == concurso_id)
     )).scalar_one_or_none()
     if not c:
         raise HTTPException(404, "Concurso não encontrado")
+    if c.user_id != user.id and not user.is_admin:
+        raise HTTPException(403, "Só o dono do import ou um admin pode excluir este concurso.")
     await db.delete(c)
     await db.commit()
     return {"ok": True}
 
 
 @app.get("/api/concursos/{concurso_id}")
-async def get_concurso(concurso_id: int, db: AsyncSession = Depends(get_db)):
+async def get_concurso(
+    concurso_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
     c = (await db.execute(
         select(Concurso).where(Concurso.id == concurso_id)
     )).scalar_one_or_none()
     if not c:
         raise HTTPException(404, "Concurso não encontrado")
+    if not _pode_ver_concurso(c, user):
+        raise HTTPException(403, "Este concurso é privado de outro usuário.")
 
     rows = (await db.execute(
         select(Candidato).where(Candidato.concurso_id == concurso_id)
@@ -876,6 +908,8 @@ async def get_concurso(concurso_id: int, db: AsyncSession = Depends(get_db)):
         "id": c.id,
         "nome": c.nome,
         "arquivo_nome": c.arquivo_nome,
+        "publico": c.is_public,
+        "meu": c.user_id == user.id,
         "total_candidatos": len(rows),
         "cargos": cargos,
         "macropolos": macropolos,
@@ -916,6 +950,7 @@ class SimularRequest(BaseModel):
 async def simular_concurso(
     concurso_id: int,
     req: SimularRequest,
+    user: CurrentUser = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
     c = (await db.execute(
@@ -923,6 +958,8 @@ async def simular_concurso(
     )).scalar_one_or_none()
     if not c:
         raise HTTPException(404, "Concurso não encontrado")
+    if not _pode_ver_concurso(c, user):
+        raise HTTPException(403, "Este concurso é privado de outro usuário.")
 
     q = select(Candidato).where(Candidato.concurso_id == concurso_id)
     if req.cargo:

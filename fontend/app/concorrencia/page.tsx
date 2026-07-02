@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import ConcursoUploader from "../components/ConcursoUploader";
+import ConcursoGuiaCsv from "../components/ConcursoGuiaCsv";
 import { apiFetch, apiJson } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
+import { authClient } from "@/lib/auth-client";
 
 // ─── Identidade por modalidade ───────────────────────────
 type Mod = "AC" | "PN" | "PI" | "PQ" | "PCD";
@@ -19,6 +21,7 @@ const ORDER: Mod[] = ["AC", "PN", "PI", "PQ", "PCD"];
 
 type ConcursoMeta = {
   id: number; nome: string; total_candidatos: number;
+  publico: boolean; meu: boolean;
   cargos: string[]; macropolos: string[];
   polos: { uf: string; total: number }[];
   cotas: Record<string, number>;
@@ -44,7 +47,10 @@ type ClassRow = {
   is_negro: boolean; is_pcd: boolean; is_indigena: boolean; is_quilombola: boolean;
 };
 
-type ConcursoItem = { id: number; nome: string; total_candidatos: number; created_at: string | null };
+type ConcursoItem = {
+  id: number; nome: string; total_candidatos: number; created_at: string | null;
+  publico: boolean; meu: boolean; pode_excluir: boolean;
+};
 
 export default function ConcorrenciaPage() {
   const queryClient = useQueryClient();
@@ -70,6 +76,19 @@ export default function ConcorrenciaPage() {
   const [showLei, setShowLei] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Admin publica imports no catálogo. Mesmo padrão do Sidebar: better-auth é
+  // externalizado, então a sessão só é lida no cliente (useEffect).
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    authClient
+      .getSession()
+      .then((res) => {
+        const role = (res?.data?.user as { role?: string } | undefined)?.role;
+        setIsAdmin(role === "admin");
+      })
+      .catch(() => {});
+  }, []);
+
   // ─── GET /api/concursos ──────────────────────────────────
   const { data: concursos = [], isPending: loadingList } = useQuery({
     queryKey: qk.concursos(),
@@ -89,10 +108,11 @@ export default function ConcorrenciaPage() {
 
   // ─── POST /api/concursos/import ──────────────────────────
   const importMutation = useMutation({
-    mutationFn: async ({ file, nome }: { file: File; nome: string }) => {
+    mutationFn: async ({ file, nome, publico }: { file: File; nome: string; publico: boolean }) => {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("nome", nome);
+      fd.append("publico", publico ? "true" : "false");
       const res = await apiFetch("/api/concursos/import", { method: "POST", body: fd });
       if (!res.ok) {
         const err = await res.json();
@@ -146,8 +166,8 @@ export default function ConcorrenciaPage() {
       .catch(console.error);
   }, []);
 
-  const handleUpload = async (file: File, nome: string) => {
-    importMutation.mutate({ file, nome });
+  const handleUpload = async (file: File, nome: string, publico: boolean) => {
+    importMutation.mutate({ file, nome, publico });
   };
 
   const runSim = useCallback(() => {
@@ -217,44 +237,50 @@ export default function ConcorrenciaPage() {
               </p>
             </div>
 
-            <div className="bg-surface-dark border border-border-dark rounded-2xl p-6 mb-8">
-              <ConcursoUploader onUpload={handleUpload} uploading={importMutation.isPending} />
+            <div className="bg-surface-dark border border-border-dark rounded-2xl p-6 mb-4">
+              <ConcursoUploader onUpload={handleUpload} uploading={importMutation.isPending} isAdmin={isAdmin} />
             </div>
 
-            <div className="flex items-center gap-3 mb-4">
-              <span className="material-symbols-outlined text-fg-faint text-[20px]">history</span>
-              <h3 className="text-sm font-semibold text-fg uppercase tracking-wider">Concursos importados</h3>
+            <div className="mb-8">
+              <ConcursoGuiaCsv />
             </div>
-            <div className="space-y-2">
-              {loadingList ? (
-                Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-16 bg-surface-dark border border-border-dark rounded-xl animate-pulse" />)
-              ) : concursos.length === 0 ? (
-                <p className="text-sm text-fg-faint py-6 text-center border border-dashed border-border-dark rounded-xl">Nenhum concurso ainda. Suba um CSV acima.</p>
-              ) : concursos.map((c) => (
-                <div key={c.id} className="group flex items-center justify-between bg-surface-dark border border-border-dark rounded-xl px-5 py-4 hover:border-primary/50 transition-all">
-                  <button onClick={() => openConcurso(c.id)} className="flex items-center gap-4 text-left flex-1 min-w-0">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                      <span className="material-symbols-outlined">leaderboard</span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-fg-strong truncate group-hover:text-primary transition-colors">{c.nome}</p>
-                      <p className="text-xs text-fg-faint cc-num">{c.total_candidatos.toLocaleString("pt-BR")} candidatos</p>
-                    </div>
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (confirm(`Excluir "${c.nome}"?`)) {
-                        deleteMutation.mutate(c.id);
-                      }
-                    }}
-                    disabled={deleteMutation.isPending && deleteMutation.variables === c.id}
-                    className="text-fg-faint hover:text-accent-error transition-colors p-2 disabled:opacity-50"
-                  >
-                    <span className="material-symbols-outlined text-[20px]">delete</span>
-                  </button>
+
+            {loadingList ? (
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="material-symbols-outlined text-fg-faint text-[20px]">public</span>
+                  <h3 className="text-sm font-semibold text-fg uppercase tracking-wider">Catálogo de concorrências</h3>
                 </div>
-              ))}
-            </div>
+                <div className="space-y-2">
+                  {Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-16 bg-surface-dark border border-border-dark rounded-xl animate-pulse" />)}
+                </div>
+              </>
+            ) : (
+              <>
+                <ListaConcursos
+                  icon="public"
+                  titulo="Catálogo de concorrências"
+                  vazio="O catálogo ainda está vazio."
+                  itens={concursos.filter((c) => c.publico)}
+                  onOpen={openConcurso}
+                  onDelete={(c) => deleteMutation.mutate(c.id)}
+                  deletingId={deleteMutation.isPending ? (deleteMutation.variables ?? null) : null}
+                />
+                {concursos.some((c) => c.meu && !c.publico) && (
+                  <div className="mt-8">
+                    <ListaConcursos
+                      icon="lock"
+                      titulo="Meus concursos (só você vê)"
+                      vazio=""
+                      itens={concursos.filter((c) => c.meu && !c.publico)}
+                      onOpen={openConcurso}
+                      onDelete={(c) => deleteMutation.mutate(c.id)}
+                      deletingId={deleteMutation.isPending ? (deleteMutation.variables ?? null) : null}
+                    />
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </main>
       </>
@@ -280,7 +306,14 @@ export default function ConcorrenciaPage() {
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-fg-strong truncate">{meta.nome}</p>
+            <p className="text-sm font-bold text-fg-strong truncate flex items-center gap-2">
+              {meta.nome}
+              {meta.publico && (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">
+                  <span className="material-symbols-outlined text-[11px]">public</span>catálogo
+                </span>
+              )}
+            </p>
             <p className="text-[11px] text-fg-faint cc-num">{meta.total_candidatos.toLocaleString("pt-BR")} candidatos · {meta.cargos.length} cargo(s)</p>
           </div>
         </div>
@@ -503,6 +536,60 @@ export default function ConcorrenciaPage() {
 }
 
 // ─── Sub-componentes ─────────────────────────────────────
+
+function ListaConcursos({ icon, titulo, vazio, itens, onOpen, onDelete, deletingId }: {
+  icon: string;
+  titulo: string;
+  vazio: string;
+  itens: ConcursoItem[];
+  onOpen: (id: number) => void;
+  onDelete: (c: ConcursoItem) => void;
+  deletingId: number | null;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-4">
+        <span className="material-symbols-outlined text-fg-faint text-[20px]">{icon}</span>
+        <h3 className="text-sm font-semibold text-fg uppercase tracking-wider">{titulo}</h3>
+      </div>
+      <div className="space-y-2">
+        {itens.length === 0 ? (
+          <p className="text-sm text-fg-faint py-6 text-center border border-dashed border-border-dark rounded-xl">{vazio}</p>
+        ) : itens.map((c) => (
+          <div key={c.id} className="group flex items-center justify-between bg-surface-dark border border-border-dark rounded-xl px-5 py-4 hover:border-primary/50 transition-all">
+            <button onClick={() => onOpen(c.id)} className="flex items-center gap-4 text-left flex-1 min-w-0">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <span className="material-symbols-outlined">leaderboard</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-fg-strong truncate group-hover:text-primary transition-colors">{c.nome}</p>
+                <p className="text-xs text-fg-faint cc-num">{c.total_candidatos.toLocaleString("pt-BR")} candidatos</p>
+              </div>
+            </button>
+            {c.publico && c.meu && (
+              <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary shrink-0 mr-1">
+                seu import
+              </span>
+            )}
+            {c.pode_excluir && (
+              <button
+                onClick={() => {
+                  if (confirm(`Excluir "${c.nome}"?${c.publico ? " Ele sairá do catálogo de todos os usuários." : ""}`)) {
+                    onDelete(c);
+                  }
+                }}
+                disabled={deletingId === c.id}
+                className="text-fg-faint hover:text-accent-error transition-colors p-2 disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[20px]">delete</span>
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function PageHeader({ children }: { children?: React.ReactNode }) {
   return (

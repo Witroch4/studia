@@ -150,6 +150,12 @@ class Concurso(Base):
     nome: Mapped[str] = mapped_column(String(256))
     arquivo_nome: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     total_candidatos: Mapped[int] = mapped_column(Integer, default=0)
+    # Dono do import (Better Auth user.id). NULL = legado do pool global.
+    user_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    # Catálogo: admin publica para todos; user comum importa privado.
+    is_public: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     candidatos: Mapped[list["Candidato"]] = relationship(
