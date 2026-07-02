@@ -29,6 +29,9 @@ _BLOCK_FLAGS = re.MULTILINE | re.IGNORECASE
 
 def parse_markdown(text: str) -> list[FlashcardData]:
     """Parseia texto markdown e retorna lista de flashcards."""
+    # Normaliza line endings: o mesmo arquivo salvo com CRLF (Windows) tem que
+    # gerar cards byte-idênticos ao LF — senão o dedup do import não os casa.
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     # Divide em blocos por "Flashcard:" (case-insensitive: "flashcard:" também vale)
     # Usa lookahead para não consumir o delimitador
     blocks = re.split(r"(?=^\*{0,2}flashcard:)", text.strip(), flags=_BLOCK_FLAGS)
