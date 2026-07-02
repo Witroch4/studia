@@ -35,9 +35,15 @@ def _str_vazia(v: object) -> str:
 
 
 def _int_ou_none(v: object) -> Optional[int]:
+    s = str(v).strip() if v is not None else ""
     try:
-        return int(str(v).strip())
-    except (TypeError, ValueError):
+        return int(s)
+    except ValueError:
+        pass
+    try:
+        # JSON costuma trazer float inteiro ("10.0") onde se espera int.
+        return int(float(s))
+    except ValueError:
         return None
 
 
@@ -53,6 +59,18 @@ def _lista_de_str(v: object) -> list[str]:
     if not isinstance(v, list):
         return []
     return [str(item).strip() for item in v if item is not None]
+
+
+def _lista_de_dicts(v: object) -> list[dict]:
+    """Lista de sub-modelos tolerante: não-lista vira [], item não-dict é descartado."""
+    if not isinstance(v, list):
+        return []
+    return [item for item in v if isinstance(item, dict)]
+
+
+def _dict_ou_vazio(v: object) -> dict:
+    """Modelo aninhado tolerante: não-dict vira {} (todos os campos no default)."""
+    return v if isinstance(v, dict) else {}
 
 
 class EventoEdital(BaseModel):
@@ -153,6 +171,13 @@ class CargoEdital(BaseModel):
     def _opcionais(cls, v: object) -> Optional[str]:
         return _str_ou_none(v)
 
+    @field_validator(
+        "conteudo_programatico", "etapas", "distribuicao_questoes", mode="before"
+    )
+    @classmethod
+    def _listas(cls, v: object) -> list[dict]:
+        return _lista_de_dicts(v)
+
 
 class ConcursoEdital(BaseModel):
     orgao: Optional[str] = None
@@ -175,3 +200,13 @@ class EditalExtraido(BaseModel):
     concurso: ConcursoEdital = Field(default_factory=ConcursoEdital)
     eventos: list[EventoEdital] = Field(default_factory=list)
     cargos: list[CargoEdital] = Field(default_factory=list)
+
+    @field_validator("concurso", mode="before")
+    @classmethod
+    def _concurso(cls, v: object) -> dict:
+        return _dict_ou_vazio(v)
+
+    @field_validator("eventos", "cargos", mode="before")
+    @classmethod
+    def _listas(cls, v: object) -> list[dict]:
+        return _lista_de_dicts(v)

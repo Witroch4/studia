@@ -106,3 +106,37 @@ def test_numero_invalido_em_quantidade_peso_vira_none():
     assert dq[0].quantidade is None and dq[0].peso is None
     # string numérica ainda converte
     assert dq[1].quantidade == 15 and dq[1].peso == 2.5
+
+
+def test_listas_null_viram_vazias():
+    # null onde se espera lista de modelos: nunca ValidationError.
+    assert EditalExtraido.model_validate({"eventos": None}).eventos == []
+    assert EditalExtraido.model_validate({"cargos": None}).cargos == []
+    cargo = EditalExtraido.model_validate(
+        {"cargos": [{"nome": "X", "conteudo_programatico": None,
+                     "etapas": None, "distribuicao_questoes": None}]}
+    ).cargos[0]
+    assert cargo.conteudo_programatico == []
+    assert cargo.etapas == []
+    assert cargo.distribuicao_questoes == []
+
+
+def test_concurso_nao_dict_vira_vazio():
+    assert EditalExtraido.model_validate({"concurso": None}).concurso.orgao is None
+    assert EditalExtraido.model_validate({"concurso": "IDECAN"}).concurso.orgao is None
+
+
+def test_item_nao_dict_em_lista_de_modelos_e_descartado():
+    ext = EditalExtraido.model_validate(
+        {"eventos": ["string solta", {"titulo": "Prova", "tipo": "prova"}]}
+    )
+    assert len(ext.eventos) == 1
+    assert ext.eventos[0].titulo == "Prova"
+
+
+def test_quantidade_float_inteiro_de_json_vira_int():
+    ext = EditalExtraido.model_validate(
+        {"cargos": [{"nome": "X", "distribuicao_questoes": [
+            {"materia": "LP", "quantidade": 10.0}]}]}
+    )
+    assert ext.cargos[0].distribuicao_questoes[0].quantidade == 10
