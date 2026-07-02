@@ -897,3 +897,29 @@ class AppSetting(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+
+class PerfilUsuario(Base):
+    """Perfil público do usuário (apelido do fórum, avatar, visibilidade).
+
+    Linha criada lazy no primeiro PATCH/upload do usuário; ausência de linha
+    equivale a todos os defaults. `owner_uid` = Better Auth "user".id.
+    """
+
+    __tablename__ = "perfis_usuario"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner_uid: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    apelido: Mapped[Optional[str]] = mapped_column(
+        String(32), nullable=True, unique=True, index=True
+    )
+    # Objeto MinIO "avatars/{uuid}.webp" — uuid aleatório por upload (nunca o
+    # uid, que não pode vazar em URL); re-upload gera chave nova = cache-busting.
+    avatar_key: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    perfil_publico: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    mostrar_estatisticas: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    mostrar_foto: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
