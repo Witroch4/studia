@@ -22,6 +22,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+import perfil_service
 from auth import CurrentUser, get_current_user_opt, require_admin, require_user
 from forum_personas import sortear_persona
 from forum_pseudonimo import pseudonimo
@@ -3144,27 +3145,34 @@ class CriarComentarioReq(BaseModel):
     quadro: Literal["alunos", "professores"] = "alunos"
 
 
-def _display_name(c: QuestaoComentario) -> str:
-    """Persona (admin no quadro professores) > pseudônimo TC > nome real do studIA."""
+def _display_name(c: QuestaoComentario, perfil: dict | None = None) -> str:
+    """Persona (admin no quadro professores) > pseudônimo TC > apelido do perfil
+    > nome real do studIA."""
     if c.persona_nome:
         return c.persona_nome
     if c.origem == "tc":
         return pseudonimo(c.autor_nome or str(c.tc_comentario_id or c.id))
+    if perfil and perfil.get("apelido"):
+        return perfil["apelido"]
     return c.autor_nome or "Anônimo"
 
 
 def _serializar_comentario(
-    c: QuestaoComentario, *, meu_voto: int, user: CurrentUser, respostas: list[dict[str, Any]]
+    c: QuestaoComentario, *, meu_voto: int, user: CurrentUser,
+    respostas: list[dict[str, Any]], perfil: dict | None = None,
 ) -> dict[str, Any]:
     removido = c.deleted_at is not None
-    nome = _display_name(c)
+    nome = _display_name(c, perfil)
     dono = c.origem == "studia" and c.owner_uid == user.id
+    eh_studia = c.origem == "studia"
     return {
         "id": c.id,
         "parent_id": c.parent_id,
         "origem": c.origem,
         "display_name": nome,
         "autor_inicial": (nome.strip()[:1] or "?").upper(),
+        "autor_apelido": (perfil or {}).get("apelido") if eh_studia else None,
+        "autor_avatar_url": (perfil or {}).get("avatar_url") if eh_studia else None,
         "texto_md": None if removido else c.texto_md,
         "score": c.score or 0,
         "meu_voto": meu_voto,
@@ -3244,8 +3252,15 @@ async def listar_forum(
         elif c.deleted_at is None:
             respostas_por_pai.setdefault(c.parent_id, []).append(c)
 
+    perfis = await perfil_service.perfis_forum_por_uids(
+        db, {c.owner_uid for c in todos if c.origem == "studia" and c.owner_uid}
+    )
+
     def _serial(c: QuestaoComentario, respostas: list[dict[str, Any]]) -> dict[str, Any]:
-        return _serializar_comentario(c, meu_voto=meus.get(c.id, 0), user=user, respostas=respostas)
+        return _serializar_comentario(
+            c, meu_voto=meus.get(c.id, 0), user=user,
+            respostas=respostas, perfil=perfis.get(c.owner_uid),
+        )
 
     out: list[dict[str, Any]] = []
     total = 0
@@ -3419,7 +3434,13 @@ async def editar_comentario(
             ComentarioVoto.comentario_id == c.id, ComentarioVoto.usuario_uid == user.id
         )
     )).scalar_one_or_none() or 0
-    return _serializar_comentario(c, meu_voto=meu, user=user, respostas=[])
+    perfis = await perfil_service.perfis_forum_por_uids(
+        db, {c.owner_uid} if c.origem == "studia" and c.owner_uid else set()
+    )
+    return _serializar_comentario(
+        c, meu_voto=meu, user=user,
+        respostas=[], perfil=perfis.get(c.owner_uid),
+    )
 
 
 @router.delete("/forum/{comentario_id}")
@@ -3508,7 +3529,13 @@ async def criar_comentario(
     db.add(c)
     await db.commit()
     await db.refresh(c)
-    return _serializar_comentario(c, meu_voto=0, user=user, respostas=[])
+    perfis = await perfil_service.perfis_forum_por_uids(
+        db, {c.owner_uid} if c.origem == "studia" and c.owner_uid else set()
+    )
+    return _serializar_comentario(
+        c, meu_voto=0, user=user,
+        respostas=[], perfil=perfis.get(c.owner_uid),
+    )
 
 
 class VotarReq(BaseModel):
