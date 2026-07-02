@@ -124,7 +124,7 @@ async def test_polling_extracao(client, db_session, auth_state):
 
 
 async def _seed_banco_questoes(db) -> None:
-    """Banca IDECAN + matéria Português + 3 questões (1 anulada)."""
+    """Banca IDECAN + matéria Português + 4 questões (2 anuladas, uma por filtro)."""
     banca = Banca(nome="Instituto de Desenvolvimento — IDECAN", slug="idecan", sigla="IDECAN")
     mat = Materia(nome="Português")
     db.add_all([banca, mat])
@@ -135,8 +135,12 @@ async def _seed_banco_questoes(db) -> None:
     db.add_all([
         Questao(banca_id=banca.id, materia_id=mat.id, prova_id=prova.id, gabarito="A"),
         Questao(banca_id=banca.id, materia_id=mat.id, prova_id=prova.id, gabarito="B"),
+        # Anulada SÓ pelo status (gabarito normal) — cobre o filtro de status.
         Questao(banca_id=banca.id, materia_id=mat.id, prova_id=prova.id,
-                status="ANULADA", gabarito="ANULADA"),
+                status="ANULADA", gabarito="C"),
+        # Anulada SÓ pelo gabarito (status None) — cobre o filtro de gabarito.
+        Questao(banca_id=banca.id, materia_id=mat.id, prova_id=prova.id,
+                gabarito="ANULADA"),
     ])
     await db.commit()
 
@@ -169,7 +173,7 @@ async def test_criar_mapa_completo(client, db_session, auth_state, _pro, _match_
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["cadernos_criados"] == 1
-    assert body["total_questoes"] == 2  # anulada ficou fora
+    assert body["total_questoes"] == 2  # 2 válidas de 4 (anuladas por status E por gabarito fora)
 
     mapa = (await db_session.execute(select(MapaAprovacao))).scalar_one()
     assert mapa.cargo_nome == "Engenheiro Civil"
@@ -216,19 +220,27 @@ async def test_criar_mapa_duplicado_409(client, db_session, auth_state, _pro, _m
     db_session.add(EditalExtracao(concurso_id=c.id, status="concluido", dados=DADOS_OK))
     await db_session.commit()
     auth_state["user"] = make_user("u1")
-    await client.post("/api/q/mapas", json={"concurso_id": c.id, "cargo_nome": "Engenheiro Civil"})
+    r1 = await client.post("/api/q/mapas", json={"concurso_id": c.id, "cargo_nome": "Engenheiro Civil"})
+    assert r1.status_code == 200, r1.text
+    mapa_id = r1.json()["id"]
     r = await client.post("/api/q/mapas", json={"concurso_id": c.id, "cargo_nome": "Engenheiro Civil"})
     assert r.status_code == 409
-    assert "id" in r.json()["detail"] if isinstance(r.json().get("detail"), dict) else True
+    body = r.json()["detail"]
+    assert body["id"] == mapa_id  # detail estruturado: wizard usa o id programaticamente
 
 
 async def test_criar_mapa_ia_match_fora_nao_quebra(client, db_session, auth_state, _pro, monkeypatch):
     """IA de match indisponível → mapa nasce sem cadernos, sem 500."""
     import mapa_service
+    chamadas: list[tuple] = []
     def _boom(a, b, m):
+        chamadas.append((a, b, m))
         raise RuntimeError("proxy fora")
     monkeypatch.setattr(mapa_service, "mapear_materias", _boom)
     c = await seed_concurso(db_session)
+    # COM matérias no banco: o guard `materias_edital and materias_banco` passa
+    # e o _boom dispara de verdade — cobre o except do montar_mapa.
+    await _seed_banco_questoes(db_session)
     db_session.add(EditalExtracao(concurso_id=c.id, status="concluido", dados=DADOS_OK))
     await db_session.commit()
     auth_state["user"] = make_user("u1")
@@ -236,3 +248,13 @@ async def test_criar_mapa_ia_match_fora_nao_quebra(client, db_session, auth_stat
                           json={"concurso_id": c.id, "cargo_nome": "Engenheiro Civil"})
     assert r.status_code == 200
     assert r.json()["cadernos_criados"] == 0
+    assert chamadas, "mapear_materias deveria ter sido chamado (e falhado)"
+
+    # Mapa nasce íntegro: itens criados, só sem caderno/matéria vinculados.
+    mapa = (await db_session.execute(select(MapaAprovacao))).scalar_one()
+    itens = (await db_session.execute(
+        select(MapaItem).where(MapaItem.mapa_id == mapa.id).order_by(MapaItem.ordem)
+    )).scalars().all()
+    assert [i.assunto_texto for i in itens] == ["Crase", "Concordância"]
+    assert all(i.caderno_id is None for i in itens)
+    assert (await db_session.execute(select(CadernoQuestoes))).scalars().all() == []

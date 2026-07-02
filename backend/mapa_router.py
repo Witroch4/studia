@@ -170,7 +170,10 @@ async def criar_mapa(
         )
     ).scalar_one_or_none()
     if existente:
-        raise HTTPException(409, f"Você já tem um Mapa para este cargo (id {existente})")
+        # detail estruturado: o wizard do frontend usa o id p/ redirecionar ao Mapa.
+        raise HTTPException(
+            409, {"msg": "Você já tem um Mapa para este cargo", "id": existente}
+        )
 
     modelo = await get_setting(db, SETTING_MAPA, SETTING_DEFAULTS[SETTING_MAPA])
     mapa, n_cadernos, n_questoes = await mapa_service.montar_mapa(
