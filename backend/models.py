@@ -772,6 +772,49 @@ class QuestaoTcImport(Base):
     )
 
 
+class TcConcurso(Base):
+    """Concurso coletado da fonte externa (busca avançada) — metadados + arquivos."""
+    __tablename__ = "tc_concursos"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    concurso_id_externo: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    edital_id_externo: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    nome_completo: Mapped[str] = mapped_column(Text)
+    url_concurso: Mapped[str] = mapped_column(String(512))
+    banca_nome: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    orgao_sigla: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    orgao_nome: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    edital_nome: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ano: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    data_aplicacao: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    escolaridade: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    raw_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now())
+    arquivos: Mapped[list["TcConcursoArquivo"]] = relationship(
+        back_populates="concurso", cascade="all, delete-orphan", lazy="selectin")
+
+
+class TcConcursoArquivo(Base):
+    """Arquivo (edital/prova/gabarito) de um concurso, já hospedado no MinIO."""
+    __tablename__ = "tc_concurso_arquivos"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    concurso_id: Mapped[int] = mapped_column(
+        ForeignKey("tc_concursos.id", ondelete="CASCADE"), index=True)
+    tipo: Mapped[str] = mapped_column(String(64))  # EDITAL | PROVA_OBJETIVA | ... (string da fonte)
+    arquivo_id_externo: Mapped[int] = mapped_column(BigInteger)
+    uuid: Mapped[str] = mapped_column(String(64), index=True)
+    nome_arquivo: Mapped[str] = mapped_column(Text)
+    minio_object_key: Mapped[str] = mapped_column(String(512))
+    content_type: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    tamanho_bytes: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    baixado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    concurso: Mapped["TcConcurso"] = relationship(back_populates="arquivos")
+    __table_args__ = (
+        UniqueConstraint("concurso_id", "arquivo_id_externo", name="uq_tc_concurso_arquivo"),
+    )
+
+
 # ─── Cronograma ────────────────────────────────────────────
 
 

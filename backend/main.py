@@ -138,6 +138,10 @@ async def csrf_protect(request, call_next):
 from guias_router import router as guias_router  # noqa: E402
 app.include_router(guias_router)
 
+# Concursos coletados via busca avançada TC (edital + arquivos anexos)
+from concursos_router import router as concursos_router  # noqa: E402
+app.include_router(concursos_router)
+
 # witdev-tec-master: questões/cadernos/IA
 from q_router import router as q_router  # noqa: E402
 app.include_router(q_router)

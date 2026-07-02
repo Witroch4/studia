@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -142,6 +143,33 @@ CREATE TABLE IF NOT EXISTS tc_caderno_questoes (
 
 CREATE INDEX IF NOT EXISTS idx_tc_caderno_questoes_caderno
 ON tc_caderno_questoes (caderno_id, posicao);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tc_jobs_active_concursos
+ON tc_jobs (kind, external_id)
+WHERE kind = 'concursos' AND status IN ('pending', 'running', 'blocked');
+
+CREATE TABLE IF NOT EXISTS tc_concurso_units (
+  id BIGSERIAL PRIMARY KEY,
+  job_id BIGINT NOT NULL REFERENCES tc_jobs(id) ON DELETE CASCADE,
+  concurso_id BIGINT NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  status TEXT NOT NULL,
+  task_id TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  arquivos_ok INTEGER NOT NULL DEFAULT 0,
+  http_status INTEGER,
+  block_reason TEXT,
+  blocked_until TIMESTAMPTZ,
+  last_error TEXT,
+  leased_until TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at TIMESTAMPTZ,
+  UNIQUE (job_id, concurso_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tc_concurso_units_job_status
+ON tc_concurso_units (job_id, status, concurso_id);
 """
 
 
@@ -150,6 +178,17 @@ class CadernoJob:
     id: int
     caderno_id: int
     expected_total: int | None
+    total_units: int
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
+class ConcursosJob:
+    """Job kind='concursos'. `external_id` é canônico (ex: "BANCA:95|PROFISSAO:6"),
+    não numérico como o `caderno_id` de `CadernoJob` — por isso um dataclass à parte."""
+
+    id: int
+    external_id: str
     total_units: int
     status: str
 
@@ -1163,3 +1202,406 @@ async def list_active_comentario_jobs(session: AsyncSession) -> list[CadernoJob]
         )
         for row in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# Funções de job/unit de concursos (espelham as de comentários acima)
+# ---------------------------------------------------------------------------
+
+async def upsert_concursos_job(
+    session: AsyncSession,
+    *,
+    external_id: str,
+    filtros: list[dict[str, Any]],
+    requested_by: int | None = None,
+) -> ConcursosJob:
+    """Cria/reaproveita job kind='concursos'.
+
+    Não insere units (isso é feito por `upsert_concurso_units` depois que a
+    descoberta paginada da busca avançada trouxer os concursos). `params`
+    guarda os filtros usados na busca + o status da descoberta em si
+    (`params.discovery`), lido pela UI via `set_concursos_job_discovery`.
+
+    Em reuso de job ativo, filtros/discovery NÃO são resetados — só
+    `requested_by` (fallback) e `updated_at`.
+    """
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:lock_key))"),
+        {"lock_key": f"tc:concursos:{external_id}"},
+    )
+
+    row = (
+        await session.execute(
+            text(
+                """
+                SELECT id, external_id, total_units, status
+                FROM tc_jobs
+                WHERE kind = 'concursos'
+                  AND external_id = :external_id
+                  AND status <> 'cancelled'
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ),
+            {"external_id": external_id},
+        )
+    ).mappings().first()
+
+    if row is None:
+        params_json = json.dumps({"filtros": filtros, "discovery": "pending"})
+        row = (
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO tc_jobs (
+                      kind, status, source, external_id, expected_total, page_size,
+                      requested_by, total_units, params, updated_at
+                    )
+                    VALUES (
+                      'concursos', 'pending', 'tc', :external_id, NULL,
+                      1, :requested_by, 0, CAST(:params AS jsonb), now()
+                    )
+                    RETURNING id, external_id, total_units, status
+                    """
+                ),
+                {
+                    "external_id": external_id,
+                    "requested_by": requested_by,
+                    "params": params_json,
+                },
+            )
+        ).mappings().one()
+    else:
+        row = (
+            await session.execute(
+                text(
+                    """
+                    UPDATE tc_jobs
+                    SET
+                      requested_by = COALESCE(requested_by, :requested_by),
+                      updated_at = now()
+                    WHERE id = :job_id
+                    RETURNING id, external_id, total_units, status
+                    """
+                ),
+                {
+                    "job_id": row["id"],
+                    "requested_by": requested_by,
+                },
+            )
+        ).mappings().one()
+
+    return ConcursosJob(
+        id=int(row["id"]),
+        external_id=str(row["external_id"]),
+        total_units=int(row["total_units"] or 0),
+        status=str(row["status"]),
+    )
+
+
+async def upsert_concurso_units(
+    session: AsyncSession, *, job_id: int, units: list[dict[str, Any]]
+) -> int:
+    """Insere/atualiza units (uma por concurso_id) a partir da saída de
+    `parse_busca_page` (`[{"concurso_id": int, "payload": {...}}, ...]`).
+
+    ON CONFLICT (job_id, concurso_id) atualiza só o payload/updated_at — uma
+    nova página de descoberta pode trazer dados mais recentes do mesmo
+    concurso sem perder o status/progresso da unit. Também atualiza
+    `tc_jobs.total_units` para refletir o total real de units conhecidas até
+    agora (a descoberta é paginada e incremental). Retorna a quantidade de
+    units processadas nesta chamada.
+    """
+    count = 0
+    for unit in units:
+        payload_json = json.dumps(unit["payload"])
+        await session.execute(
+            text(
+                """
+                INSERT INTO tc_concurso_units (
+                  job_id, concurso_id, payload, status, updated_at
+                )
+                VALUES (
+                  :job_id, :concurso_id, CAST(:payload AS jsonb), 'pending', now()
+                )
+                ON CONFLICT (job_id, concurso_id)
+                DO UPDATE SET payload = EXCLUDED.payload, updated_at = now()
+                """
+            ),
+            {
+                "job_id": job_id,
+                "concurso_id": unit["concurso_id"],
+                "payload": payload_json,
+            },
+        )
+        count += 1
+
+    await session.execute(
+        text(
+            """
+            UPDATE tc_jobs
+            SET total_units = (
+                  SELECT count(*) FROM tc_concurso_units WHERE job_id = :job_id
+                ),
+                updated_at = now()
+            WHERE id = :job_id
+            """
+        ),
+        {"job_id": job_id},
+    )
+    return count
+
+
+async def refresh_concursos_job_counts(session: AsyncSession, *, job_id: int) -> None:
+    await session.execute(
+        text(
+            """
+            UPDATE tc_jobs j
+            SET
+              done_units = s.done_units,
+              failed_units = s.failed_units,
+              blocked_units = s.blocked_units,
+              updated_at = now()
+            FROM (
+              SELECT
+                job_id,
+                count(*) FILTER (WHERE status = 'done') AS done_units,
+                count(*) FILTER (WHERE status = 'failed') AS failed_units,
+                count(*) FILTER (WHERE status = 'blocked') AS blocked_units
+              FROM tc_concurso_units
+              WHERE job_id = :job_id
+              GROUP BY job_id
+            ) s
+            WHERE j.id = s.job_id
+            """
+        ),
+        {"job_id": job_id},
+    )
+
+
+async def refresh_concursos_job_status(session: AsyncSession, *, job_id: int) -> None:
+    await refresh_concursos_job_counts(session, job_id=job_id)
+    await session.execute(
+        text(
+            """
+            UPDATE tc_jobs j
+            SET
+              status = CASE
+                WHEN j.total_units > 0 AND j.done_units >= j.total_units THEN 'done'
+                WHEN EXISTS (
+                  SELECT 1 FROM tc_concurso_units u
+                  WHERE u.job_id = j.id
+                    AND u.status = 'blocked'
+                    AND COALESCE(u.blocked_until, now() + interval '1 second') > now()
+                ) THEN 'blocked'
+                WHEN NOT EXISTS (
+                  SELECT 1 FROM tc_concurso_units u
+                  WHERE u.job_id = j.id
+                    AND u.status IN ('pending', 'queued', 'running')
+                ) AND j.blocked_units > 0 THEN 'blocked'
+                WHEN NOT EXISTS (
+                  SELECT 1 FROM tc_concurso_units u
+                  WHERE u.job_id = j.id
+                    AND u.status IN ('pending', 'queued', 'running', 'blocked')
+                ) AND j.failed_units > 0 THEN 'failed'
+                WHEN EXISTS (
+                  SELECT 1 FROM tc_concurso_units u
+                  WHERE u.job_id = j.id
+                    AND u.status IN ('running', 'queued', 'pending', 'failed', 'blocked')
+                ) THEN 'running'
+                ELSE j.status
+              END,
+              finished_at = CASE
+                WHEN j.total_units > 0 AND j.done_units >= j.total_units THEN now()
+                WHEN NOT EXISTS (
+                  SELECT 1 FROM tc_concurso_units u
+                  WHERE u.job_id = j.id
+                    AND u.status IN ('pending', 'queued', 'running', 'blocked')
+                ) AND j.failed_units > 0 THEN now()
+                ELSE j.finished_at
+              END,
+              updated_at = now()
+            WHERE j.id = :job_id
+            """
+        ),
+        {"job_id": job_id},
+    )
+
+
+async def list_enqueueable_concurso_units(
+    session: AsyncSession, *, job_id: int, limit: int | None = None
+) -> list[dict[str, Any]]:
+    limit_sql = "LIMIT :limit" if limit is not None else ""
+    params: dict[str, Any] = {"job_id": job_id}
+    if limit is not None:
+        params["limit"] = limit
+    rows = (
+        await session.execute(
+            text(
+                f"""
+                SELECT id AS unit_id, job_id, concurso_id, payload, status, attempts, block_reason
+                FROM tc_concurso_units
+                WHERE job_id = :job_id
+                  AND (
+                    status IN ('pending', 'failed')
+                    OR (status = 'blocked' AND blocked_until <= now())
+                    OR (status = 'running' AND leased_until < now())
+                  )
+                ORDER BY concurso_id
+                {limit_sql}
+                """
+            ),
+            params,
+        )
+    ).mappings().all()
+    return [dict(row) for row in rows]
+
+
+async def lease_concurso_unit(
+    session: AsyncSession,
+    *,
+    job_id: int,
+    concurso_id: int,
+    ack_wait_seconds: int,
+) -> dict[str, Any] | None:
+    row = (
+        await session.execute(
+            text(
+                """
+                UPDATE tc_concurso_units
+                SET
+                  status = 'running',
+                  attempts = attempts + 1,
+                  leased_until = now() + (:ack_wait_seconds * interval '1 second'),
+                  block_reason = NULL,
+                  blocked_until = NULL,
+                  last_error = NULL,
+                  finished_at = NULL,
+                  updated_at = now()
+                WHERE job_id = :job_id
+                  AND concurso_id = :concurso_id
+                  AND (
+                    status IN ('pending', 'queued', 'failed')
+                    OR (status = 'blocked' AND COALESCE(blocked_until, now()) <= now())
+                    OR (status = 'running' AND leased_until <= now())
+                  )
+                RETURNING id AS unit_id, job_id, concurso_id, payload, attempts, status
+                """
+            ),
+            {
+                "job_id": job_id,
+                "concurso_id": concurso_id,
+                "ack_wait_seconds": ack_wait_seconds,
+            },
+        )
+    ).mappings().first()
+    if row is None:
+        return None
+
+    await session.execute(
+        text(
+            """
+            UPDATE tc_jobs
+            SET status = 'running', updated_at = now(), finished_at = NULL
+            WHERE id = :job_id
+              AND status IN ('pending', 'blocked', 'failed')
+            """
+        ),
+        {"job_id": row["job_id"]},
+    )
+    return dict(row)
+
+
+async def mark_concurso_unit_done(
+    session: AsyncSession,
+    *,
+    unit_id: int,
+    job_id: int,
+    arquivos_ok: int,
+) -> None:
+    await session.execute(
+        text(
+            """
+            UPDATE tc_concurso_units
+            SET
+              status = 'done',
+              arquivos_ok = :arquivos_ok,
+              http_status = NULL,
+              block_reason = NULL,
+              blocked_until = NULL,
+              last_error = NULL,
+              leased_until = NULL,
+              finished_at = now(),
+              updated_at = now()
+            WHERE id = :unit_id
+            """
+        ),
+        {"unit_id": unit_id, "arquivos_ok": arquivos_ok},
+    )
+    await refresh_concursos_job_status(session, job_id=job_id)
+
+
+async def mark_concurso_unit_failed(
+    session: AsyncSession,
+    *,
+    unit_id: int,
+    job_id: int,
+    error: str,
+) -> None:
+    await session.execute(
+        text(
+            """
+            UPDATE tc_concurso_units
+            SET
+              status = 'failed',
+              last_error = :error,
+              leased_until = NULL,
+              updated_at = now()
+            WHERE id = :unit_id
+            """
+        ),
+        {"unit_id": unit_id, "error": error},
+    )
+    await refresh_concursos_job_status(session, job_id=job_id)
+
+
+async def release_concurso_unit_to_pending(session: AsyncSession, *, unit_id: int) -> None:
+    """Devolve uma unit de concursos em voo pra 'pending' (sem perder progresso)."""
+    await session.execute(
+        text(
+            """
+            UPDATE tc_concurso_units
+            SET status = 'pending', leased_until = NULL, task_id = NULL, updated_at = now()
+            WHERE id = :unit_id
+            """
+        ),
+        {"unit_id": unit_id},
+    )
+
+
+async def is_concursos_paused(session: AsyncSession, *, job_id: int) -> bool:
+    """True se o job de concursos está pausado pelo usuário."""
+    row = (
+        await session.execute(
+            text("SELECT paused_by_user FROM tc_jobs WHERE id = :job_id"),
+            {"job_id": job_id},
+        )
+    ).scalar_one_or_none()
+    return bool(row)
+
+
+async def set_concursos_job_discovery(
+    session: AsyncSession, *, job_id: int, status: str, error: str | None = None
+) -> None:
+    """Grava o progresso da descoberta (busca paginada) em params.discovery p/ UI."""
+    await session.execute(
+        text(
+            """
+            UPDATE tc_jobs
+            SET params = params || jsonb_build_object('discovery', :status, 'discovery_error', :error),
+                updated_at = now()
+            WHERE id = :job_id
+            """
+        ),
+        {"job_id": job_id, "status": status, "error": error},
+    )
