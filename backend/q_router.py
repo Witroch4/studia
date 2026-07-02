@@ -45,6 +45,7 @@ from models import (
     QuestaoFavorita,
     QuestaoTcImport,
     Resolucao,
+    questao_assunto,
 )
 
 import re as _re
@@ -1251,9 +1252,35 @@ async def buscar_questao_externo(
     }
 
 
+DERIVAR_TIPOS = (
+    "todas",  # clone (sem levar as resoluções — elas são por caderno)
+    "resolvidas", "acertadas", "erradas", "em_branco", "favoritas", "anotadas",
+)
+
+
 class DerivarCadernoReq(BaseModel):
-    tipo: str = Field(..., description="resolvidas | acertadas | erradas")
+    tipo: str = Field(..., description=" | ".join(DERIVAR_TIPOS))
     nome: str = Field(default="", description="nome do novo caderno (vazio = automático)")
+    # Recorte opcional (seleção na árvore de desempenho): questões cuja matéria
+    # está em materia_ids OU que têm algum assunto em assunto_ids.
+    materia_ids: list[int] | None = None
+    assunto_ids: list[int] | None = None
+
+
+async def _ultima_resolucao_por_questao(
+    db: AsyncSession, caderno_id: int, usuario_uid: str
+) -> dict[int, Any]:
+    """questao_id → acertou da resolução MAIS RECENTE do usuário no caderno."""
+    rows = (await db.execute(
+        select(Resolucao.questao_id, Resolucao.acertou)
+        .where(Resolucao.usuario_uid == usuario_uid, Resolucao.caderno_id == caderno_id)
+        .order_by(Resolucao.created_at.desc())
+    )).all()
+    acertou_por_q: dict[int, Any] = {}
+    for r in rows:
+        if r.questao_id not in acertou_por_q:  # desc → mantém a mais recente
+            acertou_por_q[r.questao_id] = r.acertou
+    return acertou_por_q
 
 
 @router.post("/cadernos/{caderno_id}/derivar")
@@ -1264,22 +1291,68 @@ async def derivar_caderno(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Cria um caderno novo com o subconjunto das questões que o usuário
-    resolveu/acertou/errou neste caderno. Snapshot dos IDs (estilo TC)."""
-    if req.tipo not in ("resolvidas", "acertadas", "erradas"):
-        raise HTTPException(422, "tipo inválido (resolvidas | acertadas | erradas)")
+    resolveu/acertou/errou/etc. neste caderno. Snapshot dos IDs (estilo TC)."""
+    if req.tipo not in DERIVAR_TIPOS:
+        raise HTTPException(422, f"tipo inválido ({' | '.join(DERIVAR_TIPOS)})")
     cad = await _caderno_acessivel(db, caderno_id, user)
+    todos_ids = [int(q) for q in (cad.question_ids or [])]
 
-    rows = (await db.execute(
-        select(Resolucao.questao_id, Resolucao.acertou)
-        .where(Resolucao.usuario_uid == user.id, Resolucao.caderno_id == caderno_id)
-        .order_by(Resolucao.created_at.desc())
-    )).all()
-    acertou_por_q: dict[int, Any] = {}
-    for r in rows:
-        if r.questao_id not in acertou_por_q:  # desc → mantém a mais recente
-            acertou_por_q[r.questao_id] = r.acertou
+    acertou_por_q = await _ultima_resolucao_por_questao(db, caderno_id, user.id)
+
+    # Conjuntos auxiliares só quando o tipo/recorte precisa deles.
+    anuladas: set[int] = set()
+    if req.tipo == "em_branco" and todos_ids:
+        anul_rows = (await db.execute(
+            select(Questao.id, Questao.status, Questao.gabarito).where(Questao.id.in_(todos_ids))
+        )).all()
+        anuladas = {r.id for r in anul_rows if _questao_anulada(r.status, r.gabarito)}
+
+    favoritas: set[int] = set()
+    if req.tipo == "favoritas" and todos_ids:
+        favoritas = set((await db.execute(
+            select(QuestaoFavorita.questao_id).where(
+                QuestaoFavorita.owner_uid == user.id,
+                QuestaoFavorita.questao_id.in_(todos_ids),
+            )
+        )).scalars().all())
+
+    anotadas: set[int] = set()
+    if req.tipo == "anotadas" and todos_ids:
+        anotadas = set((await db.execute(
+            select(QuestaoAnotacao.questao_id).where(
+                QuestaoAnotacao.usuario_uid == user.id,
+                QuestaoAnotacao.caderno_id == caderno_id,
+            )
+        )).scalars().all())
+
+    permitidas: set[int] | None = None
+    if req.materia_ids or req.assunto_ids:
+        permitidas = set()
+        if req.materia_ids and todos_ids:
+            permitidas |= set((await db.execute(
+                select(Questao.id).where(
+                    Questao.id.in_(todos_ids), Questao.materia_id.in_(req.materia_ids)
+                )
+            )).scalars().all())
+        if req.assunto_ids and todos_ids:
+            permitidas |= set((await db.execute(
+                select(questao_assunto.c.questao_id).where(
+                    questao_assunto.c.questao_id.in_(todos_ids),
+                    questao_assunto.c.assunto_id.in_(req.assunto_ids),
+                )
+            )).scalars().all())
 
     def incluir(qid: int) -> bool:
+        if permitidas is not None and qid not in permitidas:
+            return False
+        if req.tipo == "todas":
+            return True
+        if req.tipo == "em_branco":
+            return qid not in acertou_por_q and qid not in anuladas
+        if req.tipo == "favoritas":
+            return qid in favoritas
+        if req.tipo == "anotadas":
+            return qid in anotadas
         if qid not in acertou_por_q:
             return False
         if req.tipo == "resolvidas":
@@ -1289,11 +1362,15 @@ async def derivar_caderno(
         return acertou_por_q[qid] is False  # erradas
 
     # Preserva a ordem original do caderno.
-    ids = [qid for qid in (cad.question_ids or []) if incluir(qid)]
+    ids = [qid for qid in todos_ids if incluir(qid)]
     if not ids:
         raise HTTPException(400, "Nenhuma questão nessa categoria ainda.")
 
-    label = {"resolvidas": "Resolvidas", "acertadas": "Acertadas", "erradas": "Erradas"}[req.tipo]
+    label = {
+        "todas": "Cópia", "resolvidas": "Resolvidas", "acertadas": "Acertadas",
+        "erradas": "Erradas", "em_branco": "Em branco", "favoritas": "Favoritas",
+        "anotadas": "Anotadas",
+    }[req.tipo]
     nome = (req.nome or "").strip() or f"{label} — {cad.nome}"
     novo = CadernoQuestoes(
         owner_uid=user.id,
@@ -2130,6 +2207,105 @@ async def stats_detalhe(
             for r in rows
         ]
 
+    # ─── Resumo por questão DISTINTA (última resolução vale) + árvore ───
+    # A aba Estatísticas conta como o TC: 1 questão = 1 resolvida, mesmo com
+    # re-tentativas. Os campos "resolvidas/acertos/erros" do topo (por tentativa)
+    # são mantidos por compatibilidade com o cronograma.
+    todos_ids = [int(q) for q in (cad.question_ids or [])]
+    acertou_por_q = await _ultima_resolucao_por_questao(db, caderno_id, user.id)
+
+    q_rows: list[Any] = []
+    assunto_rows: list[Any] = []
+    if todos_ids:
+        q_rows = (await db.execute(
+            select(
+                Questao.id,
+                Questao.materia_id,
+                Materia.nome.label("materia_nome"),
+                Questao.status,
+                Questao.gabarito,
+            )
+            .select_from(Questao)
+            .outerjoin(Materia, Materia.id == Questao.materia_id)
+            .where(Questao.id.in_(todos_ids))
+        )).all()
+        assunto_rows = (await db.execute(
+            select(
+                questao_assunto.c.questao_id,
+                Assunto.id.label("assunto_id"),
+                Assunto.nome.label("assunto_nome"),
+            )
+            .select_from(questao_assunto)
+            .join(Assunto, Assunto.id == questao_assunto.c.assunto_id)
+            .where(questao_assunto.c.questao_id.in_(todos_ids))
+        )).all()
+
+    anuladas_ids = {r.id for r in q_rows if _questao_anulada(r.status, r.gabarito)}
+    resolvidas_q = {qid for qid in acertou_por_q if qid not in anuladas_ids}
+    acertos_q = sum(1 for qid in resolvidas_q if acertou_por_q[qid] is True)
+    erros_q = sum(1 for qid in resolvidas_q if acertou_por_q[qid] is False)
+
+    favoritas_n = 0
+    anotadas_n = 0
+    if todos_ids:
+        favoritas_n = (await db.execute(
+            select(func.count()).where(
+                QuestaoFavorita.owner_uid == user.id,
+                QuestaoFavorita.questao_id.in_(todos_ids),
+            )
+        )).scalar_one()
+        anotadas_n = (await db.execute(
+            select(func.count(func.distinct(QuestaoAnotacao.questao_id))).where(
+                QuestaoAnotacao.usuario_uid == user.id,
+                QuestaoAnotacao.caderno_id == caderno_id,
+            )
+        )).scalar_one()
+
+    # Árvore matéria → assunto agregada em Python (1 passada nas questões).
+    def _novo_no(gid: int | None, nome: str) -> dict[str, Any]:
+        return {"id": gid, "nome": nome, "total": 0, "anuladas": 0,
+                "resolvidas": 0, "acertos": 0, "erros": 0}
+
+    materias_map: dict[Any, dict[str, Any]] = {}
+    assuntos_map: dict[Any, dict[str, Any]] = {}
+    assuntos_por_questao: dict[int, list[Any]] = {}
+    for ar in assunto_rows:
+        assuntos_por_questao.setdefault(int(ar.questao_id), []).append(ar)
+
+    def _contabilizar(no: dict[str, Any], qid: int) -> None:
+        no["total"] += 1
+        if qid in anuladas_ids:
+            no["anuladas"] += 1
+        elif qid in resolvidas_q:
+            no["resolvidas"] += 1
+            if acertou_por_q[qid] is True:
+                no["acertos"] += 1
+            elif acertou_por_q[qid] is False:
+                no["erros"] += 1
+
+    for r in q_rows:
+        qid = int(r.id)
+        mkey = r.materia_id if r.materia_id is not None else 0
+        mat = materias_map.get(mkey)
+        if mat is None:
+            mat = materias_map[mkey] = {
+                **_novo_no(r.materia_id, r.materia_nome or "Sem matéria"),
+                "assuntos": {},
+            }
+        _contabilizar(mat, qid)
+        for ar in assuntos_por_questao.get(qid, []):
+            akey = int(ar.assunto_id)
+            ass = assuntos_map.get(akey)
+            if ass is None:
+                ass = assuntos_map[akey] = _novo_no(akey, ar.assunto_nome)
+                mat["assuntos"][akey] = ass
+            _contabilizar(ass, qid)
+
+    arvore = []
+    for mat in sorted(materias_map.values(), key=lambda m: (m["nome"] or "").lower()):
+        assuntos = sorted(mat.pop("assuntos").values(), key=lambda a: (a["nome"] or "").lower())
+        arvore.append({**mat, "assuntos": assuntos})
+
     return {
         "caderno_id": caderno_id,
         "questoes_total": cad.total,
@@ -2139,6 +2315,20 @@ async def stats_detalhe(
         "taxa": round((acertos / total) * 100, 1) if total else 0,
         "tempo_total_segundos": int(tempo_total or 0),
         "tempo_medio_segundos": round(float(tempo_medio or 0), 1),
+        "resumo": {
+            "questoes_total": cad.total,
+            "resolvidas": len(resolvidas_q),
+            "acertos": acertos_q,
+            "erros": erros_q,
+            "em_branco": max(cad.total - len(anuladas_ids) - len(resolvidas_q), 0),
+            "anuladas": len(anuladas_ids),
+            "favoritas": int(favoritas_n or 0),
+            "anotadas": int(anotadas_n or 0),
+            "taxa": round((acertos_q / len(resolvidas_q)) * 100, 1) if resolvidas_q else 0,
+            "tempo_total_segundos": int(tempo_total or 0),
+            "tempo_medio_segundos": round(float(tempo_medio or 0), 1),
+        },
+        "arvore": arvore,
         "por_materia": _format_grupo(por_materia),
         "por_assunto": _format_grupo(por_assunto),
         "por_banca": _format_grupo(por_banca),
@@ -2158,6 +2348,82 @@ async def stats_detalhe(
             for r in ultimas
         ],
     }
+
+
+@router.get("/cadernos/{caderno_id}/stats-comunidade")
+async def stats_comunidade(
+    caderno_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Desempenho dos DEMAIS usuários nas questões deste caderno (donut
+    "Demais usuários" + dificuldade média). Carregado sob demanda (botão
+    Exibir), nunca junto do stats-detalhe. Última resolução por
+    (usuário, questão) vale — igual à régua do próprio usuário."""
+    cad = await _caderno_acessivel(db, caderno_id, user)
+    ids = [int(q) for q in (cad.question_ids or [])]
+    if not ids:
+        return {"caderno_id": caderno_id, "usuarios": 0, "resolvidas": 0,
+                "acertos": 0, "erros": 0, "dificuldade": None}
+
+    rows = (await db.execute(
+        select(Resolucao.usuario_uid, Resolucao.questao_id, Resolucao.acertou)
+        .where(
+            Resolucao.questao_id.in_(ids),
+            Resolucao.usuario_uid.is_not(None),
+            Resolucao.acertou.is_not(None),
+        )
+        .order_by(Resolucao.created_at.desc())
+    )).all()
+
+    ultima: dict[tuple[str, int], bool] = {}
+    for r in rows:
+        key = (r.usuario_uid, int(r.questao_id))
+        if key not in ultima:  # desc → mais recente
+            ultima[key] = bool(r.acertou)
+
+    # Dificuldade = % de erro do universo inteiro (inclui o próprio usuário).
+    total_geral = len(ultima)
+    erros_geral = sum(1 for v in ultima.values() if not v)
+
+    outros = {k: v for k, v in ultima.items() if k[0] != user.id}
+    acertos = sum(1 for v in outros.values() if v)
+    return {
+        "caderno_id": caderno_id,
+        "usuarios": len({k[0] for k in outros}),
+        "resolvidas": len(outros),
+        "acertos": acertos,
+        "erros": len(outros) - acertos,
+        "dificuldade": round((erros_geral / total_geral) * 100, 1) if total_geral else None,
+    }
+
+
+class ZerarResolucoesReq(BaseModel):
+    tipo: Literal["todas", "acertadas", "erradas"] = "todas"
+
+
+@router.post("/cadernos/{caderno_id}/zerar-resolucoes")
+async def zerar_resolucoes_caderno(
+    caderno_id: int,
+    req: ZerarResolucoesReq,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Apaga as resoluções DO usuário neste caderno (todas, só certas ou só
+    erradas) — o "zerar" do TC. Nunca toca em resoluções de outros usuários."""
+    from sqlalchemy import delete as sa_delete
+
+    await _caderno_acessivel(db, caderno_id, user)
+    stmt = sa_delete(Resolucao).where(
+        Resolucao.usuario_uid == user.id, Resolucao.caderno_id == caderno_id
+    )
+    if req.tipo == "acertadas":
+        stmt = stmt.where(Resolucao.acertou == True)  # noqa: E712
+    elif req.tipo == "erradas":
+        stmt = stmt.where(Resolucao.acertou == False)  # noqa: E712
+    result = await db.execute(stmt)
+    await db.commit()
+    return {"caderno_id": caderno_id, "tipo": req.tipo, "apagadas": int(result.rowcount or 0)}
 
 
 @router.get("/cadernos/{caderno_id}/gabarito")
