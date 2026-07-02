@@ -30,9 +30,13 @@ router = APIRouter(prefix="/api/q/mapas", tags=["mapa-aprovacao"])
 # `worker.py` importa taskiq_nats/nats (broker NATS) no topo do módulo — pesado
 # e ausente em alguns ambientes (venv de teste local). Para não travar o import
 # de `mapa_router` (e portanto de `main.app`, usado por `tests/conftest.py`),
-# resolvemos a task só na primeira chamada real. Testes monkeypatcham este
-# nome de módulo diretamente (`monkeypatch.setattr(mapa_router,
-# "extrair_edital_task", FakeTask())`), então o import lazy nunca roda neles.
+# a task é resolvida em tempo de chamada: `_kiq_extrair` lê este nome global a
+# cada requisição e, se ainda for None (produção — nada aqui o preenche), faz
+# `from worker import ...` ali dentro. Esse import roda a CADA chamada; o que é
+# cacheado é o módulo em `sys.modules` após a primeira vez, então o custo
+# repetido é só um lookup de dicionário + atributo. Testes monkeypatcham este
+# nome diretamente (`monkeypatch.setattr(mapa_router, "extrair_edital_task",
+# FakeTask())`), então o import do worker real nunca roda neles.
 extrair_edital_task: Any = None
 
 
