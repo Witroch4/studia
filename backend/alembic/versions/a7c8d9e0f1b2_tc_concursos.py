@@ -3,7 +3,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "a7c8d9e0f1b2"
-down_revision = "d5e6f7a8b9c0"
+down_revision = "e7a8b9c0d1f2"  # linearizada após decks_dono_e_catalogo (feature paralela)
 branch_labels = None
 depends_on = None
 
