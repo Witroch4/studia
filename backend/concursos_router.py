@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import re
+import urllib.parse
 from datetime import datetime
 from typing import Any
 
@@ -38,6 +39,10 @@ _ENQUEUE_TIMEOUT = httpx.Timeout(connect=3, read=8, write=5, pool=10)
 _FILTROS_TIMEOUT = httpx.Timeout(connect=3, read=15, write=5, pool=20)
 
 _SAFE_FILENAME = re.compile(r'[\\/:*?"<>|\r\n]')
+# Media type válido (token/token, simplificado do RFC 7231): qualquer coisa
+# fora disso — inclusive CRLF de tentativa de header injection — vira
+# application/octet-stream.
+_SAFE_MEDIA_TYPE = re.compile(r"^[\w.+-]+/[\w.+-]+$")
 
 
 # ─── Schemas ─────────────────────────────────────────────
@@ -94,6 +99,26 @@ def _parse_data_aplicacao(valor: str | None) -> datetime | None:
 def _sanitize_filename(nome: str) -> str:
     nome = _SAFE_FILENAME.sub("_", nome or "").strip()
     return nome or "arquivo"
+
+
+def _sanitize_media_type(content_type: str | None) -> str:
+    """content_type vem da fonte externa e vira header — só passa token/token."""
+    ct = (content_type or "").strip()
+    return ct if _SAFE_MEDIA_TYPE.match(ct) else "application/octet-stream"
+
+
+def _build_content_disposition(nome_arquivo: str) -> str:
+    """Content-Disposition seguro para nomes não-Latin-1.
+
+    Starlette codifica headers em latin-1: um nome com "—"/"☂" estouraria
+    UnicodeEncodeError (500). Emite `filename=` ASCII-safe (fallback universal)
+    + `filename*=UTF-8''...` (RFC 5987) com o nome original URL-encoded — os
+    navegadores modernos preferem o segundo.
+    """
+    nome = _sanitize_filename(nome_arquivo)
+    ascii_nome = nome.encode("ascii", "ignore").decode("ascii").strip() or "arquivo"
+    utf8_nome = urllib.parse.quote(nome, safe="")
+    return f"attachment; filename=\"{ascii_nome}\"; filename*=UTF-8''{utf8_nome}"
 
 
 def _arquivo_dict(a: TcConcursoArquivo) -> dict[str, Any]:
@@ -166,6 +191,9 @@ async def importar_concurso(
         concurso.raw_json = raw
     await db.flush()
 
+    # Nota: arquivo_id_externo duplicado DENTRO do mesmo payload não erra —
+    # o SELECT com autoflush enxerga o primeiro insert e o segundo sobrescreve
+    # (last wins). Aceitável: o scraper é a única fonte e não deve duplicar.
     for arq in req.arquivos:
         existente = (
             await db.execute(
@@ -342,9 +370,8 @@ async def baixar_arquivo(
     except Exception as exc:  # objeto ausente/MinIO fora do ar
         raise HTTPException(502, f"falha ao baixar arquivo do MinIO: {exc}") from exc
 
-    nome = _sanitize_filename(arq.nome_arquivo)
     return Response(
         content=data,
-        media_type=arq.content_type or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
+        media_type=_sanitize_media_type(arq.content_type),
+        headers={"Content-Disposition": _build_content_disposition(arq.nome_arquivo)},
     )

@@ -201,6 +201,123 @@ async def test_stream_arquivo_inexistente_404(client):
 
 
 @pytest.mark.asyncio
+async def test_stream_content_type_malicioso_cai_para_octet_stream(client, monkeypatch):
+    """content_type vem da fonte externa — não pode virar header cru.
+
+    Um valor com CRLF tentaria injetar header; qualquer coisa fora de
+    `tipo/subtipo` válido deve cair para application/octet-stream.
+    """
+    payload = {
+        "concurso": {**PAYLOAD["concurso"], "concurso_id_externo": 86999},
+        "arquivos": [
+            {
+                **PAYLOAD["arquivos"][0],
+                "arquivo_id_externo": 452999,
+                "content_type": "application/pdf\r\nX-Evil: 1",
+            }
+        ],
+    }
+    r = await client.post("/api/q/concursos/importar", json=payload)
+    assert r.status_code == 200
+
+    lista = await client.get("/api/q/concursos")
+    item = next(
+        it for it in lista.json()["items"] if it["concurso_id_externo"] == 86999
+    )
+    arquivo_id = item["arquivos"][0]["id"]
+
+    monkeypatch.setattr(concursos_router, "download_bytes", lambda key: b"bytes")
+
+    resp = await client.get(f"/api/q/concursos/arquivo/{arquivo_id}")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/octet-stream"
+    assert "x-evil" not in {k.lower() for k in resp.headers.keys()}
+
+
+@pytest.mark.asyncio
+async def test_stream_filename_nao_latin1_nao_quebra(client, monkeypatch):
+    """Starlette codifica headers em latin-1; nome com — e ☂ não pode dar 500.
+
+    O header deve trazer um filename ASCII-safe + filename* RFC 5987 com o
+    nome original URL-encoded (UTF-8).
+    """
+    payload = {
+        "concurso": {**PAYLOAD["concurso"], "concurso_id_externo": 87000},
+        "arquivos": [
+            {
+                **PAYLOAD["arquivos"][0],
+                "arquivo_id_externo": 453000,
+                "nome_arquivo": "prova — objetiva☂.pdf",
+            }
+        ],
+    }
+    r = await client.post("/api/q/concursos/importar", json=payload)
+    assert r.status_code == 200
+
+    lista = await client.get("/api/q/concursos")
+    item = next(
+        it for it in lista.json()["items"] if it["concurso_id_externo"] == 87000
+    )
+    arquivo_id = item["arquivos"][0]["id"]
+
+    monkeypatch.setattr(concursos_router, "download_bytes", lambda key: b"bytes")
+
+    resp = await client.get(f"/api/q/concursos/arquivo/{arquivo_id}")
+    assert resp.status_code == 200
+    cd = resp.headers["content-disposition"]
+    assert cd.startswith("attachment;")
+    assert 'filename="' in cd
+    assert "filename*=UTF-8''" in cd
+    cd.encode("ascii")  # fallback filename= precisa ser ASCII puro
+
+
+@pytest.mark.asyncio
+async def test_coletar_proxy_timeout_mapeia_504(client, monkeypatch):
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, url, json):
+            raise concursos_router.httpx.TimeoutException("lento demais")
+
+    monkeypatch.setattr(concursos_router.httpx, "AsyncClient", FakeAsyncClient)
+
+    r = await client.post("/api/q/concursos/coletar", json={"filtros": []})
+    assert r.status_code == 504
+
+
+@pytest.mark.asyncio
+async def test_coletar_proxy_conflito_scraper_mapeia_409(client, monkeypatch):
+    class FakeResponse:
+        status_code = 409
+        text = "job em andamento"
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, url, json):
+            return FakeResponse()
+
+    monkeypatch.setattr(concursos_router.httpx, "AsyncClient", FakeAsyncClient)
+
+    r = await client.post("/api/q/concursos/coletar", json={"filtros": []})
+    assert r.status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_coletar_proxy_scraper(client, monkeypatch):
     calls: list[dict] = []
 
