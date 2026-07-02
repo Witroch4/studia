@@ -8,7 +8,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { useState } from "react";
 import {
   escaparHtml, htmlEditorVazio, limparImagensExternas,
-  markdownParaHtml, mathHtmlParaDelimitadores, pareceHtml,
+  markdownParaHtml, mathHtmlParaDelimitadores,
 } from "../../../../components/editor/forumEditorHtml";
 import { CorMark, FundoMark, TamMark } from "../../../../components/editor/forumEditorMarks";
 import { imagensDoClipboard } from "../../../../components/forumClipboard";
@@ -37,11 +37,10 @@ interface CommentEditorProps {
   placeholder?: string;
 }
 
-/** valorInicial pode ser HTML (editor novo) ou markdown legado. Nunca perde conteúdo. */
+/** valorInicial pode ser markdown, misto ou HTML do editor novo. Nunca perde conteúdo. */
 function conteudoInicial(valor: string): string {
   const v = valor.trim();
   if (!v) return "";
-  if (pareceHtml(v)) return v;
   try {
     return markdownParaHtml(v);
   } catch {
@@ -183,7 +182,7 @@ export function CommentEditor({
 
   if (!editor) {
     // SSR/primeiro paint: reserva o espaço do editor (regra: dados não pulam)
-    return <div className="min-h-[10.5rem] rounded-lg border border-border bg-surface-2/40" />;
+    return <div className="min-h-42 rounded-lg border border-border bg-surface-2/40" />;
   }
 
   return (

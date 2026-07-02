@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
   escaparHtml, htmlEditorVazio, limparImagensExternas,
-  markdownParaHtml, mathHtmlParaDelimitadores, pareceHtml,
+  markdownParaHtml, mathHtmlParaDelimitadores,
 } from "./forumEditorHtml.ts";
 
 test("math inline e block voltam a delimitadores $", () => {
@@ -28,11 +28,18 @@ test("htmlEditorVazio detecta documento vazio", () => {
   assert.equal(htmlEditorVazio('<p><img src="/api/q/forum/imagem/forum/x.png"></p>'), false);
 });
 
-test("pareceHtml distingue HTML novo de markdown legado", () => {
-  assert.equal(pareceHtml("<p>oi</p>"), true);
-  assert.equal(pareceHtml('<span data-cor="#f00">x</span>'), true);
-  assert.equal(pareceHtml("**negrito** e $x$"), false);
-  assert.equal(pareceHtml("- item\n- outro"), false);
+test("conteúdo MISTO legado (markdown + span) converte markdown E preserva o span", () => {
+  const html = markdownParaHtml('**legado** com $E=mc^2$ e <span data-cor="#ef4444">cor salva</span>');
+  assert.match(html, /<strong>legado<\/strong>/);
+  assert.match(html, /\$E=mc\^2\$/);
+  assert.match(html, /data-cor="#ef4444"/);
+});
+
+test("HTML do editor novo passa intacto (markdown literal dentro de <p> não vira negrito)", () => {
+  const html = markdownParaHtml("<p>**literal** digitado</p><ul><li>um</li></ul>");
+  assert.doesNotMatch(html, /<strong>/);
+  assert.match(html, /\*\*literal\*\*/);
+  assert.match(html, /<li>um<\/li>/);
 });
 
 test("markdownParaHtml converte md legado preservando $...$", () => {

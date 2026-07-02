@@ -42,13 +42,6 @@ export function htmlEditorVazio(html: string): boolean {
   return texto.length === 0;
 }
 
-const TAGS_HTML = /<(p|div|span|ul|ol|li|blockquote|h[1-6]|img|table|pre|strong|em)\b/i;
-
-/** Heurística: conteúdo salvo pelo editor novo é HTML; legado é markdown. */
-export function pareceHtml(texto: string): boolean {
-  return TAGS_HTML.test(texto);
-}
-
 const conversorMd = unified()
   .use(remarkParse)
   .use(remarkGfm)
@@ -56,7 +49,12 @@ const conversorMd = unified()
   .use(remarkRehype, { allowDangerousHtml: true })
   .use(rehypeStringify, { allowDangerousHtml: true });
 
-/** Markdown legado → HTML para carregar no editor. Síncrono (processSync). */
+/**
+ * Conteúdo salvo → HTML para carregar no editor. Síncrono (processSync).
+ * Serve para os TRÊS formatos em produção: markdown puro (importado), misto
+ * markdown+spans (era textarea) e HTML puro do editor novo — blocos HTML
+ * passam raw pelo CommonMark, então markdown literal dentro de <p> não muda.
+ */
 export function markdownParaHtml(md: string): string {
   return String(conversorMd.processSync(md));
 }
