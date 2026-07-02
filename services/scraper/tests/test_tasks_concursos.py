@@ -5,8 +5,8 @@ import app.tasks.concursos as mod
 PAYLOAD = {
     "concurso": {"concurso_id_externo": 86869, "nome_completo": "X", "url_concurso": "x"},
     "arquivos": [
-        {"tipo": "EDITAL", "arquivo_id": 1, "uuid": "u-1", "nome_arquivo": "edital.pdf"},
-        {"tipo": "GABARITO", "arquivo_id": 2, "uuid": "u-2", "nome_arquivo": "gab.zip"},
+        {"tipo": "EDITAL", "arquivo_id_externo": 1, "uuid": "u-1", "nome_arquivo": "edital.pdf"},
+        {"tipo": "GABARITO", "arquivo_id_externo": 2, "uuid": "u-2", "nome_arquivo": "gab.zip"},
     ],
 }
 
@@ -36,6 +36,38 @@ def test_unit_baixa_faz_upload_e_posta(monkeypatch):
     assert done["arquivos_ok"] == 2
     arqs = calls["post"][0]["arquivos"]
     assert arqs[0]["minio_object_key"] == "concursos/u-1.pdf"
+
+
+def test_unit_post_payload_casa_contrato_backend(monkeypatch):
+    """Contrato com `backend/concursos_router.py` (ArquivoImportarReq/
+    ConcursoImportarReq): o payload que `_post_import` recebe (construído por
+    `_processar_unit_concurso` a partir do dict que `parse_busca_page` monta)
+    precisa trazer exatamente os nomes de campo que o backend exige — um
+    mismatch (ex: "arquivo_id" em vez de "arquivo_id_externo") faz TODO
+    concurso com arquivos dar 422 e nada é persistido, silenciosamente."""
+    calls = {"download": [], "put": [], "post": []}
+    monkeypatch.setattr(mod, "_lease", lambda **k: {"unit_id": 1, "job_id": 9, "payload": PAYLOAD})
+    monkeypatch.setattr(mod, "_is_paused", lambda **k: False)
+    monkeypatch.setattr(mod, "_stat_minio", lambda key: None)
+    monkeypatch.setattr(mod, "_download", lambda url: calls["download"].append(url)
+                        or (b"%PDF", "application/pdf", "arquivo.pdf"))
+    monkeypatch.setattr(mod, "_put_minio", lambda key, data, ct: calls["put"].append(key))
+    monkeypatch.setattr(mod, "_post_import", lambda payload: calls["post"].append(payload) or {"ok": True})
+    monkeypatch.setattr(mod, "_mark_done", lambda **k: None)
+    monkeypatch.setattr(mod, "_enqueue_next", lambda **k: None)
+
+    r = asyncio.run(mod._processar_unit_concurso(9, 86869, sleep=lambda s: None))
+    assert r["status"] == "done"
+
+    payload = calls["post"][0]
+    arquivo_required = {
+        "tipo", "arquivo_id_externo", "uuid", "nome_arquivo",
+        "minio_object_key", "content_type", "tamanho_bytes",
+    }
+    concurso_required = {"concurso_id_externo", "nome_completo", "url_concurso"}
+    for arq in payload["arquivos"]:
+        assert arquivo_required <= set(arq.keys())
+    assert concurso_required <= set(payload["concurso"].keys())
 
 
 def test_unit_pula_download_se_objeto_existe(monkeypatch):

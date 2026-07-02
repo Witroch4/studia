@@ -65,7 +65,7 @@ def parse_busca_page(data: dict[str, Any]) -> list[dict[str, Any]]:
             arquivos = [
                 {
                     "tipo": tipo,
-                    "arquivo_id": a["id"],
+                    "arquivo_id_externo": a["id"],
                     "uuid": a["uuid"],
                     "nome_arquivo": a.get("nomeArquivo") or a["uuid"],
                 }

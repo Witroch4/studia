@@ -44,7 +44,7 @@ def test_parse_busca_page_achata_concursos():
     assert c["ano"] == 2026 and c["orgao_nome"].startswith("Assembleia")
     arqs = units[0]["payload"]["arquivos"]
     assert {a["tipo"] for a in arqs} == {"EDITAL", "PROVA_OBJETIVA"}
-    assert arqs[0]["uuid"] and arqs[0]["arquivo_id"] and arqs[0]["nome_arquivo"]
+    assert arqs[0]["uuid"] and arqs[0]["arquivo_id_externo"] and arqs[0]["nome_arquivo"]
     assert units[1]["payload"]["arquivos"] == []  # concurso sem arquivo é válido
 
 
