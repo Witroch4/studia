@@ -10,7 +10,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -176,3 +176,54 @@ async def servir_avatar(key: str) -> Response:
         media_type="image/webp",
         headers={"Cache-Control": "public, max-age=31536000, immutable"},
     )
+
+
+@router.get("/u/{apelido}")
+async def perfil_publico(
+    apelido: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    apelido = apelido.strip().lower()
+    p = (
+        await db.execute(select(PerfilUsuario).where(PerfilUsuario.apelido == apelido))
+    ).scalars().first()
+    if p is None:
+        raise HTTPException(404, "perfil não encontrado")
+    if not p.perfil_publico:
+        raise HTTPException(404, detail={"privado": True})
+
+    conta = (
+        await db.execute(
+            text('SELECT "createdAt", role FROM "user" WHERE id = :uid'),
+            {"uid": p.owner_uid},
+        )
+    ).first()
+    role = conta[1] if conta else None
+    resumo = await perfil_service.resumo_perfil(db, p.owner_uid)
+
+    estatisticas = None
+    if p.mostrar_estatisticas:
+        pont = resumo["pontuacao"]
+        estatisticas = {
+            "resolvidas": resumo["resolvidas"],
+            "acertos": resumo["acertos"],
+            "taxa": resumo["taxa"],
+            "streak_dias": resumo["streak_dias"],
+            "estudo": pont["estudo"],
+            "metas": pont["metas"],
+            "combos_x2": pont["combos_x2"],
+            "combos_x3": pont["combos_x3"],
+            "combos_x4": pont["combos_x4"],
+        }
+    return {
+        "apelido": p.apelido,
+        "avatar_url": _avatar_url(p) if p.mostrar_foto else None,
+        "membro_desde": conta[0].isoformat() if conta and conta[0] else None,
+        "badge": role if role in ("professor", "admin") else None,
+        "pontuacao": {
+            "total": resumo["pontuacao"]["total"],
+            "forum": resumo["pontuacao"]["forum"],
+            "comentarios": resumo["pontuacao"]["comentarios"],
+        },
+        "estatisticas": estatisticas,
+    }
