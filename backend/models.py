@@ -923,3 +923,82 @@ class PerfilUsuario(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+
+
+# ─── Mapa da Aprovação ─────────────────────────────────────
+
+
+class EditalExtracao(Base):
+    """Extração IA do edital de um concurso coletado — 1 por concurso, compartilhada.
+
+    O JSON `dados` segue mapa_schemas.EditalExtraido. Reextração (edital
+    retificado / prompt novo) reusa a MESMA linha: status volta a "pendente"
+    e `prompt_versao` incrementa.
+    """
+    __tablename__ = "edital_extracoes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    concurso_id: Mapped[int] = mapped_column(
+        ForeignKey("tc_concursos.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    status: Mapped[str] = mapped_column(String(16), default="pendente")
+    dados: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    modelo_usado: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    prompt_versao: Mapped[int] = mapped_column(Integer, default=1)
+    erro_msg: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class MapaAprovacao(Base):
+    """Mapa da Aprovação de um usuário para um cargo de um concurso (feature PRO).
+
+    `cargo_dados` é snapshot do CargoEdital escolhido — reextrações futuras
+    NÃO reescrevem mapas existentes.
+    """
+    __tablename__ = "mapas_aprovacao"
+    __table_args__ = (
+        UniqueConstraint("usuario_uid", "concurso_id", "cargo_nome",
+                         name="uq_mapa_user_concurso_cargo"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    usuario_uid: Mapped[str] = mapped_column(String(64), index=True)
+    concurso_id: Mapped[int] = mapped_column(
+        ForeignKey("tc_concursos.id", ondelete="CASCADE"), index=True
+    )
+    extracao_id: Mapped[int] = mapped_column(
+        ForeignKey("edital_extracoes.id", ondelete="CASCADE")
+    )
+    cargo_nome: Mapped[str] = mapped_column(String(512))
+    cargo_dados: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    itens: Mapped[list["MapaItem"]] = relationship(
+        back_populates="mapa", cascade="all, delete-orphan", lazy="selectin",
+        order_by="MapaItem.ordem",
+    )
+
+
+class MapaItem(Base):
+    """Verticalização: 1 linha por assunto do conteúdo programático do cargo."""
+    __tablename__ = "mapa_itens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    mapa_id: Mapped[int] = mapped_column(
+        ForeignKey("mapas_aprovacao.id", ondelete="CASCADE"), index=True
+    )
+    materia_nome: Mapped[str] = mapped_column(String(512))
+    assunto_texto: Mapped[str] = mapped_column(Text)
+    ordem: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(16), default="nao_visto")
+    materia_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("materias.id", ondelete="SET NULL"), nullable=True
+    )
+    caderno_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cadernos_questoes.id", ondelete="SET NULL"), nullable=True
+    )
+
+    mapa: Mapped["MapaAprovacao"] = relationship(back_populates="itens")

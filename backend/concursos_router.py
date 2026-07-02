@@ -276,6 +276,50 @@ async def listar_concursos(
     return {"items": [_concurso_dict(c) for c in rows], "total": int(total)}
 
 
+@router.get("/catalogo")
+async def catalogo_concursos(
+    busca: str | None = None,
+    page: int = 1,
+    page_size: int = 24,
+    _user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Catálogo para o Mapa da Aprovação (qualquer usuário logado).
+
+    Diferente de `listar_concursos` (admin), só mostra concursos que têm
+    arquivo de EDITAL — sem edital não há o que extrair.
+    """
+    page = max(1, page)
+    page_size = max(1, min(page_size, 100))
+
+    tem_edital = select(TcConcursoArquivo.concurso_id).where(
+        TcConcursoArquivo.tipo == "EDITAL"
+    )
+    base = select(TcConcurso).where(TcConcurso.id.in_(tem_edital))
+    if busca and busca.strip():
+        termo = f"%{busca.strip()}%"
+        base = base.where(
+            or_(
+                TcConcurso.nome_completo.ilike(termo),
+                TcConcurso.orgao_nome.ilike(termo),
+                TcConcurso.orgao_sigla.ilike(termo),
+                TcConcurso.banca_nome.ilike(termo),
+            )
+        )
+
+    total = (
+        await db.execute(select(func.count()).select_from(base.subquery()))
+    ).scalar_one()
+    rows = (
+        await db.execute(
+            base.order_by(TcConcurso.ano.desc().nullslast(), TcConcurso.id.desc())
+            .limit(page_size)
+            .offset((page - 1) * page_size)
+        )
+    ).scalars().all()
+    return {"items": [_concurso_dict(c) for c in rows], "total": int(total)}
+
+
 @router.get("/jobs")
 async def listar_jobs_concursos(
     _admin: CurrentUser = Depends(require_admin),

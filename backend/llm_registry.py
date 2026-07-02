@@ -9,8 +9,9 @@ mesclada com a central.
 Settings (tabela app_settings):
 - llm.calculadora_reconhecimento → alias canônico completo (ex.:
   witdev_copilot/gemini-3-flash-preview); a chamada vai por /v1 do proxy.
-- llm.processamento_pdf / llm.chat_aula → id Gemini upstream (exceção
-  deliberada: genai SDK via passthrough /gemini preserva o Batch 50% off).
+- llm.processamento_pdf / llm.chat_aula / llm.mapa_edital → id Gemini upstream
+  (exceção deliberada: genai SDK via passthrough /gemini preserva o Batch
+  50% off).
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ from models import AppSetting
 SETTING_CALC = "llm.calculadora_reconhecimento"
 SETTING_PDF = "llm.processamento_pdf"
 SETTING_CHAT = "llm.chat_aula"
+SETTING_MAPA = "llm.mapa_edital"
 
 # Alias canônico como servido pelo catálogo central (SEM prefixo de grupo:
 # grupos "witdev_copilot/*" roteiam por credencial Copilot, que pode estar
@@ -41,6 +43,7 @@ SETTING_DEFAULTS = {
     SETTING_CALC: DEFAULT_CALC_ALIAS,
     SETTING_PDF: DEFAULT_GEMINI_MODEL,
     SETTING_CHAT: DEFAULT_GEMINI_MODEL,
+    SETTING_MAPA: DEFAULT_GEMINI_MODEL,
 }
 
 PLATFORM_LLM_CATALOG_URL = os.getenv(

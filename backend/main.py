@@ -148,6 +148,12 @@ app.include_router(concursos_router)
 from perfil_router import router as perfil_router  # noqa: E402
 app.include_router(perfil_router)
 
+# Mapa da Aprovação: extração IA do edital + verticalização (feature PRO).
+# Registrado ANTES de q_router para que `/api/q/mapas` não caia no catch-all
+# `/api/q/{questao_id}` (mesmo motivo do guias_router acima).
+from mapa_router import router as mapa_router  # noqa: E402
+app.include_router(mapa_router)
+
 # witdev-tec-master: questões/cadernos/IA
 from q_router import router as q_router  # noqa: E402
 app.include_router(q_router)
