@@ -45,4 +45,11 @@ export const qk = {
   tcConcursos: (busca: string, page: number) => ["q", "concursos", "lista", busca, page] as const,
   tcConcursoJobs: () => ["q", "concursos", "jobs"] as const,
   tcConcursoFiltros: () => ["q", "concursos", "filtros"] as const,
+  // Mapa da Aprovação
+  mapas: () => ["q", "mapas"] as const,
+  mapa: (id: string | number) => ["q", "mapas", String(id)] as const,
+  mapaExtracao: (concursoId: string | number) =>
+    ["q", "mapas", "extracao", String(concursoId)] as const,
+  concursosCatalogo: (busca: string, page: number) =>
+    ["q", "concursos", "catalogo", busca, page] as const,
 };

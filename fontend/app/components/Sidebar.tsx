@@ -38,6 +38,8 @@ const navItems: NavItem[] = [
   { href: "/admin/vouchers", label: "Vouchers", icon: "redeem", adminOnly: true },
   // Assinaturas: gestão Stripe (overview, conceder/cancelar) — área de administração.
   { href: "/admin/assinaturas", label: "Assinaturas", icon: "paid", adminOnly: true },
+  // Mapa da Aprovação: do edital à prova (cargos, matérias, prazos) — todos os usuários.
+  { href: "/q/mapa", label: "Mapa da Aprovação", icon: "map" },
   { href: "/planejamento", label: "Planejamento", icon: "calendar_month" },
   { href: "/em-breve?f=Revisões", label: "Revisões", icon: "autorenew" },
   { href: "/em-breve?f=Histórico", label: "Histórico", icon: "history" },
