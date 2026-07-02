@@ -44,12 +44,24 @@ class StatusProcessamento(str, enum.Enum):
 
 class Deck(Base):
     __tablename__ = "decks"
+    # slug único POR DONO (dois usuários podem ter "engenharia-civil")
+    __table_args__ = (UniqueConstraint("user_id", "slug", name="uq_decks_user_slug"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    slug: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    slug: Mapped[str] = mapped_column(String(128), index=True)
     nome: Mapped[str] = mapped_column(String(256))
     icon: Mapped[str] = mapped_column(String(64), default="style")
     icon_color: Mapped[str] = mapped_column(String(32), default="text-cyan-500")
+    # Dono (Better Auth user.id). NULL = legado/sistema (catálogo inicial).
+    user_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    # Catálogo público read-only; admin promove/despromove.
+    is_public: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    # false = dono marcou "Impedir promoção" ao catálogo.
+    permitir_promocao: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     cards: Mapped[list["Flashcard"]] = relationship(
@@ -757,6 +769,49 @@ class QuestaoTcImport(Base):
 
     __table_args__ = (
         UniqueConstraint("questao_id", "quadro", name="uq_tc_import_questao_quadro"),
+    )
+
+
+class TcConcurso(Base):
+    """Concurso coletado da fonte externa (busca avançada) — metadados + arquivos."""
+    __tablename__ = "tc_concursos"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    concurso_id_externo: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    edital_id_externo: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    nome_completo: Mapped[str] = mapped_column(Text)
+    url_concurso: Mapped[str] = mapped_column(String(512))
+    banca_nome: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    orgao_sigla: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    orgao_nome: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    edital_nome: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ano: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    data_aplicacao: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    escolaridade: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    raw_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now())
+    arquivos: Mapped[list["TcConcursoArquivo"]] = relationship(
+        back_populates="concurso", cascade="all, delete-orphan", lazy="selectin")
+
+
+class TcConcursoArquivo(Base):
+    """Arquivo (edital/prova/gabarito) de um concurso, já hospedado no MinIO."""
+    __tablename__ = "tc_concurso_arquivos"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    concurso_id: Mapped[int] = mapped_column(
+        ForeignKey("tc_concursos.id", ondelete="CASCADE"), index=True)
+    tipo: Mapped[str] = mapped_column(String(64))  # EDITAL | PROVA_OBJETIVA | ... (string da fonte)
+    arquivo_id_externo: Mapped[int] = mapped_column(BigInteger)
+    uuid: Mapped[str] = mapped_column(String(64), index=True)
+    nome_arquivo: Mapped[str] = mapped_column(Text)
+    minio_object_key: Mapped[str] = mapped_column(String(512))
+    content_type: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    tamanho_bytes: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    baixado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    concurso: Mapped["TcConcurso"] = relationship(back_populates="arquivos")
+    __table_args__ = (
+        UniqueConstraint("concurso_id", "arquivo_id_externo", name="uq_tc_concurso_arquivo"),
     )
 
 

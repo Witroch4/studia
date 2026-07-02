@@ -18,6 +18,7 @@ type CardData = {
 type DeckResponse = {
   cards: CardData[];
   deck_nome: string;
+  somente_leitura?: boolean;
 };
 
 export default function FlashcardStudyPage({ params }: { params: Promise<{ id: string }> }) {
@@ -25,8 +26,12 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
 
   const { data: deckData, isPending } = useQuery({
     queryKey: qk.deckCards(id),
-    queryFn: () => apiJson<DeckResponse>(`/api/flashcards/${id}`),
+    queryFn: () =>
+      apiJson<DeckResponse>(
+        id === "todos" ? "/api/flashcards/todos" : `/api/flashcards/deck/${id}`
+      ),
   });
+  const somenteLeitura = deckData?.somente_leitura === true;
 
   const [currentCard, setCurrentCard] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -301,15 +306,24 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ id: s
             </div>
           </div>
 
-          {/* Footer actions */}
+          {/* Footer actions (deck público de outro usuário = só leitura) */}
           <div className="flex items-center gap-4 text-sm text-fg-faint mt-6">
-            <button className="hover:text-fg-strong flex items-center gap-1 transition-colors">
-              <span className="material-symbols-outlined text-[18px]">edit</span> Editar Cartão
-            </button>
-            <span>•</span>
-            <button className="hover:text-fg-strong flex items-center gap-1 transition-colors">
-              <span className="material-symbols-outlined text-[18px]">flag</span> Reportar Erro
-            </button>
+            {somenteLeitura ? (
+              <span className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[18px]">public</span>
+                Baralho do catálogo público — somente leitura
+              </span>
+            ) : (
+              <>
+                <button className="hover:text-fg-strong flex items-center gap-1 transition-colors">
+                  <span className="material-symbols-outlined text-[18px]">edit</span> Editar Cartão
+                </button>
+                <span>•</span>
+                <button className="hover:text-fg-strong flex items-center gap-1 transition-colors">
+                  <span className="material-symbols-outlined text-[18px]">flag</span> Reportar Erro
+                </button>
+              </>
+            )}
           </div>
         </div>
       </main>

@@ -551,6 +551,71 @@ async def enqueue_comentarios(body: EnqueueComentariosBody) -> EnqueueCadernoRes
         await engine.dispose()
 
 
+class EnqueueConcursosBody(BaseModel):
+    filtros: list[dict[str, Any]]
+    requested_by: int | None = None
+
+
+@api.post("/enqueue/concursos", response_model=EnqueueCadernoResponse)
+async def enqueue_concursos(body: EnqueueConcursosBody) -> EnqueueCadernoResponse:
+    """Dispara a descoberta paginada da busca avançada de concursos do TC para
+    um conjunto de filtros (banca/profissão/etc.). Síncrono e rápido: só faz
+    upsert do job + enfileira a task de descoberta (que grava as units e
+    dispara o download da 1ª)."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.scrapers.tc_concursos import filtros_external_id
+    from app.tasks.concursos import descobrir_concursos
+    from app.tasks.enqueue import enqueue
+    from app.tasks.ledger import ensure_ledger_schema, upsert_concursos_job
+
+    if not body.filtros:
+        raise HTTPException(422, "informe ao menos um filtro")
+
+    def _filtro_valido(f: Any) -> bool:
+        # `filtros_external_id`/`_params_busca` fazem f['tipo'].upper() e
+        # str(f['id']) sem guarda — tipo não-string ou id vazio viraria 500.
+        if not isinstance(f, dict):
+            return False
+        tipo, fid = f.get("tipo"), f.get("id")
+        return (
+            isinstance(tipo, str) and bool(tipo.strip())
+            and isinstance(fid, (int, str)) and not isinstance(fid, bool)
+            and bool(str(fid).strip())
+        )
+
+    if any(not _filtro_valido(f) for f in body.filtros):
+        raise HTTPException(
+            422, "cada filtro precisa de 'id' (int ou string não vazia) e 'tipo' (string não vazia)")
+    try:
+        select_tc_account_for_task(TC_TASK_GUIA, touch_usage=False)
+    except NoEligibleTcAccount as exc:
+        raise HTTPException(409, str(exc)) from exc
+    engine = create_async_engine(get_settings().database_url)
+    try:
+        async with engine.begin() as conn:
+            await ensure_ledger_schema(conn)
+        Session = async_sessionmaker(engine, expire_on_commit=False)
+        async with Session.begin() as session:
+            job = await upsert_concursos_job(
+                session, external_id=filtros_external_id(body.filtros),
+                filtros=body.filtros, requested_by=body.requested_by)
+        await enqueue(descobrir_concursos, priority="default",
+                      job_id=job.id, filtros=body.filtros)
+        return EnqueueCadernoResponse(job_id=job.id, status=job.status,
+                                      total_units=job.total_units, enqueued_units=1)
+    finally:
+        await engine.dispose()
+
+
+@api.get("/tc/concursos/filtros")
+async def tc_concursos_filtros() -> dict[str, Any]:
+    """Opções de filtro (bancas/profissões) da busca avançada de concursos do TC."""
+    from app.scrapers.tc_concursos import fetch_filtros_busca
+
+    return await _with_tc_client(fetch_filtros_busca, task=TC_TASK_GUIA)
+
+
 async def _set_job_paused(job_id: int, paused: bool) -> dict[str, Any]:
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -780,6 +845,13 @@ async def _queue_supervisor_loop(
 
             comentarios_enqueued = await _supervisor_tick_comentarios(Session, _eq)
 
+            async def _eq_concursos(job_id, concurso_id):
+                from app.tasks.concursos import coletar_arquivos_concurso
+                await enqueue(coletar_arquivos_concurso, priority="default",
+                              job_id=job_id, concurso_id=concurso_id)
+
+            concursos_enqueued = await _supervisor_tick_concursos(Session, _eq_concursos)
+
             log.info(
                 "queue_supervisor.tick",
                 caderno_jobs=len(jobs),
@@ -788,6 +860,7 @@ async def _queue_supervisor_loop(
                 image_assets_upserted=image_assets_upserted,
                 image_enqueued=image_enqueued,
                 comentarios_enqueued=comentarios_enqueued,
+                concursos_enqueued=concursos_enqueued,
                 interval=interval,
             )
             await asyncio.sleep(max(interval, 1))
@@ -815,6 +888,43 @@ async def _supervisor_tick_comentarios(Session, enqueue_fn) -> int:
             )
         for u in units:
             await enqueue_fn(questao_id=u["questao_id"], caderno_id=job.caderno_id)
+            enfileiradas += 1
+    return enfileiradas
+
+
+async def _supervisor_tick_concursos(Session, enqueue_fn) -> int:
+    """Análogo a `_supervisor_tick_comentarios` p/ jobs `kind='concursos'`.
+
+    Só considera jobs com a descoberta paginada já concluída
+    (`params->>'discovery' = 'done'`) — enquanto isso, `descobrir_concursos`
+    ainda está gravando units e já mantém a esteira andando sozinha."""
+    from sqlalchemy import text
+
+    from app.tasks.ledger import list_enqueueable_concurso_units, refresh_concursos_job_status
+
+    select_active_sql = text(
+        """
+        SELECT id
+        FROM tc_jobs
+        WHERE kind = 'concursos'
+          AND status IN ('pending', 'running', 'blocked')
+          AND paused_by_user IS NOT TRUE
+          AND COALESCE(params->>'discovery', '') = 'done'
+        ORDER BY id
+        """
+    )
+
+    enfileiradas = 0
+    async with Session.begin() as session:
+        job_ids = [int(r) for r in (await session.execute(select_active_sql)).scalars().all()]
+        for job_id in job_ids:
+            await refresh_concursos_job_status(session, job_id=job_id)
+        job_ids = [int(r) for r in (await session.execute(select_active_sql)).scalars().all()]
+    for job_id in job_ids:
+        async with Session.begin() as session:
+            units = await list_enqueueable_concurso_units(session, job_id=job_id, limit=1)
+        for u in units:
+            await enqueue_fn(job_id=job_id, concurso_id=u["concurso_id"])
             enfileiradas += 1
     return enfileiradas
 

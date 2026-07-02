@@ -38,8 +38,8 @@ async def test_import_reimporte_nao_duplica(client):
     assert body["imported"] == 0
     assert body["skipped"] == 2
 
-    decks = (await client.get("/api/decks")).json()
-    deck = next(d for d in decks if d["id"] == "engenharia-civil")
+    decks = (await client.get("/api/decks")).json()["meus"]
+    deck = next(d for d in decks if d["slug"] == "engenharia-civil")
     assert deck["total"] == 2
 
 

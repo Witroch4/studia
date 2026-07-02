@@ -8,7 +8,7 @@ from fastapi import Depends, FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select
+from sqlalchemy import bindparam, func, or_, select, text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sse_starlette.sse import EventSourceResponse
@@ -138,6 +138,10 @@ async def csrf_protect(request, call_next):
 from guias_router import router as guias_router  # noqa: E402
 app.include_router(guias_router)
 
+# Concursos coletados via busca avançada TC (edital + arquivos anexos)
+from concursos_router import router as concursos_router  # noqa: E402
+app.include_router(concursos_router)
+
 # witdev-tec-master: questões/cadernos/IA
 from q_router import router as q_router  # noqa: E402
 app.include_router(q_router)
@@ -208,43 +212,195 @@ async def list_models(db: AsyncSession = Depends(get_db)):
 # ─── Decks ───────────────────────────────────────────────
 
 
-@app.get("/api/decks")
-async def list_decks(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(
-            Deck.id,
-            Deck.slug,
-            Deck.nome,
-            Deck.icon,
-            Deck.icon_color,
-            func.count(Flashcard.id).label("total"),
-        )
-        .outerjoin(Flashcard)
-        .group_by(Deck.id)
-    )
-    decks = [
-        {
-            "id": row.slug,
-            "nome": row.nome,
-            "icon": row.icon,
-            "icon_color": row.icon_color,
-            "total": row.total,
-            "revisar": row.total,  # TODO: spaced repetition
-            "pct": 0,
-        }
-        for row in result.all()
-    ]
-    return decks
+def _deck_out(row, user: CurrentUser) -> dict:
+    """Shape padrão de deck p/ o frontend (row = Deck + total agregado)."""
+    deck, total = row
+    meu = deck.user_id == user.id
+    return {
+        "id": deck.id,
+        "slug": deck.slug,
+        "nome": deck.nome,
+        "icon": deck.icon,
+        "icon_color": deck.icon_color,
+        "total": total,
+        "revisar": total,  # TODO: spaced repetition
+        "pct": 0,
+        "publico": deck.is_public,
+        "permitir_promocao": deck.permitir_promocao,
+        "meu": meu,
+        "pode_excluir": meu or user.is_admin,
+    }
 
 
-@app.delete("/api/decks/{deck_slug}")
-async def delete_deck(deck_slug: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Deck).where(Deck.slug == deck_slug)
-    )
-    deck = result.scalar_one_or_none()
+async def _deck_por_id(db: AsyncSession, deck_id: int) -> Deck:
+    deck = (await db.execute(select(Deck).where(Deck.id == deck_id))).scalar_one_or_none()
     if not deck:
         raise HTTPException(status_code=404, detail="Deck não encontrado")
+    return deck
+
+
+def _deck_visivel(deck: Deck, user: CurrentUser) -> bool:
+    """Catálogo público, dono do deck, ou admin."""
+    return deck.is_public or deck.user_id == user.id or user.is_admin
+
+
+@app.get("/api/decks")
+async def list_decks(
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Meus decks + catálogo público; admin recebe também os decks de todos."""
+    rows = (
+        await db.execute(
+            select(Deck, func.count(Flashcard.id).label("total"))
+            .outerjoin(Flashcard)
+            .group_by(Deck.id)
+            .order_by(Deck.nome)
+        )
+    ).all()
+
+    meus = [_deck_out(r, user) for r in rows if r[0].user_id == user.id]
+    catalogo = [
+        _deck_out(r, user) for r in rows if r[0].is_public and r[0].user_id != user.id
+    ]
+
+    out: dict = {"meus": meus, "catalogo": catalogo}
+
+    if user.is_admin:
+        outros = [r for r in rows if r[0].user_id != user.id]
+        ids = sorted({r[0].user_id for r in outros if r[0].user_id})
+        nomes: dict[str, dict] = {}
+        if ids:
+            urows = await db.execute(
+                sa_text('SELECT id, name, email FROM "user" WHERE id IN :ids').bindparams(
+                    bindparam("ids", expanding=True)
+                ),
+                {"ids": ids},
+            )
+            nomes = {u.id: {"id": u.id, "nome": u.name, "email": u.email} for u in urows}
+        grupos: dict[str, dict] = {}
+        for r in outros:
+            uid = r[0].user_id or ""
+            if uid not in grupos:
+                grupos[uid] = {
+                    "dono": nomes.get(uid, {"id": uid, "nome": "Sistema" if not uid else uid, "email": ""}),
+                    "decks": [],
+                }
+            grupos[uid]["decks"].append(_deck_out(r, user))
+        out["usuarios"] = sorted(grupos.values(), key=lambda g: g["dono"]["nome"])
+
+    return out
+
+
+class DeckPatch(BaseModel):
+    impedir_promocao: bool
+
+
+@app.patch("/api/decks/{deck_id}")
+async def patch_deck(
+    deck_id: int,
+    data: DeckPatch,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Só o DONO alterna 'impedir promoção' (admin não muda a vontade do dono)."""
+    deck = await _deck_por_id(db, deck_id)
+    if deck.user_id != user.id:
+        raise HTTPException(403, "Só o dono do deck pode alterar esta preferência.")
+    deck.permitir_promocao = not data.impedir_promocao
+    if data.impedir_promocao and deck.is_public:
+        deck.is_public = False  # impedir promoção de deck já público o despromove
+    await db.commit()
+    return {"ok": True, "permitir_promocao": deck.permitir_promocao, "publico": deck.is_public}
+
+
+@app.post("/api/decks/{deck_id}/promover")
+async def promover_deck(
+    deck_id: int,
+    _admin=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    deck = await _deck_por_id(db, deck_id)
+    if not deck.permitir_promocao:
+        raise HTTPException(409, "O dono deste deck impediu a promoção ao catálogo.")
+    deck.is_public = True
+    await db.commit()
+    return {"ok": True, "publico": True}
+
+
+@app.post("/api/decks/{deck_id}/despromover")
+async def despromover_deck(
+    deck_id: int,
+    _admin=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    deck = await _deck_por_id(db, deck_id)
+    deck.is_public = False
+    await db.commit()
+    return {"ok": True, "publico": False}
+
+
+async def _slug_livre(db: AsyncSession, user_id: str, base: str) -> str:
+    """Menor slug livre p/ o usuário: base, base-2, base-3…"""
+    existentes = {
+        s
+        for (s,) in (
+            await db.execute(
+                select(Deck.slug).where(Deck.user_id == user_id, Deck.slug.like(f"{base}%"))
+            )
+        ).all()
+    }
+    if base not in existentes:
+        return base
+    n = 2
+    while f"{base}-{n}" in existentes:
+        n += 1
+    return f"{base}-{n}"
+
+
+@app.post("/api/decks/{deck_id}/copiar")
+async def copiar_deck(
+    deck_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Clona um deck visível (público ou meu) para o acervo do usuário."""
+    deck = await _deck_por_id(db, deck_id)
+    if not (deck.is_public or deck.user_id == user.id):
+        raise HTTPException(403, "Este deck é privado de outro usuário.")
+
+    clone = Deck(
+        slug=await _slug_livre(db, user.id, deck.slug),
+        nome=deck.nome,
+        icon=deck.icon,
+        icon_color=deck.icon_color,
+        user_id=user.id,
+        is_public=False,
+        permitir_promocao=True,
+    )
+    db.add(clone)
+    await db.flush()
+
+    cards = (
+        await db.execute(select(Flashcard).where(Flashcard.deck_id == deck.id))
+    ).scalars().all()
+    db.add_all(
+        Flashcard(deck_id=clone.id, assunto=c.assunto, frente=c.frente, verso=c.verso)
+        for c in cards
+    )
+    await db.commit()
+    return {"id": clone.id, "slug": clone.slug, "nome": clone.nome, "total": len(cards)}
+
+
+@app.delete("/api/decks/{deck_id}")
+async def delete_deck(
+    deck_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    deck = await _deck_por_id(db, deck_id)
+    if deck.user_id != user.id and not user.is_admin:
+        raise HTTPException(403, "Só o dono do deck ou um admin pode excluí-lo.")
     await db.delete(deck)
     await db.commit()
     return {"ok": True}
@@ -254,9 +410,13 @@ async def delete_deck(deck_slug: str, db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/api/flashcards/todos")
-async def get_all_cards(db: AsyncSession = Depends(get_db)):
+async def get_all_cards(
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Todos os cards DO USUÁRIO (revisão geral)."""
     result = await db.execute(
-        select(Flashcard, Deck.nome).join(Deck)
+        select(Flashcard, Deck.nome).join(Deck).where(Deck.user_id == user.id)
     )
     rows = result.all()
     cards = [
@@ -272,26 +432,70 @@ async def get_all_cards(db: AsyncSession = Depends(get_db)):
     return {"deck_id": "todos", "deck_nome": "Todos", "total": len(cards), "cards": cards}
 
 
-@app.get("/api/flashcards/{deck_slug}")
-async def get_deck_cards(deck_slug: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Flashcard, Deck.nome)
-        .join(Deck)
-        .where(Deck.slug == deck_slug)
-    )
-    rows = result.all()
+@app.get("/api/flashcards/deck/{deck_id}")
+async def get_deck_cards(
+    deck_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    deck = await _deck_por_id(db, deck_id)
+    if not _deck_visivel(deck, user):
+        raise HTTPException(403, "Este deck é privado de outro usuário.")
+
+    result = await db.execute(select(Flashcard).where(Flashcard.deck_id == deck.id))
     cards = [
         {
             "id": card.id,
-            "tema": nome,
+            "tema": deck.nome,
             "assunto": card.assunto,
             "frente": card.frente,
             "verso": card.verso,
         }
-        for card, nome in rows
+        for card in result.scalars().all()
     ]
-    deck_nome = rows[0][1] if rows else deck_slug
-    return {"deck_id": deck_slug, "deck_nome": deck_nome, "total": len(cards), "cards": cards}
+    meu = deck.user_id == user.id
+    return {
+        "deck_id": deck.id,
+        "deck_nome": deck.nome,
+        "total": len(cards),
+        "cards": cards,
+        "publico": deck.is_public,
+        "meu": meu,
+        "somente_leitura": not meu,
+    }
+
+
+async def _deck_do_usuario(
+    db: AsyncSession,
+    user: CurrentUser,
+    tema: str,
+    deck_cache: dict[str, Deck],
+    impedir_promocao: bool,
+) -> Deck:
+    """Deck do usuário por (user_id, slug); cria se não existe.
+
+    `impedir_promocao` só vale para deck NOVO — não reseta a escolha do dono
+    em decks existentes.
+    """
+    slug = slugify(tema)
+    if slug in deck_cache:
+        return deck_cache[slug]
+    deck = (
+        await db.execute(
+            select(Deck).where(Deck.user_id == user.id, Deck.slug == slug)
+        )
+    ).scalar_one_or_none()
+    if not deck:
+        deck = Deck(
+            slug=slug,
+            nome=tema,
+            user_id=user.id,
+            permitir_promocao=not impedir_promocao,
+        )
+        db.add(deck)
+        await db.flush()
+    deck_cache[slug] = deck
+    return deck
 
 
 class FlashcardCreate(BaseModel):
@@ -299,17 +503,16 @@ class FlashcardCreate(BaseModel):
     assunto: str
     frente: str
     verso: str
+    impedir_promocao: bool = False
 
 
 @app.post("/api/flashcards")
-async def create_flashcard(data: FlashcardCreate, db: AsyncSession = Depends(get_db)):
-    slug = slugify(data.tema)
-
-    deck = (await db.execute(select(Deck).where(Deck.slug == slug))).scalar_one_or_none()
-    if not deck:
-        deck = Deck(slug=slug, nome=data.tema)
-        db.add(deck)
-        await db.flush()
+async def create_flashcard(
+    data: FlashcardCreate,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    deck = await _deck_do_usuario(db, user, data.tema, {}, data.impedir_promocao)
 
     card = Flashcard(
         deck_id=deck.id,
@@ -323,7 +526,7 @@ async def create_flashcard(data: FlashcardCreate, db: AsyncSession = Depends(get
 
     return {
         "id": card.id,
-        "deck_id": slug,
+        "deck_id": deck.id,
         "tema": data.tema,
         "assunto": card.assunto,
         "frente": card.frente,
@@ -332,7 +535,12 @@ async def create_flashcard(data: FlashcardCreate, db: AsyncSession = Depends(get
 
 
 @app.post("/api/flashcards/import")
-async def import_flashcards(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+async def import_flashcards(
+    file: UploadFile = File(...),
+    impedir_promocao: bool = Form(False),
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
     content = await file.read()
     parsed = parse_markdown(content.decode("utf-8"))
 
@@ -342,15 +550,10 @@ async def import_flashcards(file: UploadFile = File(...), db: AsyncSession = Dep
     skipped = 0
 
     for item in parsed:
-        slug = slugify(item["tema"])
+        deck = await _deck_do_usuario(db, user, item["tema"], deck_cache, impedir_promocao)
+        slug = deck.slug
 
-        if slug not in deck_cache:
-            deck = (await db.execute(select(Deck).where(Deck.slug == slug))).scalar_one_or_none()
-            if not deck:
-                deck = Deck(slug=slug, nome=item["tema"])
-                db.add(deck)
-                await db.flush()
-            deck_cache[slug] = deck
+        if slug not in existing_cache:
             rows = await db.execute(
                 select(Flashcard.frente, Flashcard.verso).where(Flashcard.deck_id == deck.id)
             )
@@ -362,8 +565,6 @@ async def import_flashcards(file: UploadFile = File(...), db: AsyncSession = Dep
             skipped += 1
             continue
         existing_cache[slug].add(key)
-
-        deck = deck_cache[slug]
         card = Flashcard(
             deck_id=deck.id,
             assunto=item["assunto"],

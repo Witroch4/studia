@@ -18,25 +18,40 @@ const DECK_COLORS = [
 ];
 
 type DeckData = {
-  id: string;
+  id: number;
+  slug: string;
   nome: string;
   icon?: string;
   icon_color?: string;
   total: number;
   revisar: number;
   pct: number;
+  publico: boolean;
+  permitir_promocao: boolean;
+  meu: boolean;
+  pode_excluir: boolean;
+};
+
+type DecksResponse = {
+  meus: DeckData[];
+  catalogo: DeckData[];
+  usuarios?: { dono: { id: string; nome: string; email: string }; decks: DeckData[] }[];
 };
 
 export default function FlashcardsPage() {
   const queryClient = useQueryClient();
 
-  const { data: decks = [], isPending } = useQuery({
+  const { data, isPending } = useQuery({
     queryKey: qk.decks(),
-    queryFn: () => apiJson<DeckData[]>("/api/decks"),
+    queryFn: () => apiJson<DecksResponse>("/api/decks"),
   });
 
+  const meus = data?.meus ?? [];
+  const catalogo = data?.catalogo ?? [];
+  const usuarios = data?.usuarios;
+
   const deleteMutation = useMutation({
-    mutationFn: (id: string) =>
+    mutationFn: (id: number) =>
       apiFetch(`/api/decks/${id}`, { method: "DELETE" }).then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
       }),
@@ -48,9 +63,9 @@ export default function FlashcardsPage() {
     },
   });
 
-  // Calcula totais para o card "Todos"
-  const totalCards = decks.reduce((sum, d) => sum + d.total, 0);
-  const totalRevisar = decks.reduce((sum, d) => sum + d.revisar, 0);
+  // Calcula totais para o card "Todos" (só meus decks)
+  const totalCards = meus.reduce((sum, d) => sum + d.total, 0);
+  const totalRevisar = meus.reduce((sum, d) => sum + d.revisar, 0);
 
   return (
     <>
@@ -93,11 +108,11 @@ export default function FlashcardsPage() {
             : (
               <>
                 {/* Card "Todos" - sempre primeiro */}
-                {decks.length > 0 && (
+                {meus.length > 0 && (
                   <AllDeckCard total={totalCards} revisar={totalRevisar} />
                 )}
 
-                {decks.map((deck, idx) => (
+                {meus.map((deck, idx) => (
                   <DeckCard
                     key={deck.id}
                     deck={deck}
@@ -121,6 +136,51 @@ export default function FlashcardsPage() {
             </p>
           </Link>
         </div>
+
+        {/* ─── Catálogo público ─────────────────────────── */}
+        <div className="flex items-center gap-2 mt-4 mb-1">
+          <span className="material-symbols-outlined text-primary">public</span>
+          <h2 className="text-xl font-bold text-fg-strong uppercase tracking-wide">
+            Catálogo de Baralhos
+          </h2>
+        </div>
+        <p className="text-sm text-fg-muted mb-6">
+          Baralhos publicados para toda a comunidade — estude direto ou copie para o seu acervo.
+        </p>
+
+        {isPending ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-8">
+            {Array.from({ length: 3 }).map((_, i) => <CatalogoSkeleton key={i} />)}
+          </div>
+        ) : catalogo.length === 0 ? (
+          <p className="text-sm text-fg-faint pb-8">Nenhum baralho publicado no catálogo ainda.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-8">
+            {catalogo.map((deck) => (
+              <CatalogoDeckCard key={deck.id} deck={deck} />
+            ))}
+          </div>
+        )}
+
+        {/* ─── Admin: baralhos dos usuários ─────────────── */}
+        {usuarios && usuarios.length > 0 && (
+          <section className="pb-12">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="material-symbols-outlined text-secondary">admin_panel_settings</span>
+              <h2 className="text-xl font-bold text-fg-strong uppercase tracking-wide">
+                Baralhos dos usuários
+              </h2>
+            </div>
+            <p className="text-sm text-fg-muted mb-6">
+              Visão de admin — promova baralhos ao catálogo público ou remova-os dele.
+            </p>
+            <div className="space-y-6">
+              {usuarios.map((grupo) => (
+                <AdminGrupoDono key={grupo.dono.id || "sistema"} grupo={grupo} />
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     </>
   );
@@ -134,6 +194,135 @@ function DeckSkeleton() {
       <div className="h-3 w-24 bg-surface-2 rounded mb-6" />
       <div className="h-4 w-16 bg-surface-2 rounded mb-2" />
       <div className="h-6 w-12 bg-surface-2 rounded" />
+    </div>
+  );
+}
+
+function CatalogoSkeleton() {
+  return (
+    <div className="bg-surface-dark rounded-xl border border-border-dark p-5 animate-pulse min-h-[92px]">
+      <div className="h-5 w-48 bg-surface-2 rounded mb-3" />
+      <div className="h-3 w-24 bg-surface-2 rounded" />
+    </div>
+  );
+}
+
+/* Card do catálogo público: estudar read-only + copiar pro acervo */
+function CatalogoDeckCard({ deck }: { deck: DeckData }) {
+  const queryClient = useQueryClient();
+  const [copiado, setCopiado] = useState(false);
+
+  const copiarMutation = useMutation({
+    mutationFn: () =>
+      apiJson<{ id: number }>(`/api/decks/${deck.id}/copiar`, { method: "POST" }),
+    onSuccess: () => {
+      setCopiado(true);
+      queryClient.invalidateQueries({ queryKey: qk.decks() });
+      setTimeout(() => setCopiado(false), 2500);
+    },
+  });
+
+  return (
+    <div className="bg-surface-dark rounded-xl border border-border-dark hover:border-primary/50 transition-all p-5 flex items-center gap-4">
+      <div className="h-10 w-10 shrink-0 rounded-lg bg-primary/15 flex items-center justify-center text-primary">
+        <span className="material-symbols-outlined">public</span>
+      </div>
+      <div className="min-w-0 grow">
+        <Link
+          href={`/flashcards/${deck.id}`}
+          className="font-bold text-fg-strong hover:text-primary transition-colors block truncate"
+        >
+          {deck.nome}
+        </Link>
+        <p className="text-xs text-fg-muted">{deck.total} cartões · público</p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <Link
+          href={`/flashcards/${deck.id}`}
+          className="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors"
+          title="Estudar"
+        >
+          <span className="material-symbols-outlined text-[20px]">play_arrow</span>
+        </Link>
+        <button
+          onClick={() => copiarMutation.mutate()}
+          disabled={copiarMutation.isPending || copiado}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border-dark text-sm text-fg hover:text-fg-strong hover:border-primary/50 transition-colors disabled:opacity-60"
+          title="Copiar pro meu acervo"
+        >
+          <span className="material-symbols-outlined text-[18px]">
+            {copiado ? "check" : "content_copy"}
+          </span>
+          {copiado ? "Copiado!" : copiarMutation.isPending ? "Copiando…" : "Copiar"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* Admin: grupo de baralhos de um dono, com promover/despromover */
+function AdminGrupoDono({
+  grupo,
+}: {
+  grupo: { dono: { id: string; nome: string; email: string }; decks: DeckData[] };
+}) {
+  const queryClient = useQueryClient();
+
+  const promocaoMutation = useMutation({
+    mutationFn: ({ id, acao }: { id: number; acao: "promover" | "despromover" }) =>
+      apiJson(`/api/decks/${id}/${acao}`, { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.decks() });
+    },
+  });
+
+  return (
+    <div className="border border-border-dark rounded-xl overflow-hidden">
+      <div className="px-4 py-2.5 bg-white/[0.03] border-b border-border-dark flex items-center gap-2">
+        <span className="material-symbols-outlined text-fg-faint text-[18px]">person</span>
+        <span className="text-sm font-semibold text-fg-strong">{grupo.dono.nome}</span>
+        {grupo.dono.email && <span className="text-xs text-fg-faint">{grupo.dono.email}</span>}
+      </div>
+      <ul className="divide-y divide-border-dark/60">
+        {grupo.decks.map((deck) => (
+          <li key={deck.id} className="px-4 py-2.5 flex items-center gap-3">
+            <Link
+              href={`/flashcards/${deck.id}`}
+              className="min-w-0 grow text-sm text-fg hover:text-primary transition-colors truncate"
+            >
+              {deck.nome}
+              <span className="text-fg-faint"> · {deck.total} cartões</span>
+            </Link>
+            {deck.publico && (
+              <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded-full shrink-0">
+                No catálogo
+              </span>
+            )}
+            {deck.publico ? (
+              <button
+                onClick={() => promocaoMutation.mutate({ id: deck.id, acao: "despromover" })}
+                disabled={promocaoMutation.isPending}
+                className="shrink-0 px-3 py-1.5 rounded-lg border border-border-dark text-xs text-fg hover:text-error hover:border-error/50 transition-colors disabled:opacity-60"
+              >
+                Remover do catálogo
+              </button>
+            ) : (
+              <button
+                onClick={() => promocaoMutation.mutate({ id: deck.id, acao: "promover" })}
+                disabled={promocaoMutation.isPending || !deck.permitir_promocao}
+                title={
+                  deck.permitir_promocao
+                    ? "Publicar no catálogo para todos os usuários"
+                    : "O dono impediu a promoção deste baralho"
+                }
+                className="shrink-0 px-3 py-1.5 rounded-lg border border-border-dark text-xs text-fg hover:text-primary hover:border-primary/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Promover
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -203,7 +392,7 @@ function AllDeckCard({ total, revisar }: { total: number; revisar: number }) {
   );
 }
 
-function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: number; onDelete: (id: string) => void }) {
+function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: number; onDelete: (id: number) => void }) {
   const queryClient = useQueryClient();
   const colors = DECK_COLORS[colorIdx % DECK_COLORS.length];
   const isAllDone = deck.revisar === 0;
@@ -211,8 +400,8 @@ function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: numb
 
   function prefetchDeck() {
     queryClient.prefetchQuery({
-      queryKey: qk.deckCards(deck.id),
-      queryFn: () => apiJson(`/api/flashcards/${deck.id}`),
+      queryKey: qk.deckCards(String(deck.id)),
+      queryFn: () => apiJson(`/api/flashcards/deck/${deck.id}`),
       staleTime: 30_000,
     });
   }
@@ -225,57 +414,67 @@ function DeckCard({ deck, colorIdx, onDelete }: { deck: DeckData; colorIdx: numb
           <div className={`h-10 w-10 rounded-lg ${colors.iconBg} flex items-center justify-center ${colors.iconColor}`}>
             <span className="material-symbols-outlined">{colors.icon}</span>
           </div>
-          {/* Menu 3 pontinhos */}
-          <div className="relative">
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setMenuOpen(!menuOpen);
-              }}
-              className="text-fg-muted hover:text-fg-strong p-1 rounded-lg hover:bg-surface-2 transition-colors"
-            >
-              <span className="material-symbols-outlined">more_vert</span>
-            </button>
-            {menuOpen && (
-              <div
-                className="absolute right-0 top-full mt-1 w-44 bg-surface-dark border border-border-dark rounded-lg shadow-xl z-50 py-1 overflow-hidden"
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          <div className="flex items-center gap-1">
+            {deck.publico && (
+              <span
+                className="text-[0.65rem] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded-full"
+                title="Este baralho está publicado no catálogo para todos os usuários"
               >
-                <button
-                  onClick={() => { setMenuOpen(false); /* TODO: rename */ }}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-fg hover:bg-surface-2 hover:text-fg-strong transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[18px]">edit</span>
-                  Renomear
-                </button>
-                <button
-                  onClick={() => { setMenuOpen(false); /* TODO: export */ }}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-fg hover:bg-surface-2 hover:text-fg-strong transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[18px]">download</span>
-                  Exportar
-                </button>
-                <button
-                  onClick={() => { setMenuOpen(false); /* TODO: reset */ }}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-fg hover:bg-surface-2 hover:text-fg-strong transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[18px]">restart_alt</span>
-                  Resetar Progresso
-                </button>
-                <div className="border-t border-border-dark my-1" />
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onDelete(deck.id);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-error hover:bg-error/15 hover:text-error transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[18px]">delete</span>
-                  Excluir Baralho
-                </button>
-              </div>
+                No catálogo
+              </span>
             )}
+            {/* Menu 3 pontinhos */}
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setMenuOpen(!menuOpen);
+                }}
+                className="text-fg-muted hover:text-fg-strong p-1 rounded-lg hover:bg-surface-2 transition-colors"
+              >
+                <span className="material-symbols-outlined">more_vert</span>
+              </button>
+              {menuOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1 w-44 bg-surface-dark border border-border-dark rounded-lg shadow-xl z-50 py-1 overflow-hidden"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                >
+                  <button
+                    onClick={() => { setMenuOpen(false); /* TODO: rename */ }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-fg hover:bg-surface-2 hover:text-fg-strong transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                    Renomear
+                  </button>
+                  <button
+                    onClick={() => { setMenuOpen(false); /* TODO: export */ }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-fg hover:bg-surface-2 hover:text-fg-strong transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">download</span>
+                    Exportar
+                  </button>
+                  <button
+                    onClick={() => { setMenuOpen(false); /* TODO: reset */ }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-fg hover:bg-surface-2 hover:text-fg-strong transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">restart_alt</span>
+                    Resetar Progresso
+                  </button>
+                  <div className="border-t border-border-dark my-1" />
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDelete(deck.id);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-error hover:bg-error/15 hover:text-error transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                    Excluir Baralho
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <h3 className="text-lg font-bold text-fg-strong mb-1 group-hover:text-primary transition-colors">{deck.nome}</h3>

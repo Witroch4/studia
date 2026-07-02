@@ -224,7 +224,7 @@ export default function AulaStudyPage({
                       {data.flashcards.length} cards gerados pela IA
                     </p>
                     <Link
-                      href={`/flashcards/${data.disciplina.slug}`}
+                      href="/flashcards"
                       className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-cyan-600 text-white rounded-lg text-sm font-medium transition-colors"
                     >
                       <span className="material-symbols-outlined text-[18px]">play_arrow</span>
