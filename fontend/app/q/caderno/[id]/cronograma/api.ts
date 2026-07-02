@@ -38,6 +38,8 @@ export type Kpis = {
   questoes_dia_necessarias: number;
   meta_hoje: number;
   saldo: number;
+  /** Questões anuladas do caderno — fora do total/meta (não respondíveis). */
+  anuladas: number;
 };
 
 export type Discursiva = {
@@ -94,6 +96,7 @@ export type IndiceItem = {
   questao_id: number;
   banca: string | null;
   materia: string | null;
+  anulada?: boolean;
   preview: string;
 };
 

@@ -1,5 +1,6 @@
 "use client";
 import { useMemo } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
@@ -106,6 +107,10 @@ export default function CronogramaPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Cronograma</h1>
         <div className="flex gap-2">
+          <Link href={`/q/caderno/${id}`}
+            className="text-sm border border-border/60 rounded px-3 py-1.5 hover:bg-surface-2">
+            ← Ir ao caderno
+          </Link>
           <button onClick={() => recalcMutation.mutate()} disabled={recalcMutation.isPending}
             className="text-sm border border-border/60 rounded px-3 py-1.5 hover:bg-surface-2 disabled:opacity-50">
             {recalcMutation.isPending ? "Recalculando…" : "Recalcular automático"}

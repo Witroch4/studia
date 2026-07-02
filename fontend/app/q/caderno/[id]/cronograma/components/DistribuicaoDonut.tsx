@@ -30,8 +30,12 @@ export function DistribuicaoDonut({ kpis }: { kpis: Kpis }) {
     { label: "Certas", valor: kpis.acertos, cor: "var(--success)" },
     { label: "Erradas", valor: kpis.erros, cor: "var(--error)" },
     { label: "Restantes", valor: kpis.restantes, cor: "var(--text-faint)", opacity: 0.35 },
+    // Anuladas fecham o círculo (caderno bruto), mas estão fora do total/meta.
+    ...((kpis.anuladas ?? 0) > 0
+      ? [{ label: "Anuladas", valor: kpis.anuladas, cor: "var(--warning)", opacity: 0.7 }]
+      : []),
   ];
-  const total = Math.max(kpis.total, 1);
+  const total = Math.max(kpis.total + (kpis.anuladas ?? 0), 1);
 
   const S = 176, cx = S / 2, cy = S / 2, rO = 82, rI = 56;
   const rMid = (rO + rI) / 2;
@@ -58,7 +62,7 @@ export function DistribuicaoDonut({ kpis }: { kpis: Kpis }) {
         width={S}
         height={S}
         role="img"
-        aria-label={`Distribuição: ${kpis.acertos} certas, ${kpis.erros} erradas, ${kpis.restantes} restantes de ${kpis.total}.`}
+        aria-label={`Distribuição: ${kpis.acertos} certas, ${kpis.erros} erradas, ${kpis.restantes} restantes${(kpis.anuladas ?? 0) > 0 ? `, ${kpis.anuladas} anuladas` : ""} de ${kpis.total + (kpis.anuladas ?? 0)}.`}
         className="shrink-0"
       >
         {kpis.resolvidas === 0 && kpis.restantes === 0 && (

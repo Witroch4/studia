@@ -44,6 +44,7 @@ export function VereditoHero({ kpis, diasAteProva, dataProva }: {
           </p>
           <p className="text-sm text-fg-muted mt-1">
             Meta até hoje: {meta_hoje} resolvidas · você resolveu {resolvidas}.
+            {kpis.anuladas > 0 && ` ${kpis.anuladas} ${kpis.anuladas === 1 ? "anulada fora" : "anuladas fora"} da conta.`}
             {!adiantado && !emDia && " Dá para recuperar aumentando o ritmo ou recalculando o plano."}
           </p>
 

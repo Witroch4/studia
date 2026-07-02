@@ -8,9 +8,10 @@ import type { IndiceItem, MinhasResolucoes } from "../api";
 
 /**
  * O caderno inteiro numa grade: 1 célula = 1 questão, na ordem do caderno.
- * Verde = acertou, vermelho = errou, neutro = ainda não resolvida (a legenda
- * com contagens é a codificação secundária — nunca só cor). Clicar numa célula
- * abre a questão no caderno (mesmo mecanismo de posição salva do quiz).
+ * Verde = acertou, vermelho = errou, âmbar = anulada (fora da conta), neutro =
+ * ainda não resolvida (a legenda com contagens é a codificação secundária —
+ * nunca só cor). Clicar numa célula abre a questão no caderno (mesmo mecanismo
+ * de posição salva do quiz).
  */
 export function MapaQuestoes({ cadernoId }: { cadernoId: string }) {
   const router = useRouter();
@@ -48,13 +49,15 @@ export function MapaQuestoes({ cadernoId }: { cadernoId: string }) {
 
   let acertos = 0;
   let erros = 0;
+  let anuladas = 0;
   for (const it of items) {
+    if (it.anulada) { anuladas += 1; continue; } // anulada vence resolução antiga
     const r = resolucoes[String(it.questao_id)];
     if (!r) continue;
     if (r.acertou) acertos += 1;
     else erros += 1;
   }
-  const restantes = items.length - acertos - erros;
+  const restantes = items.length - acertos - erros - anuladas;
 
   function abrir(n: number) {
     // O quiz retoma da posição salva — mesmo contrato do idxStorageKey da página do caderno.
@@ -79,6 +82,12 @@ export function MapaQuestoes({ cadernoId }: { cadernoId: string }) {
             <span aria-hidden className="w-2.5 h-2.5 rounded-[3px] bg-fg/15" />
             {restantes} restantes
           </span>
+          {anuladas > 0 && (
+            <span className="flex items-center gap-1.5">
+              <span aria-hidden className="w-2.5 h-2.5 rounded-[3px] bg-warning/70" />
+              {anuladas} anuladas
+            </span>
+          )}
         </div>
       </div>
 
@@ -89,13 +98,17 @@ export function MapaQuestoes({ cadernoId }: { cadernoId: string }) {
       >
         {items.map((it) => {
           const r = resolucoes[String(it.questao_id)];
-          const status = !r ? "restante" : r.acertou ? "acerto" : "erro";
+          const status = it.anulada ? "anulada" : !r ? "restante" : r.acertou ? "acerto" : "erro";
           const cor =
             status === "acerto" ? "bg-success hover:brightness-110"
             : status === "erro" ? "bg-error hover:brightness-110"
+            : status === "anulada" ? "bg-warning/70 hover:brightness-110"
             : "bg-fg/15 hover:bg-fg/30";
           const statusLabel =
-            status === "acerto" ? "acertou" : status === "erro" ? "errou" : "não resolvida";
+            status === "acerto" ? "acertou"
+            : status === "erro" ? "errou"
+            : status === "anulada" ? "anulada — fora da conta"
+            : "não resolvida";
           return (
             <button
               key={it.questao_id}

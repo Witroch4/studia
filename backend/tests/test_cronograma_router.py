@@ -193,3 +193,66 @@ async def test_export_xlsx(client, db_session, auth_state):
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("application/vnd.openxmlformats")
     assert len(r.content) > 0
+
+
+# ─────────────────────────── anuladas fora das contas ───────────────────────────
+
+@pytest.mark.asyncio
+async def test_anuladas_fora_das_contas(client, db_session, auth_state):
+    """Questão anulada sai do total/meta e resolução antiga dela não conta."""
+    from models import Questao, Resolucao
+
+    auth_state["user"] = USER_A
+    db_session.add_all([
+        Questao(id=701, status="ATIVA", gabarito="A", enunciado_md="q1"),
+        Questao(id=702, status="ANULADA", gabarito="X", enunciado_md="q2 anulada"),
+        Questao(id=703, status="ATIVA", gabarito="Anulada", enunciado_md="q3 anulada via gabarito"),
+        Questao(id=704, status="ATIVA", gabarito="B", enunciado_md="q4"),
+    ])
+    cad = CadernoQuestoes(owner_uid="user-A", nome="Com anuladas", total=4,
+                          question_ids=[701, 702, 703, 704])
+    db_session.add(cad)
+    await db_session.flush()
+    # resolveu a válida 701 (acertou) e a 702 ANTES de ela ser anulada (errou)
+    db_session.add_all([
+        Resolucao(questao_id=701, caderno_id=cad.id, usuario_uid="user-A", acertou=True),
+        Resolucao(questao_id=702, caderno_id=cad.id, usuario_uid="user-A", acertou=False),
+    ])
+    await db_session.commit()
+
+    r = await client.post(f"/api/q/cadernos/{cad.id}/cronograma", json={
+        "data_prova": "2026-08-16", "data_inicio": "2026-06-01",
+    })
+    assert r.status_code == 200, r.text
+    kpis = r.json()["kpis"]
+    assert kpis["anuladas"] == 2           # 702 (status) + 703 (gabarito)
+    assert kpis["total"] == 2              # total efetivo = 4 − 2
+    assert kpis["resolvidas"] == 1         # a resolução da anulada não conta
+    assert kpis["acertos"] == 1
+    assert kpis["restantes"] == 1
+    # curva real também ignora a anulada
+    progresso = r.json()["progresso"]
+    assert len(progresso) == 1 and progresso[0]["resolvidas"] == 1
+    # meta distribui só as 2 respondíveis
+    assert r.json()["plano"][-1]["meta_acumulada"] == 2
+
+
+@pytest.mark.asyncio
+async def test_indice_marca_anulada(client, db_session, auth_state):
+    from models import Questao
+
+    auth_state["user"] = USER_A
+    db_session.add_all([
+        Questao(id=711, status="ATIVA", gabarito="A", enunciado_md="ok"),
+        Questao(id=712, status="ANULADA", gabarito="X", enunciado_md="anulada"),
+    ])
+    cad = CadernoQuestoes(owner_uid="user-A", nome="Indice anuladas", total=2,
+                          question_ids=[711, 712])
+    db_session.add(cad)
+    await db_session.commit()
+
+    r = await client.get(f"/api/q/cadernos/{cad.id}/indice")
+    assert r.status_code == 200
+    items = r.json()["items"]
+    assert items[0]["anulada"] is False
+    assert items[1]["anulada"] is True

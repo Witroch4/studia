@@ -2216,6 +2216,7 @@ async def indice_caderno(
             Materia.nome.label("materia"),
             Questao.gabarito,
             Questao.tipo,
+            Questao.status,
             func.substring(Questao.enunciado_md, 1, 140).label("preview"),
         )
         .select_from(Questao)
@@ -2237,6 +2238,7 @@ async def indice_caderno(
             "materia": r.materia,
             "gabarito": r.gabarito,
             "tipo": r.tipo,
+            "anulada": _questao_anulada(r.status, r.gabarito),
             "preview": (r.preview or "").strip()[:140],
         }
         items.append(_add_id_externo_if_admin(item, r.id_externo, user))
