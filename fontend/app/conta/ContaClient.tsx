@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { authClient, useSession } from "@/lib/auth-client";
 import BillingSection from "./BillingSection";
+import { apiUrl } from "@/lib/api";
+import { useAtualizarPerfil, useMeuPerfil, useRemoverAvatar, useSubirAvatar } from "./usePerfil";
+import VisibilidadeCard from "./VisibilidadeCard";
+import ResumoCard from "./ResumoCard";
 
 type Notice = { kind: "ok" | "err"; msg: string } | null;
 
@@ -13,6 +17,7 @@ export default function ContaClient() {
     | { name?: string; email?: string; role?: string }
     | undefined;
   const isAdmin = user?.role === "admin";
+  const { data: perfil } = useMeuPerfil();
 
   return (
     <div className="px-6 py-8 md:px-10 max-w-3xl w-full mx-auto">
@@ -24,15 +29,27 @@ export default function ContaClient() {
 
       <div className="flex items-center gap-4 mb-8">
         <div className="h-14 w-14 rounded-full bg-gradient-to-tr from-primary to-secondary p-[2px]">
-          <div className="rounded-full h-full w-full bg-surface-dark flex items-center justify-center">
-            <span className="text-lg font-bold text-fg-strong">
-              {(user?.name || user?.email || "?").slice(0, 2).toUpperCase()}
-            </span>
-          </div>
+          {perfil?.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={apiUrl(perfil.avatar_url)}
+              alt="Foto de perfil"
+              className="rounded-full h-full w-full object-cover"
+            />
+          ) : (
+            <div className="rounded-full h-full w-full bg-surface-dark flex items-center justify-center">
+              <span className="text-lg font-bold text-fg-strong">
+                {(user?.name || user?.email || "?").slice(0, 2).toUpperCase()}
+              </span>
+            </div>
+          )}
         </div>
         <div>
           <h1 className="text-2xl font-bold text-fg-strong">{isPending ? "…" : user?.name || "Conta"}</h1>
-          <p className="text-sm text-fg-faint">{user?.email}</p>
+          <p className="text-sm text-fg-faint">
+            {user?.email}
+            {perfil?.apelido && <span className="text-primary"> · @{perfil.apelido}</span>}
+          </p>
         </div>
         {isAdmin && (
           <span className="ml-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide text-secondary bg-secondary/10">
@@ -44,6 +61,8 @@ export default function ContaClient() {
       <div className="space-y-6">
         <BillingSection />
         <ProfileCard name={user?.name} email={user?.email} />
+        <VisibilidadeCard />
+        <ResumoCard />
         <PasswordCard />
         {isAdmin && <CreateUserCard />}
       </div>
@@ -103,23 +122,95 @@ function ProfileCard({ name: initialName, email }: { name?: string; email?: stri
   const [name, setName] = useState(initialName || "");
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  const { data: perfil, isPending: perfilPending } = useMeuPerfil();
+  const [apelido, setApelido] = useState<string | null>(null); // null = ainda não editado
+  const atualizar = useAtualizarPerfil();
+  const subirAvatar = useSubirAvatar();
+  const removerAvatar = useRemoverAvatar();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const apelidoAtual = apelido ?? perfil?.apelido ?? "";
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setNotice(null);
     const { error } = await authClient.updateUser({ name });
+    let msgErro = error?.message;
+    if (!msgErro && apelido !== null && apelido !== (perfil?.apelido ?? "")) {
+      try {
+        await atualizar.mutateAsync({ apelido });
+      } catch (err) {
+        msgErro = err instanceof Error ? err.message : "Erro ao salvar o apelido.";
+      }
+    }
     setLoading(false);
-    setNotice(error ? { kind: "err", msg: error.message || "Erro ao salvar." } : { kind: "ok", msg: "Perfil atualizado." });
+    setNotice(msgErro ? { kind: "err", msg: msgErro } : { kind: "ok", msg: "Perfil atualizado." });
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setNotice(null);
+    try {
+      await subirAvatar.mutateAsync(file);
+      setNotice({ kind: "ok", msg: "Foto atualizada." });
+    } catch (err) {
+      setNotice({ kind: "err", msg: err instanceof Error ? err.message : "Erro ao enviar a foto." });
+    }
   }
 
   return (
     <SectionCard title="Perfil" icon="badge">
       <form onSubmit={save} className="space-y-4">
+        <div className="flex items-center gap-4">
+          <div className="h-16 w-16 rounded-full bg-bg-dark overflow-hidden flex items-center justify-center shrink-0">
+            {perfil?.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={apiUrl(perfil.avatar_url)} alt="Foto de perfil" className="h-full w-full object-cover" />
+            ) : (
+              <span className="material-symbols-outlined text-fg-faint text-[32px]">person</span>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onFile} />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={subirAvatar.isPending}
+              className="text-sm text-primary hover:underline disabled:opacity-50 text-left"
+            >
+              {subirAvatar.isPending ? "Enviando…" : perfil?.avatar_url ? "Trocar foto" : "Inserir foto"}
+            </button>
+            {perfil?.avatar_url && (
+              <button
+                type="button"
+                onClick={() => removerAvatar.mutate()}
+                disabled={removerAvatar.isPending}
+                className="text-sm text-fg-faint hover:text-error disabled:opacity-50 text-left"
+              >
+                Remover foto
+              </button>
+            )}
+            <span className="text-xs text-fg-faint">png, jpg ou webp, até 5 MB</span>
+          </div>
+        </div>
+
         <Field label="Nome" value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" />
+        <Field
+          label="Apelido único (fórum)"
+          value={apelidoAtual}
+          onChange={(e) => setApelido(e.target.value.toLowerCase())}
+          placeholder={perfilPending ? "carregando…" : "ex.: rochedo-16"}
+          disabled={perfilPending}
+        />
+        <p className="text-xs text-fg-faint -mt-2">
+          3 a 32 caracteres: letras minúsculas, números e hífens. Seu perfil público fica em /u/apelido.
+        </p>
         <Field label="E-mail" value={email || ""} disabled />
         <NoticeBox notice={notice} />
-        <PrimaryBtn loading={loading}>Salvar perfil</PrimaryBtn>
+        <PrimaryBtn loading={loading || atualizar.isPending}>Salvar perfil</PrimaryBtn>
       </form>
     </SectionCard>
   );
