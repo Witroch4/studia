@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import mapa_service
 from auth import CurrentUser, require_admin, require_user
 from database import get_db
 from entitlements import acesso_pro_ativo
@@ -42,6 +43,11 @@ extrair_edital_task: Any = None
 
 class ExtrairReq(BaseModel):
     concurso_id: int
+
+
+class CriarMapaReq(BaseModel):
+    concurso_id: int
+    cargo_nome: str
 
 
 async def _concurso_ou_404(db: AsyncSession, concurso_id: int) -> TcConcurso:
@@ -123,3 +129,56 @@ async def status_extracao(
     if ext.status == "concluido":
         out["dados"] = ext.dados
     return out
+
+
+@router.post("")
+async def criar_mapa(
+    req: CriarMapaReq,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Cria o Mapa da Aprovação (PRO): itens verticalizados + cadernos automáticos."""
+    if not (user.is_admin or await acesso_pro_ativo(db, user.id)):
+        raise HTTPException(403, "O Mapa da Aprovação é um recurso PRO")
+
+    concurso = await _concurso_ou_404(db, req.concurso_id)
+    ext = (
+        await db.execute(
+            select(EditalExtracao).where(
+                EditalExtracao.concurso_id == concurso.id,
+                EditalExtracao.status == "concluido",
+            )
+        )
+    ).scalar_one_or_none()
+    if ext is None or not ext.dados:
+        raise HTTPException(409, "Edital ainda não extraído")
+
+    cargo = next(
+        (c for c in (ext.dados.get("cargos") or []) if c.get("nome") == req.cargo_nome),
+        None,
+    )
+    if cargo is None:
+        raise HTTPException(404, "Cargo não encontrado no edital")
+
+    existente = (
+        await db.execute(
+            select(MapaAprovacao.id).where(
+                MapaAprovacao.usuario_uid == user.id,
+                MapaAprovacao.concurso_id == concurso.id,
+                MapaAprovacao.cargo_nome == req.cargo_nome,
+            )
+        )
+    ).scalar_one_or_none()
+    if existente:
+        raise HTTPException(409, f"Você já tem um Mapa para este cargo (id {existente})")
+
+    modelo = await get_setting(db, SETTING_MAPA, SETTING_DEFAULTS[SETTING_MAPA])
+    mapa, n_cadernos, n_questoes = await mapa_service.montar_mapa(
+        db, user.id, concurso, ext, cargo, modelo
+    )
+    return {
+        "id": mapa.id,
+        "redirect": f"/q/mapa/{mapa.id}",
+        "cadernos_criados": n_cadernos,
+        "total_questoes": n_questoes,
+    }

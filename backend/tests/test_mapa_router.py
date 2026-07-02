@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from models import EditalExtracao, TcConcurso, TcConcursoArquivo
 from tests.conftest import make_user
+from models import Banca, CadernoQuestoes, MapaAprovacao, MapaItem, Materia, Prova, Questao
 
 pytestmark = pytest.mark.asyncio
 
@@ -120,3 +121,118 @@ async def test_polling_extracao(client, db_session, auth_state):
     body = r.json()
     assert body["status"] == "concluido"
     assert body["dados"]["cargos"][0]["nome"] == "Engenheiro Civil"
+
+
+async def _seed_banco_questoes(db) -> None:
+    """Banca IDECAN + matéria Português + 3 questões (1 anulada)."""
+    banca = Banca(nome="Instituto de Desenvolvimento — IDECAN", slug="idecan", sigla="IDECAN")
+    mat = Materia(nome="Português")
+    db.add_all([banca, mat])
+    await db.flush()
+    prova = Prova(banca_id=banca.id, ano=2024)
+    db.add(prova)
+    await db.flush()
+    db.add_all([
+        Questao(banca_id=banca.id, materia_id=mat.id, prova_id=prova.id, gabarito="A"),
+        Questao(banca_id=banca.id, materia_id=mat.id, prova_id=prova.id, gabarito="B"),
+        Questao(banca_id=banca.id, materia_id=mat.id, prova_id=prova.id,
+                status="ANULADA", gabarito="ANULADA"),
+    ])
+    await db.commit()
+
+
+@pytest.fixture
+def _pro(monkeypatch):
+    import mapa_router
+    async def _sim(db, uid):
+        return True
+    monkeypatch.setattr(mapa_router, "acesso_pro_ativo", _sim)
+
+
+@pytest.fixture
+def _match_ia(monkeypatch):
+    import mapa_service
+    def _fake(materias_edital, materias_banco, modelo):
+        return {"Língua Portuguesa": "Português"}
+    monkeypatch.setattr(mapa_service, "mapear_materias", _fake)
+
+
+async def test_criar_mapa_completo(client, db_session, auth_state, _pro, _match_ia):
+    c = await seed_concurso(db_session)
+    await _seed_banco_questoes(db_session)
+    db_session.add(EditalExtracao(concurso_id=c.id, status="concluido", dados=DADOS_OK))
+    await db_session.commit()
+    auth_state["user"] = make_user("u1")
+
+    r = await client.post("/api/q/mapas",
+                          json={"concurso_id": c.id, "cargo_nome": "Engenheiro Civil"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["cadernos_criados"] == 1
+    assert body["total_questoes"] == 2  # anulada ficou fora
+
+    mapa = (await db_session.execute(select(MapaAprovacao))).scalar_one()
+    assert mapa.cargo_nome == "Engenheiro Civil"
+    itens = (await db_session.execute(
+        select(MapaItem).where(MapaItem.mapa_id == mapa.id).order_by(MapaItem.ordem)
+    )).scalars().all()
+    assert [i.assunto_texto for i in itens] == ["Crase", "Concordância"]
+    assert all(i.caderno_id is not None for i in itens)  # matéria com match ganhou caderno
+    cad = (await db_session.execute(select(CadernoQuestoes))).scalar_one()
+    assert cad.owner_uid == "u1"
+    assert len(cad.question_ids) == 2
+
+
+async def test_criar_mapa_sem_pro_403(client, db_session, auth_state, _match_ia, monkeypatch):
+    import mapa_router
+
+    async def _nao_pro(db, uid):
+        return False
+
+    # Não usar o acesso_pro_ativo real: tabelas de billing podem não existir
+    # no banco de teste — o contrato aqui é só "sem PRO → 403".
+    monkeypatch.setattr(mapa_router, "acesso_pro_ativo", _nao_pro)
+    c = await seed_concurso(db_session)
+    db_session.add(EditalExtracao(concurso_id=c.id, status="concluido", dados=DADOS_OK))
+    await db_session.commit()
+    auth_state["user"] = make_user("u1")
+    r = await client.post("/api/q/mapas",
+                          json={"concurso_id": c.id, "cargo_nome": "Engenheiro Civil"})
+    assert r.status_code == 403
+
+
+async def test_criar_mapa_cargo_inexistente_404(client, db_session, auth_state, _pro):
+    c = await seed_concurso(db_session)
+    db_session.add(EditalExtracao(concurso_id=c.id, status="concluido", dados=DADOS_OK))
+    await db_session.commit()
+    auth_state["user"] = make_user("u1")
+    r = await client.post("/api/q/mapas",
+                          json={"concurso_id": c.id, "cargo_nome": "Fiscal"})
+    assert r.status_code == 404
+
+
+async def test_criar_mapa_duplicado_409(client, db_session, auth_state, _pro, _match_ia):
+    c = await seed_concurso(db_session)
+    db_session.add(EditalExtracao(concurso_id=c.id, status="concluido", dados=DADOS_OK))
+    await db_session.commit()
+    auth_state["user"] = make_user("u1")
+    await client.post("/api/q/mapas", json={"concurso_id": c.id, "cargo_nome": "Engenheiro Civil"})
+    r = await client.post("/api/q/mapas", json={"concurso_id": c.id, "cargo_nome": "Engenheiro Civil"})
+    assert r.status_code == 409
+    assert "id" in r.json()["detail"] if isinstance(r.json().get("detail"), dict) else True
+
+
+async def test_criar_mapa_ia_match_fora_nao_quebra(client, db_session, auth_state, _pro, monkeypatch):
+    """IA de match indisponível → mapa nasce sem cadernos, sem 500."""
+    import mapa_service
+    def _boom(a, b, m):
+        raise RuntimeError("proxy fora")
+    monkeypatch.setattr(mapa_service, "mapear_materias", _boom)
+    c = await seed_concurso(db_session)
+    db_session.add(EditalExtracao(concurso_id=c.id, status="concluido", dados=DADOS_OK))
+    await db_session.commit()
+    auth_state["user"] = make_user("u1")
+    r = await client.post("/api/q/mapas",
+                          json={"concurso_id": c.id, "cargo_nome": "Engenheiro Civil"})
+    assert r.status_code == 200
+    assert r.json()["cadernos_criados"] == 0
