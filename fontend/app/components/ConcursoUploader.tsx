@@ -3,13 +3,16 @@
 import { useState, useRef } from "react";
 
 type Props = {
-  onUpload: (file: File, nome: string) => Promise<void>;
+  onUpload: (file: File, nome: string, publico: boolean) => Promise<void>;
   uploading?: boolean;
+  /** Admin pode publicar o import no catálogo visível a todos. */
+  isAdmin?: boolean;
 };
 
-export default function ConcursoUploader({ onUpload, uploading = false }: Props) {
+export default function ConcursoUploader({ onUpload, uploading = false, isAdmin = false }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [nome, setNome] = useState("");
+  const [publico, setPublico] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -21,9 +24,10 @@ export default function ConcursoUploader({ onUpload, uploading = false }: Props)
 
   const submit = async () => {
     if (!file || uploading) return;
-    await onUpload(file, nome.trim());
+    await onUpload(file, nome.trim(), isAdmin && publico);
     setFile(null);
     setNome("");
+    setPublico(false);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -75,6 +79,21 @@ export default function ConcursoUploader({ onUpload, uploading = false }: Props)
             placeholder="Nome do concurso (ex: CNU 2025 - Engenharia)"
             className="flex-1 px-4 py-2.5 bg-page border border-border rounded-lg text-sm text-fg-strong placeholder:text-fg-faint focus:ring-1 focus:ring-primary focus:border-primary"
           />
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setPublico((p) => !p)}
+              title="Concursos do catálogo ficam visíveis para todos os usuários do studIA"
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                publico
+                  ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/40"
+                  : "border-border text-fg-muted hover:border-primary/50"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px]">{publico ? "public" : "lock"}</span>
+              {publico ? "Publicar no catálogo" : "Só para mim"}
+            </button>
+          )}
           <button
             type="button"
             onClick={submit}
