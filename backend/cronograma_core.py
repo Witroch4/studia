@@ -136,6 +136,31 @@ def calcular_kpis(
     )
 
 
+def progresso_diario(
+    resolucoes: list[tuple[int, bool, date]],
+) -> list[dict]:
+    """Curva real acumulada: questões DISTINTAS resolvidas até cada dia.
+
+    Cada questão conta uma vez, na data da sua PRIMEIRA resolução (re-tentativas
+    não inflam a curva). Saída ordenada por data: [{data, resolvidas}].
+    """
+    primeira: dict[int, date] = {}
+    for qid, _acertou, dt in resolucoes:
+        if qid not in primeira or dt < primeira[qid]:
+            primeira[qid] = dt
+
+    por_dia: dict[date, int] = {}
+    for dt in primeira.values():
+        por_dia[dt] = por_dia.get(dt, 0) + 1
+
+    out: list[dict] = []
+    acumulado = 0
+    for dt in sorted(por_dia):
+        acumulado += por_dia[dt]
+        out.append({"data": dt.isoformat(), "resolvidas": acumulado})
+    return out
+
+
 @dataclass
 class ItemRevisao:
     questao_id: int

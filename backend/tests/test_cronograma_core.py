@@ -145,3 +145,29 @@ def test_gerar_simulados_marcos():
     assert datas[0] >= date(2026, 5, 25)
     assert datas[-1] <= date(2026, 8, 16)
     assert any(s["tipo"].startswith("Simulado completo") for s in sims)
+
+
+# ─────────────────────────── progresso_diario ───────────────────────────
+
+from cronograma_core import progresso_diario
+
+
+def test_progresso_diario_acumula_distintas_na_primeira_resolucao():
+    d1, d2, d3 = date(2026, 6, 1), date(2026, 6, 2), date(2026, 6, 5)
+    resolucoes = [
+        (10, True, d1),
+        (11, False, d1),
+        (10, False, d2),   # re-tentativa: não conta de novo
+        (12, True, d3),
+        (13, True, d2),
+    ]
+    curva = progresso_diario(resolucoes)
+    assert curva == [
+        {"data": "2026-06-01", "resolvidas": 2},
+        {"data": "2026-06-02", "resolvidas": 3},
+        {"data": "2026-06-05", "resolvidas": 4},
+    ]
+
+
+def test_progresso_diario_vazio():
+    assert progresso_diario([]) == []

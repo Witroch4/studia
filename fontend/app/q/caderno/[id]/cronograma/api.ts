@@ -70,13 +70,54 @@ export type RevisaoItem = {
   intervalo: string;
 };
 
+/** Curva real acumulada: questões distintas resolvidas até cada dia. */
+export type ProgressoDia = {
+  data: string;
+  resolvidas: number;
+};
+
 export type CronogramaResp = {
   config: CronogramaConfig;
   plano: DiaPlano[];
   kpis: Kpis;
+  progresso: ProgressoDia[];
   revisar_hoje: RevisaoItem[];
   discursivas: Discursiva[];
   simulados: Simulado[];
+};
+
+// Tipos dos endpoints reaproveitados pelos gráficos (indice / minhas-resolucoes
+// / stats-detalhe já existem no backend e são cacheados junto com o quiz).
+
+export type IndiceItem = {
+  n: number;
+  questao_id: number;
+  banca: string | null;
+  materia: string | null;
+  preview: string;
+};
+
+export type MinhasResolucoes = {
+  caderno_id: number;
+  resolucoes: Record<string, { resposta: string | null; acertou: boolean }>;
+};
+
+export type GrupoStat = {
+  nome: string;
+  resolvidas: number;
+  acertos: number;
+  taxa: number;
+};
+
+export type StatsDetalheResp = {
+  questoes_total: number;
+  resolvidas: number;
+  acertos: number;
+  erros: number;
+  taxa: number;
+  por_materia: GrupoStat[];
+  por_assunto: GrupoStat[];
+  por_banca: GrupoStat[];
 };
 
 export type CronogramaInput = {
