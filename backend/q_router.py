@@ -1507,6 +1507,11 @@ class CalculatorHistoryReq(BaseModel):
     questao_id: int | None = None
 
 
+class CalculadoraReconhecerReq(BaseModel):
+    # PNG base64 puro (sem prefixo data-url). ~2 MB decodificados ≈ 2.8 MB b64.
+    image_base64: str = Field(..., min_length=8, max_length=3_000_000)
+
+
 def _annotation_response(row: QuestaoAnotacao | None, caderno_id: int, questao_id: int) -> dict[str, Any]:
     return {
         "id": row.id if row else None,
@@ -2404,6 +2409,40 @@ async def delete_calculator_history(
     await db.delete(row)
     await db.commit()
     return {"ok": True}
+
+
+@router.post("/calculadora/reconhecer")
+async def calculadora_reconhecer(
+    req: CalculadoraReconhecerReq,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Transcreve o desenho da gaveta para expressão da calculadora (PRO/admin)."""
+    import base64 as _b64
+
+    from llm_registry import DEFAULT_CALC_ALIAS, SETTING_CALC, get_setting
+    from vision_calc import IaIndisponivel, ReconhecimentoIlegivel, reconhecer_expressao
+
+    if not (user.is_admin or await acesso_pro_ativo(db, user.id)):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "pro_required")
+
+    image_b64 = req.image_base64.strip()
+    try:
+        decoded_len = len(_b64.b64decode(image_b64, validate=True))
+    except Exception:
+        raise HTTPException(422, "imagem inválida")
+    if decoded_len > 2 * 1024 * 1024:
+        raise HTTPException(413, "imagem grande demais")
+
+    alias = await get_setting(db, SETTING_CALC, DEFAULT_CALC_ALIAS)
+    try:
+        expression = await reconhecer_expressao(image_b64, alias)
+    except ReconhecimentoIlegivel:
+        raise HTTPException(422, "ilegivel")
+    except IaIndisponivel:
+        raise HTTPException(503, "ia_indisponivel")
+
+    return {"expression": expression}
 
 
 @router.get("/favoritas")
