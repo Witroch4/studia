@@ -172,7 +172,6 @@ export default function ConcursosPage() {
       if (!r.ok) throw new Error(await parseApiError(r, `HTTP ${r.status}`));
       return (await r.json()) as FiltrosResponse;
     },
-    staleTime: 5 * 60 * 1000,
   });
 
   const bancaPorId = useMemo(() => {
