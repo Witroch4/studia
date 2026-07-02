@@ -142,7 +142,9 @@ async function parseApiError(r: Response, fallback: string): Promise<string> {
 // ─── Página ──────────────────────────────────────────────
 
 export default function ConcursosPage() {
-  // Área de administração — mesma guarda de /q/coletar.
+  // Leitura (listagem/downloads do já-coletado) é de qualquer logado; operar a
+  // coleta (fonte externa) é admin-only — blocos 1 e 2 só renderizam p/ admin.
+  const [logado, setLogado] = useState<boolean | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const queryClient = useQueryClient();
 
@@ -150,10 +152,14 @@ export default function ConcursosPage() {
     authClient
       .getSession()
       .then((res) => {
-        const role = (res?.data?.user as { role?: string } | undefined)?.role;
-        setIsAdmin(role === "admin");
+        const user = res?.data?.user as { role?: string } | undefined;
+        setLogado(Boolean(user));
+        setIsAdmin(user?.role === "admin");
       })
-      .catch(() => setIsAdmin(false));
+      .catch(() => {
+        setLogado(false);
+        setIsAdmin(false);
+      });
   }, []);
 
   // ── Bloco 1: filtros para nova coleta ───────────────────
@@ -273,6 +279,9 @@ export default function ConcursosPage() {
 
   const jobs = jobsData?.jobs ?? [];
   const temJobAtivo = jobs.some(jobEstaAtivo);
+  // P/ não-admin a query de jobs fica desabilitada (isPending eterno):
+  // considere-a "resolvida" para os gates da listagem não travarem.
+  const jobsResolvidos = isAdmin !== true || !jobsPending;
 
   // ── Bloco 3: listagem ────────────────────────────────────
   const [buscaInput, setBuscaInput] = useState("");
@@ -295,7 +304,7 @@ export default function ConcursosPage() {
     refetch: refetchLista,
   } = useQuery<ConcursosResponse>({
     queryKey: qk.tcConcursos(busca, page),
-    enabled: isAdmin === true,
+    enabled: logado === true,
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), page_size: "50" });
       if (busca) params.set("busca", busca);
@@ -310,19 +319,19 @@ export default function ConcursosPage() {
   const total = listaData?.total ?? 0;
   const totalPaginas = Math.max(1, Math.ceil(total / 50));
 
-  // ── Guarda de admin ──────────────────────────────────────
-  if (isAdmin === null) {
+  // ── Guarda: exige login (conteúdo já-coletado); coleta em si é admin-only ──
+  if (logado === null) {
     return <div className="p-8 text-fg-muted">Carregando…</div>;
   }
-  if (!isAdmin) {
+  if (!logado) {
     return (
       <div className="min-h-screen bg-page text-fg flex items-center justify-center px-6">
         <div className="max-w-md text-center space-y-3">
           <span className="material-symbols-outlined text-fg-faint text-5xl">lock</span>
-          <h1 className="text-xl font-semibold">Área restrita</h1>
+          <h1 className="text-xl font-semibold">Faça login</h1>
           <p className="text-sm text-fg-faint">
-            Esta seção é exclusiva para administradores. Para estudar, escolha um
-            guia ou monte um caderno.
+            Entre na sua conta para ver os concursos coletados (editais, provas e
+            gabaritos).
           </p>
           <div className="flex justify-center gap-2 pt-2">
             <Link href="/q/guias" className="text-sm bg-primary hover:bg-primary-600 text-on-primary px-4 py-2 rounded font-semibold">
@@ -344,12 +353,16 @@ export default function ConcursosPage() {
           <span className="material-symbols-outlined text-primary">domain</span> Concursos
         </h1>
         <p className="text-xs text-fg-faint mt-1">
-          Colete concursos por banca ou formação na fonte externa e acompanhe editais,
-          provas e gabaritos coletados.
+          {isAdmin
+            ? "Colete concursos por banca ou formação na fonte externa e acompanhe editais, provas e gabaritos coletados."
+            : "Consulte os concursos disponíveis e baixe editais, provas e gabaritos."}
         </p>
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+        {/* Blocos 1 e 2 (operação de coleta): admin-only — usuário comum só vê a listagem */}
+        {isAdmin && (
+        <>
         {/* Bloco 1: Nova coleta */}
         <section className="border border-border rounded-lg bg-page/70 p-4 space-y-4">
           <h2 className="text-sm font-semibold text-fg-strong flex items-center gap-2">
@@ -491,12 +504,15 @@ export default function ConcursosPage() {
           )}
         </section>
 
+        </>
+        )}
+
         {/* Bloco 3: Listagem */}
         <section className="border border-border rounded-lg bg-page/70 p-4 space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-fg-strong">Concursos coletados</h2>
-              {!listaPending && !listaIsError && !jobsPending && (total > 0 || !temJobAtivo) && (
+              {!listaPending && !listaIsError && jobsResolvidos && (total > 0 || !temJobAtivo) && (
                 <p className="text-xs text-fg-faint mt-1">
                   {total.toLocaleString("pt-BR")} concurso(s) encontrado(s)
                 </p>
@@ -528,7 +544,7 @@ export default function ConcursosPage() {
                     jobs não assentou com a lista vazia: só depois dela sabemos se o
                     vazio é "aguardando coleta" ou "nada coletado" (dados não pulam). */}
                 {(listaPending ||
-                  (!listaIsError && concursos.length === 0 && jobsPending)) &&
+                  (!listaIsError && concursos.length === 0 && !jobsResolvidos)) &&
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={i} className="border-b border-border last:border-b-0">
                       <td className="px-3 py-3">
@@ -557,7 +573,7 @@ export default function ConcursosPage() {
                   </tr>
                 )}
 
-                {!listaPending && !listaIsError && concursos.length === 0 && !jobsPending && temJobAtivo && (
+                {!listaPending && !listaIsError && concursos.length === 0 && jobsResolvidos && temJobAtivo && (
                   <tr>
                     <td colSpan={6} className="px-3 py-8">
                       <BrandLoader size={32} label="Coleta em andamento — aguardando os primeiros resultados…" />
@@ -565,7 +581,7 @@ export default function ConcursosPage() {
                   </tr>
                 )}
 
-                {!listaPending && !listaIsError && concursos.length === 0 && !jobsPending && !temJobAtivo && (
+                {!listaPending && !listaIsError && concursos.length === 0 && jobsResolvidos && !temJobAtivo && (
                   <tr>
                     <td colSpan={6} className="px-3 py-8 text-center text-sm text-fg-muted">
                       Nenhum concurso coletado ainda. Use &quot;Nova coleta&quot; acima.

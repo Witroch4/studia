@@ -179,13 +179,30 @@ def _engine_session():
     return eng, async_sessionmaker(eng, expire_on_commit=False)
 
 
+
+async def _ensure_schema_se_preciso(eng) -> None:
+    """Roda o DDL do ledger só se a tabela de units ainda não existe.
+
+    O `ensure_ledger_schema` completo faz `ALTER TABLE tc_jobs ...` a cada
+    execução — DDL pega ACCESS EXCLUSIVE e DEADLOCKA contra coletas de
+    caderno/comentários em andamento (visto em prod: descobrir_concursos
+    morria em loop de redelivery). DML puro não disputa esse lock.
+    """
+    async with eng.begin() as c:
+        existe = (
+            await c.execute(text("SELECT to_regclass('public.tc_concurso_units')"))
+        ).scalar()
+    if existe is None:
+        async with eng.begin() as c:
+            await ensure_ledger_schema(c)
+
+
 # ─── hooks do ledger (substituíveis em testes) ────────────────────────────────
 
 async def _lease(*, job_id: int, concurso_id: int) -> dict | None:
     eng, S = _engine_session()
     try:
-        async with eng.begin() as c:
-            await ensure_ledger_schema(c)
+        await _ensure_schema_se_preciso(eng)
         async with S.begin() as s:
             return await lease_concurso_unit(
                 s, job_id=job_id, concurso_id=concurso_id, ack_wait_seconds=600
@@ -422,8 +439,7 @@ async def descobrir_concursos(job_id: int, filtros: list[dict[str, Any]]) -> dic
     download. Idempotente: pode ser reenfileirada (job reusado) e retoma."""
     eng, S = _engine_session()
     try:
-        async with eng.begin() as c:
-            await ensure_ledger_schema(c)
+        await _ensure_schema_se_preciso(eng)
 
         async with S.begin() as s:
             await s.execute(
