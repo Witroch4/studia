@@ -16,7 +16,7 @@ from fastapi.responses import StreamingResponse
 from auth import CurrentUser, require_user
 from database import get_db
 from models import (
-    CadernoQuestoes, GuiaCaderno, Resolucao,
+    CadernoQuestoes, GuiaCaderno, Questao, Resolucao,
     Cronograma, CronogramaDiscursiva, CronogramaSimulado,
 )
 import cronograma_core as core
@@ -71,8 +71,26 @@ async def _get_cron(db: AsyncSession, caderno_id: int, uid: str) -> Optional[Cro
     )).scalar_one_or_none()
 
 
-async def _resolucoes_distinct(db: AsyncSession, caderno_id: int, uid: str):
-    """(resolvidas_distinct, acertos_distinct, lista (qid, acertou, data) p/ revisões)."""
+async def _anuladas_do_caderno(db: AsyncSession, cad: CadernoQuestoes) -> set[int]:
+    """Ids das questões anuladas do caderno (mesma regra do quiz: não respondíveis)."""
+    from q_router import _questao_anulada
+
+    ids = cad.question_ids or []
+    if not ids:
+        return set()
+    rows = (await db.execute(
+        select(Questao.id, Questao.status, Questao.gabarito).where(Questao.id.in_(ids))
+    )).all()
+    return {qid for qid, status, gab in rows if _questao_anulada(status, gab)}
+
+
+async def _resolucoes_distinct(db: AsyncSession, caderno_id: int, uid: str,
+                               ignorar: set[int] | None = None):
+    """(resolvidas_distinct, acertos_distinct, lista (qid, acertou, data) p/ revisões).
+
+    `ignorar` = questões anuladas: resoluções antigas delas saem de todas as
+    contas (não pontuam, não entram na curva nem em "revisar hoje").
+    """
     rows = (await db.execute(
         select(Resolucao.questao_id, Resolucao.acertou, Resolucao.created_at)
         .where(Resolucao.caderno_id == caderno_id, Resolucao.usuario_uid == uid)
@@ -81,6 +99,8 @@ async def _resolucoes_distinct(db: AsyncSession, caderno_id: int, uid: str):
     distintas: set[int] = set()
     acertadas: set[int] = set()
     for qid, acertou, criado in rows:
+        if ignorar and qid in ignorar:
+            continue
         d = criado.date() if isinstance(criado, datetime) else criado
         resolucoes.append((qid, bool(acertou), d))
         distintas.add(qid)
@@ -104,10 +124,14 @@ def _cron_config_dict(c: Cronograma) -> dict[str, Any]:
 async def _montar_resposta(db: AsyncSession, cad: CadernoQuestoes, c: Cronograma) -> dict[str, Any]:
     hoje = date.today()
     inicio_efetivo = c.rebaseline_em or c.data_inicio
-    plano = core.gerar_plano(inicio_efetivo, c.data_prova, cad.total or 0,
+    # Anuladas não são respondíveis: saem do total, da meta e das contas.
+    anuladas = await _anuladas_do_caderno(db, cad)
+    total_efetivo = max((cad.total or 0) - len(anuladas), 0)
+    plano = core.gerar_plano(inicio_efetivo, c.data_prova, total_efetivo,
                              c.dias_folga or [], c.buffer_dias)
-    resolvidas, acertos, resolucoes = await _resolucoes_distinct(db, cad.id, c.usuario_uid)
-    kpis = core.calcular_kpis(plano, cad.total or 0, resolvidas, acertos, hoje)
+    resolvidas, acertos, resolucoes = await _resolucoes_distinct(
+        db, cad.id, c.usuario_uid, ignorar=anuladas)
+    kpis = core.calcular_kpis(plano, total_efetivo, resolvidas, acertos, hoje)
     revisoes = core.derivar_revisoes(resolucoes, hoje) if c.incluir_revisao else []
     discs = (await db.execute(
         select(CronogramaDiscursiva).where(CronogramaDiscursiva.cronograma_id == c.id)
@@ -125,7 +149,7 @@ async def _montar_resposta(db: AsyncSession, cad: CadernoQuestoes, c: Cronograma
              "hoje": d.data == hoje}
             for d in plano
         ],
-        "kpis": kpis.__dict__,
+        "kpis": {**kpis.__dict__, "anuladas": len(anuladas)},
         "progresso": core.progresso_diario(resolucoes),
         "revisar_hoje": [
             {"questao_id": i.questao_id, "revisar_em": i.revisar_em.isoformat(),
@@ -201,11 +225,13 @@ async def listar_cronogramas(
         cad = cads.get(c.caderno_id)
         if not cad:
             continue
-        total = cad.total or 0
+        anuladas = await _anuladas_do_caderno(db, cad)
+        total = max((cad.total or 0) - len(anuladas), 0)
         inicio_efetivo = c.rebaseline_em or c.data_inicio
         plano = core.gerar_plano(inicio_efetivo, c.data_prova, total,
                                  c.dias_folga or [], c.buffer_dias)
-        resolvidas, acertos, _ = await _resolucoes_distinct(db, cad.id, c.usuario_uid)
+        resolvidas, acertos, _ = await _resolucoes_distinct(
+            db, cad.id, c.usuario_uid, ignorar=anuladas)
         kpis = core.calcular_kpis(plano, total, resolvidas, acertos, hoje)
         out.append({
             "caderno_id": cad.id,
@@ -390,7 +416,8 @@ async def exportar_cronograma(
     if not c:
         raise HTTPException(404, "sem cronograma")
     inicio_efetivo = c.rebaseline_em or c.data_inicio
-    plano = core.gerar_plano(inicio_efetivo, c.data_prova, cad.total or 0,
+    total_efetivo = max((cad.total or 0) - len(await _anuladas_do_caderno(db, cad)), 0)
+    plano = core.gerar_plano(inicio_efetivo, c.data_prova, total_efetivo,
                              c.dias_folga or [], c.buffer_dias)
     discs = (await db.execute(
         select(CronogramaDiscursiva).where(CronogramaDiscursiva.cronograma_id == c.id)
@@ -401,7 +428,7 @@ async def exportar_cronograma(
         .order_by(CronogramaSimulado.data)
     )).scalars().all()
     blob = montar_workbook({
-        "nome_caderno": cad.nome, "total": cad.total or 0,
+        "nome_caderno": cad.nome, "total": total_efetivo,
         "data_inicio": c.data_inicio, "data_prova": c.data_prova, "plano": plano,
         "discursivas": [{"data": x.data, "tema": x.tema, "tipo": x.tipo, "qtd": x.qtd,
                          "status": x.status, "nota": x.nota, "observacoes": x.observacoes}
