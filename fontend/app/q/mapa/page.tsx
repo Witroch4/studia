@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
+import { diasRestantes } from "@/lib/utils";
 import { Skeleton } from "../../components/ds";
 
 // ─── Tipos ───────────────────────────────────────────────
@@ -23,16 +24,6 @@ type MapaResumo = {
 };
 
 // ─── Helpers ─────────────────────────────────────────────
-
-/** Dias até a prova (0 = hoje; negativo = já passou; null = sem data). */
-function diasRestantes(dataProva: string | null): number | null {
-  if (!dataProva) return null;
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const prova = new Date(`${dataProva.slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(prova.getTime())) return null;
-  return Math.round((prova.getTime() - hoje.getTime()) / 86_400_000);
-}
 
 function textoCountdown(dias: number | null): string {
   if (dias === null) return "Data da prova não informada";
