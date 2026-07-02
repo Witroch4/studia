@@ -27,7 +27,7 @@ test("cai para items quando files está vazio (variação entre navegadores)", (
   assert.equal(out.length, 1);
 });
 
-test("clipboard só com texto/html não retorna nada (segue o fluxo turndown)", () => {
+test("clipboard só com texto/html não retorna nada (segue o paste nativo do editor)", () => {
   const item = { kind: "string", type: "text/html", getAsFile: () => null };
   const out = imagensDoClipboard(dt({ items: [item] }));
   assert.equal(out.length, 0);

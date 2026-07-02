@@ -16,6 +16,29 @@ type CanvasSize = { width: number; height: number };
 
 const MIN_CANVAS_SIZE: CanvasSize = { width: 1, height: 1 };
 
+// Distância (px) até onde um pointerdown+up ainda conta como CLIQUE (tap) e
+// não como traço. Abaixo disso o clique "atravessa" o canvas e aciona o
+// elemento interativo por baixo (bolinha da alternativa, Resolver, navegação).
+const TAP_SLOP_PX = 6;
+
+const INTERACTIVE_SELECTOR =
+  'button, a[href], input, select, textarea, label, [role="button"], [role="radio"], [role="checkbox"]';
+
+// Clique parado com o canvas ativo: repassa o clique pro elemento clicável que
+// está por baixo do overlay. Arrastar continua desenhando por cima de tudo.
+function clickThroughAt(node: HTMLCanvasElement, clientX: number, clientY: number): boolean {
+  const previous = node.style.pointerEvents;
+  node.style.pointerEvents = "none";
+  const below = document.elementFromPoint(clientX, clientY);
+  node.style.pointerEvents = previous;
+
+  const target = below?.closest(INTERACTIVE_SELECTOR);
+  if (!(target instanceof HTMLElement)) return false;
+
+  target.click();
+  return true;
+}
+
 function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
 }
@@ -145,6 +168,10 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
   const sizeRef = useRef<CanvasSize>(MIN_CANVAS_SIZE);
   const currentStroke = useRef<CanvasStroke | null>(null);
   const activePointerId = useRef<number | null>(null);
+  // Início do gesto: só viramos "traço" depois de passar do TAP_SLOP_PX;
+  // até lá é um clique em potencial (que atravessa pro botão de baixo).
+  const gestureStart = useRef<{ clientX: number; clientY: number; point: CanvasPoint } | null>(null);
+  const isDrawing = useRef(false);
   const [size, setSize] = useState<CanvasSize>(MIN_CANVAS_SIZE);
 
   const getContext = useCallback(() => {
@@ -214,6 +241,8 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
     if (active) return;
     currentStroke.current = null;
     activePointerId.current = null;
+    gestureStart.current = null;
+    isDrawing.current = false;
     redraw();
   }, [active, redraw]);
 
@@ -260,6 +289,22 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
     [onChange, width],
   );
 
+  const commitStroke = useCallback(
+    (stroke: CanvasStroke) => {
+      const currentSize = sizeRef.current;
+      onChange((current) => {
+        const next = {
+          version: 1 as const,
+          cardSize: { width: currentSize.width, height: currentSize.height },
+          strokes: [...current.strokes, stroke],
+        };
+        canvasStateRef.current = next;
+        return next;
+      });
+    },
+    [onChange],
+  );
+
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLCanvasElement>) => {
       if (!active || activePointerId.current !== null) return;
@@ -268,17 +313,17 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
       event.currentTarget.setPointerCapture(event.pointerId);
       activePointerId.current = event.pointerId;
 
-      const point = pointFromEvent(event);
-      if (tool === "eraser") {
-        eraseAtPoint(point);
-        return;
-      }
-
-      const stroke = makeStroke(tool, color, width, point);
-      currentStroke.current = stroke;
-      redraw();
+      // Nada é desenhado/apagado ainda: pode ser um tap que vai atravessar
+      // pro botão de baixo. O traço só nasce quando passar do TAP_SLOP_PX
+      // (o ponto inicial é preservado, então o desenho não perde o começo).
+      gestureStart.current = {
+        clientX: event.clientX,
+        clientY: event.clientY,
+        point: pointFromEvent(event),
+      };
+      isDrawing.current = false;
     },
-    [active, color, eraseAtPoint, pointFromEvent, redraw, tool, width],
+    [active, pointFromEvent],
   );
 
   const handlePointerMove = useCallback(
@@ -286,7 +331,21 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
       if (!active || activePointerId.current !== event.pointerId) return;
 
       event.preventDefault();
+      const start = gestureStart.current;
       const point = pointFromEvent(event);
+
+      if (!isDrawing.current) {
+        if (!start) return;
+        const moved = Math.hypot(event.clientX - start.clientX, event.clientY - start.clientY);
+        if (moved <= TAP_SLOP_PX) return;
+
+        isDrawing.current = true;
+        if (tool === "eraser") {
+          eraseAtPoint(start.point);
+        } else {
+          currentStroke.current = makeStroke(tool, color, width, start.point);
+        }
+      }
 
       if (tool === "eraser") {
         eraseAtPoint(point);
@@ -299,7 +358,7 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
       stroke.points.push(point);
       redraw();
     },
-    [active, eraseAtPoint, pointFromEvent, redraw, tool],
+    [active, color, eraseAtPoint, pointFromEvent, redraw, tool, width],
   );
 
   const finishStroke = useCallback(
@@ -314,23 +373,50 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
       }
 
       activePointerId.current = null;
+      const start = gestureStart.current;
+      gestureStart.current = null;
+      const wasDrawing = isDrawing.current;
+      isDrawing.current = false;
       const stroke = currentStroke.current;
       currentStroke.current = null;
 
-      if (!stroke) return;
+      if (wasDrawing) {
+        if (stroke) commitStroke(stroke);
+        return;
+      }
 
-      const currentSize = sizeRef.current;
-      onChange((current) => {
-        const next = {
-          version: 1 as const,
-          cardSize: { width: currentSize.width, height: currentSize.height },
-          strokes: [...current.strokes, stroke],
-        };
-        canvasStateRef.current = next;
-        return next;
-      });
+      // Tap (não arrastou): tenta clicar no que está por baixo do canvas.
+      // Se não houver nada clicável ali, aplica a ferramenta no ponto
+      // (pinta um ponto / apaga), preservando o comportamento antigo.
+      if (!start || !event) return;
+      if (clickThroughAt(event.currentTarget, start.clientX, start.clientY)) return;
+
+      if (tool === "eraser") {
+        eraseAtPoint(start.point);
+      } else {
+        commitStroke(makeStroke(tool, color, width, start.point));
+      }
     },
-    [onChange],
+    [color, commitStroke, eraseAtPoint, tool, width],
+  );
+
+  // Cancel (ex.: gesto do sistema no touch): salva o traço já desenhado, mas
+  // NUNCA vira clique nem pinta ponto — o gesto foi abortado, não concluído.
+  const handlePointerCancel = useCallback(
+    (event: PointerEvent<HTMLCanvasElement>) => {
+      if (activePointerId.current !== event.pointerId) return;
+
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      activePointerId.current = null;
+      gestureStart.current = null;
+      isDrawing.current = false;
+      const stroke = currentStroke.current;
+      currentStroke.current = null;
+      if (stroke) commitStroke(stroke);
+    },
+    [commitStroke],
   );
 
   return (
@@ -346,7 +432,7 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishStroke}
-      onPointerCancel={finishStroke}
+      onPointerCancel={handlePointerCancel}
       role={active ? "application" : undefined}
       aria-label={active ? "Canvas de anotacoes da questao" : undefined}
       aria-hidden={active ? undefined : true}

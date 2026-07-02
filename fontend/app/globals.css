@@ -396,3 +396,50 @@ button:disabled,
   .lp-aurora, .lp-rise, .lp-marquee { animation: none; }
   .lp-card:hover { transform: none; }
 }
+
+/* ─── Editor WYSIWYG do fórum (TipTap) ─────────────────────────────────── */
+.forum-editor .tiptap {
+  min-height: 7rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.625;
+  color: var(--text-body);
+  outline: none;
+  word-break: break-word;
+}
+.forum-editor .tiptap p { margin: 0 0 0.5rem; }
+.forum-editor .tiptap p:last-child { margin-bottom: 0; }
+.forum-editor .tiptap strong { font-weight: 600; color: var(--text-strong); }
+.forum-editor .tiptap ul { list-style: disc; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+.forum-editor .tiptap ol { list-style: decimal; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+.forum-editor .tiptap blockquote {
+  border-left: 4px solid color-mix(in srgb, var(--primary) 40%, transparent);
+  padding-left: 0.75rem;
+  font-style: italic;
+  margin: 0.5rem 0;
+  color: var(--text-muted);
+}
+.forum-editor .tiptap img {
+  max-width: 100%;
+  border-radius: 0.5rem;
+  margin: 0.5rem 0;
+  border: 1px solid var(--border-default);
+}
+.forum-editor .tiptap img.ProseMirror-selectednode {
+  outline: 2px solid var(--primary);
+}
+.forum-editor .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--text-faint);
+}
+.forum-editor .tiptap .tiptap-mathematics-render {
+  padding: 0 2px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.forum-editor .tiptap .tiptap-mathematics-render:hover {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+}
