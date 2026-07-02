@@ -41,4 +41,8 @@ export const qk = {
   categoriasArvore: () => ["q", "categorias-arvore"] as const,
   count: (filtros: unknown) => ["q", "count", filtros] as const,
   concursos: () => ["concursos"] as const,
+  // Concursos coletados por filtro (busca avançada TC) — distinto do legado `concursos()`.
+  tcConcursos: (busca: string, page: number) => ["q", "concursos", "lista", busca, page] as const,
+  tcConcursoJobs: () => ["q", "concursos", "jobs"] as const,
+  tcConcursoFiltros: () => ["q", "concursos", "filtros"] as const,
 };
