@@ -53,6 +53,27 @@ verso: Resposta sobre propriedade.
     assert cards[1]["assunto"] == "Propriedade"
 
 
+def test_parse_markdown_normaliza_crlf():
+    """Arquivo com line endings Windows (CRLF) gera cards identicos ao LF."""
+    text_lf = """
+flashcard:Engenharia Civil:Fundacoes
+
+frente:
+Pergunta?
+
+verso:
+Linha 1
+Linha 2
+"""
+    text_crlf = text_lf.replace("\n", "\r\n")
+
+    cards_lf = parse_markdown(text_lf)
+    cards_crlf = parse_markdown(text_crlf)
+
+    assert cards_lf == cards_crlf
+    assert "\r" not in cards_crlf[0]["verso"]
+
+
 def test_parse_markdown_bold_frente_verso_labels():
     """Marcadores 'frente:'/'verso:' envoltos em negrito (**frente:**) devem ser aceitos."""
     text = """
