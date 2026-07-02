@@ -165,6 +165,8 @@ export default function ConcursosPage() {
   } = useQuery<FiltrosResponse>({
     queryKey: qk.tcConcursoFiltros(),
     enabled: isAdmin === true,
+    // backend cacheia 72h em app_settings; aqui só evita refetch por foco/remount
+    staleTime: 60 * 60 * 1000,
     queryFn: async () => {
       const r = await apiFetch("/api/q/concursos/filtros", { cache: "no-store" });
       if (!r.ok) throw new Error(await parseApiError(r, `HTTP ${r.status}`));
