@@ -128,7 +128,7 @@ class PerfilUsuario(Base):
 
 - [ ] **Step 4: Criar a migration `backend/alembic/versions/e7f8a9b0c1d2_perfis_usuario.py`**
 
-(head atual da cadeia é `d5e6f7a8b9c0`)
+(head atual da cadeia é `a7c8d9e0f1b2`, após o merge da main de 2026-07-02)
 
 ```python
 """perfis_usuario (apelido do fórum, avatar e visibilidade do perfil)"""
@@ -136,7 +136,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "e7f8a9b0c1d2"
-down_revision = "d5e6f7a8b9c0"
+down_revision = "a7c8d9e0f1b2"
 branch_labels = None
 depends_on = None
 
