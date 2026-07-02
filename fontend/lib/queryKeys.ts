@@ -45,4 +45,6 @@ export const qk = {
   tcConcursos: (busca: string, page: number) => ["q", "concursos", "lista", busca, page] as const,
   tcConcursoJobs: () => ["q", "concursos", "jobs"] as const,
   tcConcursoFiltros: () => ["q", "concursos", "filtros"] as const,
+  perfil: () => ["q", "perfil"] as const,
+  perfilPublico: (apelido: string) => ["q", "perfil", "u", apelido] as const,
 };
