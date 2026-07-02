@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { apiJson, apiPost } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
 import { BrandLoader } from "../../../../components/ds";
 import type { ConcursoCatalogoItem } from "./PassoConcurso";
@@ -50,11 +50,6 @@ interface ExtracaoStatus {
   dados?: DadosExtracao;
 }
 
-async function parseApiError(r: Response, fallback: string): Promise<string> {
-  const data = await r.json().catch(() => null);
-  return data?.detail || data?.message || fallback;
-}
-
 // ─── Componente ──────────────────────────────────────────
 
 export function PassoExtracao({
@@ -70,11 +65,8 @@ export function PassoExtracao({
 
   const { data } = useQuery<ExtracaoStatus>({
     queryKey: qk.mapaExtracao(concurso.id),
-    queryFn: async () => {
-      const r = await apiFetch(`/api/q/mapas/extracao/${concurso.id}`, { cache: "no-store" });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return (await r.json()) as ExtracaoStatus;
-    },
+    queryFn: () =>
+      apiJson<ExtracaoStatus>(`/api/q/mapas/extracao/${concurso.id}`, { cache: "no-store" }),
     refetchInterval: (q) => {
       const s = q.state.data?.status;
       return s === "concluido" || s === "erro" ? false : 4000;
@@ -82,15 +74,8 @@ export function PassoExtracao({
   });
 
   const extrair = useMutation({
-    mutationFn: async () => {
-      const r = await apiFetch("/api/q/mapas/extrair", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ concurso_id: concurso.id }),
-      });
-      if (!r.ok) throw new Error(await parseApiError(r, `HTTP ${r.status}`));
-      return r.json();
-    },
+    // ApiError de apiPost carrega o detail do backend (ex.: 409 "sem edital").
+    mutationFn: () => apiPost("/api/q/mapas/extrair", { concurso_id: concurso.id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.mapaExtracao(concurso.id) });
     },
@@ -116,12 +101,20 @@ export function PassoExtracao({
   }, [data, onConcluido]);
 
   function tentarDeNovo() {
-    jaDisparou.current = true; // já passamos do auto-disparo inicial
     extrair.mutate();
   }
 
   const status = data?.status;
-  const comErro = status === "erro";
+  // Cobre TANTO a extração que terminou em erro (status do polling) quanto a
+  // falha do próprio POST /extrair (rede/500) — senão o usuário ficaria preso
+  // no BrandLoader para sempre, sem erro nem retry.
+  const comErro = status === "erro" || extrair.isError;
+  const msgErro =
+    status === "erro"
+      ? data?.erro_msg
+      : extrair.isError
+      ? extrair.error.message
+      : null;
 
   return (
     <section className="space-y-4">
@@ -148,7 +141,7 @@ export function PassoExtracao({
         <div className="rounded-xl border border-error/40 bg-error/10 px-4 py-4 text-sm text-error space-y-3">
           <p>
             Não foi possível ler o edital
-            {data?.erro_msg ? `: ${data.erro_msg}` : "."}
+            {msgErro ? `: ${msgErro}` : "."}
           </p>
           <button
             type="button"

@@ -7,6 +7,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiPost, ApiError } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
+import { BrandLoader } from "../../../../components/ds";
 import type { ConcursoCatalogoItem } from "./PassoConcurso";
 import type { CargoEdital, DadosExtracao } from "./PassoExtracao";
 
@@ -76,6 +77,14 @@ export function PassoCargo({
       ? (criarMapa.error.data as { detail: MapaDuplicadoDetail }).detail
       : null;
   const ehPaywall = criarMapa.isError && criarMapa.error.status === 403;
+  // 409 com detail string (ex.: "Edital ainda não extraído") — mostra o texto
+  // do backend; ApiError.message já carrega o detail quando ele é string.
+  const msgErroGenerico =
+    criarMapa.isError && !ehPaywall && !mapaDuplicado
+      ? criarMapa.error.status === 409
+        ? criarMapa.error.message
+        : "Não foi possível criar o Mapa. Tente de novo."
+      : null;
 
   return (
     <section className="space-y-4">
@@ -196,23 +205,29 @@ export function PassoCargo({
             </div>
           )}
 
-          {criarMapa.isError && !ehPaywall && !mapaDuplicado && (
+          {msgErroGenerico && (
             <div className="rounded-xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
-              Não foi possível criar o Mapa. Tente de novo.
+              {msgErroGenerico}
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => criarMapa.mutate()}
-            disabled={criarMapa.isPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary transition hover:bg-primary-600 disabled:opacity-60"
-          >
-            <span className={`material-symbols-outlined text-[18px] ${criarMapa.isPending ? "animate-spin" : ""}`}>
-              {criarMapa.isPending ? "progress_activity" : "map"}
-            </span>
-            {criarMapa.isPending ? "Montando seu Mapa…" : "Criar meu Mapa"}
-          </button>
+          {/* Criar o Mapa cruza o edital com o banco via IA — operação lenta/
+              incerta, então BrandLoader (regra do CLAUDE.md), não spinner. O
+              loader entra NO LUGAR do botão, sem encolher a página. */}
+          {criarMapa.isPending ? (
+            <div className="rounded-xl border border-border bg-surface p-6">
+              <BrandLoader label="Montando seu Mapa — cruzando o edital com nosso banco de questões…" />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => criarMapa.mutate()}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary transition hover:bg-primary-600"
+            >
+              <span className="material-symbols-outlined text-[18px]">map</span>
+              Criar meu Mapa
+            </button>
+          )}
         </div>
       )}
     </section>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { apiJson } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
 import { Skeleton } from "../../../../components/ds";
 
@@ -46,12 +46,12 @@ export function PassoConcurso({
 
   const { data, isPending, isError, refetch } = useQuery<CatalogoResponse>({
     queryKey: qk.concursosCatalogo(busca, page),
-    queryFn: async () => {
+    queryFn: () => {
       const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
       if (busca) params.set("busca", busca);
-      const r = await apiFetch(`/api/q/concursos/catalogo?${params.toString()}`, { cache: "no-store" });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return (await r.json()) as CatalogoResponse;
+      return apiJson<CatalogoResponse>(`/api/q/concursos/catalogo?${params.toString()}`, {
+        cache: "no-store",
+      });
     },
     placeholderData: keepPreviousData,
   });
