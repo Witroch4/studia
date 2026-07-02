@@ -495,7 +495,7 @@ export default function ConcursosPage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-fg-strong">Concursos coletados</h2>
-              {(total > 0 || !temJobAtivo) && !listaPending && !listaIsError && (
+              {!listaPending && !listaIsError && !jobsPending && (total > 0 || !temJobAtivo) && (
                 <p className="text-xs text-fg-faint mt-1">
                   {total.toLocaleString("pt-BR")} concurso(s) encontrado(s)
                 </p>
@@ -523,7 +523,11 @@ export default function ConcursosPage() {
                 </tr>
               </thead>
               <tbody>
-                {listaPending &&
+                {/* Skeleton enquanto a lista carrega — e também enquanto a query de
+                    jobs não assentou com a lista vazia: só depois dela sabemos se o
+                    vazio é "aguardando coleta" ou "nada coletado" (dados não pulam). */}
+                {(listaPending ||
+                  (!listaIsError && concursos.length === 0 && jobsPending)) &&
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={i} className="border-b border-border last:border-b-0">
                       <td className="px-3 py-3">
@@ -552,7 +556,7 @@ export default function ConcursosPage() {
                   </tr>
                 )}
 
-                {!listaPending && !listaIsError && concursos.length === 0 && temJobAtivo && (
+                {!listaPending && !listaIsError && concursos.length === 0 && !jobsPending && temJobAtivo && (
                   <tr>
                     <td colSpan={6} className="px-3 py-8">
                       <BrandLoader size={32} label="Coleta em andamento — aguardando os primeiros resultados…" />
@@ -560,7 +564,7 @@ export default function ConcursosPage() {
                   </tr>
                 )}
 
-                {!listaPending && !listaIsError && concursos.length === 0 && !temJobAtivo && (
+                {!listaPending && !listaIsError && concursos.length === 0 && !jobsPending && !temJobAtivo && (
                   <tr>
                     <td colSpan={6} className="px-3 py-8 text-center text-sm text-fg-muted">
                       Nenhum concurso coletado ainda. Use &quot;Nova coleta&quot; acima.
@@ -723,7 +727,10 @@ function JobCard({
     const nome =
       f.tipo === "BANCA" ? bancaPorId.get(f.id) : profissaoPorId.get(f.id);
     const rotulo = f.tipo === "BANCA" ? "Banca" : "Formação";
-    return nome ? `${rotulo}: ${nome}` : `${rotulo} #${f.id}`;
+    return {
+      key: `${f.tipo}-${f.id}`,
+      label: nome ? `${rotulo}: ${nome}` : `${rotulo} #${f.id}`,
+    };
   });
 
   return (
@@ -741,12 +748,12 @@ function JobCard({
           <div className="mt-1 text-xs text-fg-muted">Status: {statusTexto(job.status)}</div>
           {filtrosLegiveis.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1.5">
-              {filtrosLegiveis.map((f, i) => (
+              {filtrosLegiveis.map((f) => (
                 <span
-                  key={i}
+                  key={f.key}
                   className="rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[11px] text-fg-muted"
                 >
-                  {f}
+                  {f.label}
                 </span>
               ))}
             </div>
