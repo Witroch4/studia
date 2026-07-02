@@ -142,6 +142,12 @@ app.include_router(guias_router)
 from concursos_router import router as concursos_router  # noqa: E402
 app.include_router(concursos_router)
 
+# Perfil de usuário (apelido, avatar, visibilidade). Registrado ANTES de
+# q_router pelo mesmo motivo do guias_router: evitar colisão com o
+# catch-all `/api/q/{questao_id}` do q_router.
+from perfil_router import router as perfil_router  # noqa: E402
+app.include_router(perfil_router)
+
 # witdev-tec-master: questões/cadernos/IA
 from q_router import router as q_router  # noqa: E402
 app.include_router(q_router)
