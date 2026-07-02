@@ -468,3 +468,89 @@ def gerar_temas_discursivas(materias: list[str], n: int = 18) -> list[str]:
     data = json.loads(response.text)
     temas = data.get("temas", []) if isinstance(data, dict) else []
     return [str(t).strip() for t in temas if str(t).strip()][:n]
+
+
+# ─── Mapa da Aprovação ─────────────────────────────────────
+
+PROMPT_EDITAL = """Você é um analista de concursos públicos. Leia o EDITAL em PDF anexo e extraia os dados abaixo em JSON VÁLIDO.
+
+REGRAS:
+- NUNCA invente dados: campo ausente no edital fica null (listas ficam vazias).
+- Datas SEMPRE em ISO "YYYY-MM-DD". Períodos usam data_inicio e data_fim.
+- Copie nomes de cargos e matérias EXATAMENTE como escritos no edital.
+- conteudo_programatico: TODAS as matérias do cargo com a lista COMPLETA de assuntos (cada item do programa é um assunto). Não resuma nem agrupe.
+- eventos: todos os prazos do cronograma do edital. tipo ∈ {inscricao, isencao, prova, recurso, resultado, homologacao, outro}.
+- vagas/salario/taxa_inscricao: strings livres como estão no edital (ex.: "2 + CR", "R$ 6.500,00").
+
+FORMATO:
+{"concurso": {"orgao": null, "banca": null, "taxa_inscricao": null, "data_prova": null},
+ "eventos": [{"titulo": "", "data_inicio": null, "data_fim": null, "tipo": "outro"}],
+ "cargos": [{"nome": "", "escolaridade": null, "vagas": null, "salario": null,
+             "requisitos": null, "jornada": null,
+             "conteudo_programatico": [{"materia": "", "assuntos": [""]}],
+             "etapas": [{"nome": "", "carater": null}],
+             "distribuicao_questoes": [{"materia": "", "quantidade": null, "peso": null}]}]}
+Responda APENAS o JSON."""
+
+
+def extrair_edital_estruturado(pdf_bytes: bytes, modelo: str) -> dict:
+    """Extrai a estrutura do edital (cargos/matérias/eventos) em JSON.
+
+    Via proxy LiteLLM (mesmo _get_client de sempre) — NUNCA Batch: o usuário
+    espera na tela. Levanta em falha (chamador marca status=erro).
+    """
+    if len(pdf_bytes) > INLINE_MAX_BYTES:
+        raise ValueError("edital maior que 20MB — não suportado")
+    client = _get_client()
+    response = client.models.generate_content(
+        model=modelo,
+        contents=[
+            types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+            PROMPT_EDITAL,
+        ],
+        config=types.GenerateContentConfig(
+            temperature=0.2, response_mime_type="application/json"
+        ),
+    )
+    data = json.loads(response.text)
+    if not isinstance(data, dict):
+        raise ValueError("IA não devolveu um objeto JSON")
+    return data
+
+
+def mapear_materias(
+    materias_edital: list[str], materias_banco: list[str], modelo: str
+) -> dict[str, str | None]:
+    """De-para matéria do edital → matéria do nosso banco (ou None sem correspondência).
+
+    Só devolve valores que existem EXATAMENTE em `materias_banco` — resposta
+    fora da lista vira None (a IA não pode inventar matéria).
+    """
+    if not materias_edital:
+        return {}
+    if not materias_banco:
+        return {m: None for m in materias_edital}
+    prompt = (
+        "Faça o de-para entre matérias de um edital de concurso e as matérias "
+        "de um banco de questões. Para cada matéria do edital, escolha a matéria "
+        "do banco de MESMO conteúdo, ou null se não houver equivalente claro. "
+        "Use SOMENTE nomes exatos da lista do banco.\n"
+        f"MATÉRIAS DO EDITAL: {json.dumps(materias_edital, ensure_ascii=False)}\n"
+        f"MATÉRIAS DO BANCO: {json.dumps(materias_banco, ensure_ascii=False)}\n"
+        'Responda APENAS JSON: {"mapeamento": {"<materia do edital>": "<materia do banco ou null>"}}'
+    )
+    client = _get_client()
+    response = client.models.generate_content(
+        model=modelo,
+        contents=[prompt],
+        config=types.GenerateContentConfig(
+            temperature=0.0, response_mime_type="application/json"
+        ),
+    )
+    data = json.loads(response.text)
+    bruto = data.get("mapeamento", {}) if isinstance(data, dict) else {}
+    validos = set(materias_banco)
+    return {
+        m: (bruto.get(m) if isinstance(bruto.get(m), str) and bruto.get(m) in validos else None)
+        for m in materias_edital
+    }
