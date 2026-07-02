@@ -84,7 +84,14 @@ export function CommentEditor({
       transformPastedHTML: (html) => limparImagensExternas(html),
       handlePaste: (_view, event) => {
         const imagens = event.clipboardData ? imagensDoClipboard(event.clipboardData) : [];
-        if (!imagens.length) return false; // segue o paste nativo do TipTap
+        if (!imagens.length) {
+          // deixa o paste nativo do TipTap acontecer e depois converte os
+          // $...$ colados (texto do Gemini etc.) em nós de fórmula ao vivo
+          setTimeout(() => {
+            if (editor) migrateMathStrings(editor);
+          }, 0);
+          return false;
+        }
         event.preventDefault();
         void subirImagens(imagens);
         return true;

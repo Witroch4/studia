@@ -22,6 +22,42 @@ function render(md) {
   );
 }
 
+test("REGRESSÃO: fórmula $...$ dentro de HTML do editor novo renderiza KaTeX", () => {
+  // trecho real do comentário 15747 de prod (colado do Gemini no editor novo)
+  const html = render(
+    "<p>A base para resolver essa questão é a famosa equação de Terzaghi:</p>"
+    + "<p>$\\sigma' = \\sigma - u$</p>"
+    + '<p>Esta é a definição exata de <strong>Tensão Efetiva</strong> ($\\sigma\'$), e não de pressão neutra ($u$).</p>'
+  );
+  assert.match(html, /class="katex"/);
+  assert.doesNotMatch(html, /\$\\sigma/);
+  assert.doesNotMatch(html, /\$u\$/);
+});
+
+test("math em bloco $$...$$ dentro de HTML renderiza em displayMode", () => {
+  const html = render("<p>Veja:</p><p>$$\\frac{a}{b}$$</p>");
+  assert.match(html, /katex-display/);
+  assert.doesNotMatch(html, /\$\$/);
+});
+
+test("cifrão de dinheiro dentro de HTML não vira fórmula", () => {
+  const html = render("<p>custa R$ 100 e o total dá R$ 250 na banca</p>");
+  assert.doesNotMatch(html, /class="katex"/);
+  assert.match(html, /R\$ 100/);
+});
+
+test("latex com underscore dentro de HTML não vira itálico", () => {
+  const html = render("<p>tensões: $\\sigma_a + \\sigma_b$</p>");
+  assert.match(html, /class="katex"/);
+  assert.doesNotMatch(html, /<em>/);
+});
+
+test("fórmula em markdown puro continua funcionando (sem dupla conversão)", () => {
+  const html = render("A energia $E=mc^2$ é **famosa**.");
+  assert.match(html, /class="katex"/);
+  assert.match(html, /<strong>famosa<\/strong>/);
+});
+
 test("HTML emitido pelo editor TipTap renderiza inteiro", () => {
   const html = render(
     '<p><strong>a</strong> <em>b</em></p><blockquote><p>cit</p></blockquote>'

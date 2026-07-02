@@ -55,6 +55,7 @@
     "@tailwindcss/postcss": "^4",
     "@tanstack/react-query-devtools": "^5.101.0",
     "@types/canvas-confetti": "^1.9.0",
+    "@types/hast": "^3.0.4",
     "@types/katex": "^0.16.8",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.1",
