@@ -2758,6 +2758,166 @@ async def favoritar(
     return {"questao_id": questao_id, "favorita": True}
 
 
+@router.get("/estatisticas-gerais")
+async def estatisticas_gerais(
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Quartel-general de estatísticas: visão agregada de TODAS as resoluções e
+    cadernos do usuário. Mesma régua da aba Estatísticas do caderno: conta por
+    questão DISTINTA (última resolução vale); `tentativas` preserva o volume bruto.
+    """
+    meu = (Resolucao.usuario_uid == user.id,)
+
+    rows = (await db.execute(
+        select(
+            Resolucao.questao_id,
+            Resolucao.caderno_id,
+            Resolucao.acertou,
+            Resolucao.tempo_segundos,
+            Resolucao.created_at,
+        )
+        .where(*meu)
+        .order_by(Resolucao.created_at.desc())
+    )).all()
+
+    ultima_q: dict[int, Any] = {}
+    ultima_cad_q: dict[tuple[int, int], Any] = {}
+    cad_tempo: dict[int, int] = {}
+    cad_ultimo: dict[int, Any] = {}
+    tempo_total = 0
+    for r in rows:
+        qid = int(r.questao_id)
+        if qid not in ultima_q:  # desc → mantém a mais recente
+            ultima_q[qid] = r.acertou
+        if r.caderno_id is not None:
+            cid = int(r.caderno_id)
+            key = (cid, qid)
+            if key not in ultima_cad_q:
+                ultima_cad_q[key] = r.acertou
+            cad_tempo[cid] = cad_tempo.get(cid, 0) + int(r.tempo_segundos or 0)
+            if cid not in cad_ultimo:
+                cad_ultimo[cid] = r.created_at
+        tempo_total += int(r.tempo_segundos or 0)
+
+    resolvidas = len(ultima_q)
+    acertos = sum(1 for v in ultima_q.values() if v is True)
+    erros = sum(1 for v in ultima_q.values() if v is False)
+    tentativas = len(rows)
+
+    favoritas = (await db.execute(
+        select(func.count()).where(QuestaoFavorita.owner_uid == user.id)
+    )).scalar_one()
+
+    # ─── Por dia (todas as tentativas, últimos 30 dias com atividade) ───
+    dia = func.date(Resolucao.created_at)
+    por_dia_rows = (await db.execute(
+        select(
+            dia.label("dia"),
+            func.count(Resolucao.id).label("resolvidas"),
+            func.sum(func.cast(Resolucao.acertou, Integer)).label("acertos"),
+        )
+        .where(*meu)
+        .group_by(dia)
+        .order_by(dia.desc())
+        .limit(30)
+    )).all()
+    por_dia = [
+        {
+            "data": _as_date(r.dia).isoformat(),
+            "resolvidas": int(r.resolvidas or 0),
+            "acertos": int(r.acertos or 0),
+        }
+        for r in reversed(por_dia_rows)
+    ]
+
+    # ─── Por matéria e por banca (sobre as questões distintas) ───
+    por_materia_map: dict[str, dict[str, Any]] = {}
+    por_banca_map: dict[str, dict[str, Any]] = {}
+    if ultima_q:
+        qinfo = (await db.execute(
+            select(Questao.id, Materia.nome.label("materia"), Banca.sigla.label("banca"))
+            .select_from(Questao)
+            .outerjoin(Materia, Materia.id == Questao.materia_id)
+            .outerjoin(Banca, Banca.id == Questao.banca_id)
+            .where(Questao.id.in_(ultima_q.keys()))
+        )).all()
+        for r in qinfo:
+            acertou = ultima_q.get(int(r.id))
+            for mapa, nome in ((por_materia_map, r.materia), (por_banca_map, r.banca)):
+                if not nome:
+                    continue
+                g = mapa.setdefault(nome, {"nome": nome, "resolvidas": 0, "acertos": 0, "erros": 0})
+                g["resolvidas"] += 1
+                if acertou is True:
+                    g["acertos"] += 1
+                elif acertou is False:
+                    g["erros"] += 1
+
+    def _top(mapa: dict[str, dict[str, Any]], n: int) -> list[dict[str, Any]]:
+        grupos = sorted(mapa.values(), key=lambda g: -g["resolvidas"])[:n]
+        return [
+            {**g, "taxa": round((g["acertos"] / g["resolvidas"]) * 100, 1) if g["resolvidas"] else 0}
+            for g in grupos
+        ]
+
+    # ─── Todos os cadernos do usuário (próprios + salvos do catálogo) ───
+    salvos_subq = select(CadernoSalvo.caderno_id).where(CadernoSalvo.usuario_uid == user.id)
+    cad_rows = (await db.execute(
+        select(CadernoQuestoes)
+        .where(or_(
+            CadernoQuestoes.owner_uid == user.id,
+            CadernoQuestoes.id.in_(salvos_subq),
+        ))
+        .limit(200)
+    )).scalars().all()
+
+    stats_por_cad: dict[int, list[Any]] = {}
+    for (cid, _), v in ultima_cad_q.items():
+        stats_por_cad.setdefault(cid, []).append(v)
+
+    cadernos = []
+    for c in cad_rows:
+        stats = stats_por_cad.get(c.id, [])
+        res_c = len(stats)
+        ac_c = sum(1 for v in stats if v is True)
+        er_c = sum(1 for v in stats if v is False)
+        cadernos.append({
+            "id": c.id,
+            "nome": c.nome,
+            "pasta": c.pasta,
+            "total": c.total,
+            "resolvidas": res_c,
+            "acertos": ac_c,
+            "erros": er_c,
+            "taxa": round((ac_c / res_c) * 100, 1) if res_c else 0,
+            "tempo_segundos": cad_tempo.get(c.id, 0),
+            "ultima_atividade": cad_ultimo[c.id].isoformat() if c.id in cad_ultimo else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
+    # Mais recentemente estudados primeiro; sem atividade vão pro fim (por criação).
+    cadernos.sort(key=lambda x: (x["ultima_atividade"] or "", x["created_at"] or ""), reverse=True)
+
+    return {
+        "resumo": {
+            "resolvidas": resolvidas,
+            "acertos": acertos,
+            "erros": erros,
+            "taxa": round((acertos / resolvidas) * 100, 1) if resolvidas else 0,
+            "tentativas": tentativas,
+            "tempo_total_segundos": int(tempo_total),
+            "tempo_medio_segundos": round(tempo_total / tentativas, 1) if tentativas else 0,
+            "cadernos": len(cadernos),
+            "cadernos_ativos": sum(1 for c in cadernos if c["resolvidas"] > 0),
+            "favoritas": int(favoritas or 0),
+        },
+        "por_dia": por_dia,
+        "por_materia": _top(por_materia_map, 15),
+        "por_banca": _top(por_banca_map, 10),
+        "cadernos": cadernos,
+    }
+
+
 @router.get("/dashboard")
 async def dashboard(
     user: CurrentUser = Depends(require_user),

@@ -51,3 +51,6 @@ export type { DeckCardProps, DeckHue } from "./DeckCard";
 
 export { ChatBubble } from "./ChatBubble";
 export type { ChatBubbleProps } from "./ChatBubble";
+
+export { DonutChart } from "./DonutChart";
+export type { DonutSegmento } from "./DonutChart";

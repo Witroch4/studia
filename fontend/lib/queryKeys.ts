@@ -37,6 +37,7 @@ export const qk = {
   adminUsuarios: (q: string, page: number) =>
     ["admin", "usuarios", q, page] as const,
   limite: () => ["q", "limite"] as const,
+  estatisticasGerais: () => ["q", "estatisticas-gerais"] as const,
   categoriasArvore: () => ["q", "categorias-arvore"] as const,
   count: (filtros: unknown) => ["q", "count", filtros] as const,
   concursos: () => ["concursos"] as const,

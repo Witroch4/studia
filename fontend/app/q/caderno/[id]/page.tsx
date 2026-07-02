@@ -84,6 +84,23 @@ function readSavedIdx(id: string): number {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
+// Aba inicial via ?tab= (ex.: link "Estatísticas" do quartel-general em
+// /q/estatisticas). Mesmo padrão window-guard do readSavedIdx: lazy init antes
+// do primeiro render, sem useEffect corrigindo depois.
+const TAB_POR_QUERY: Record<string, Tab> = {
+  questoes: "Questoes",
+  indice: "Indice",
+  estatisticas: "Estatisticas",
+  gabarito: "Gabarito",
+  configuracoes: "Configuracoes",
+};
+
+function readTabFromUrl(): Tab {
+  if (typeof window === "undefined") return "Questoes";
+  const t = (new URLSearchParams(window.location.search).get("tab") || "").toLowerCase();
+  return TAB_POR_QUERY[t] ?? "Questoes";
+}
+
 export default function CadernoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -107,7 +124,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const [gotoOpen, setGotoOpen] = useState(false);
   const [gotoValue, setGotoValue] = useState("");
   const [fontSize, setFontSize] = useState(16);
-  const [tab, setTab] = useState<Tab>("Questoes");
+  const [tab, setTab] = useState<Tab>(() => readTabFromUrl());
   const [tempo, setTempo] = useState(0);
   const [tempoInicioQuestao, setTempoInicioQuestao] = useState(0);
   const [pausado, setPausado] = useState(false);

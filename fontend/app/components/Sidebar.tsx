@@ -39,7 +39,7 @@ const navItems: NavItem[] = [
   { href: "/planejamento", label: "Planejamento", icon: "calendar_month" },
   { href: "/em-breve?f=Revisões", label: "Revisões", icon: "autorenew" },
   { href: "/em-breve?f=Histórico", label: "Histórico", icon: "history" },
-  { href: "/em-breve?f=Estatísticas", label: "Estatísticas", icon: "bar_chart" },
+  { href: "/q/estatisticas", label: "Estatísticas", icon: "bar_chart" },
   { href: "/em-breve?f=Simulados", label: "Simulados", icon: "quiz" },
 ];
 
