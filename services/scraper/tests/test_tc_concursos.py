@@ -52,3 +52,25 @@ def test_external_id_canonico_e_estavel():
     a = filtros_external_id([{"id": "6", "tipo": "PROFISSAO"}, {"id": "95", "tipo": "BANCA"}])
     b = filtros_external_id([{"id": 95, "tipo": "BANCA"}, {"id": 6, "tipo": "PROFISSAO"}])
     assert a == b == "BANCA:95|PROFISSAO:6"
+
+
+def test_normalizar_itens_filtro_shape_ui():
+    from app.scrapers.tc_concursos import _normalizar_itens_filtro
+
+    bancas_raw = {"bancas": [
+        {"id": 95, "nome": "Instituto de Desenvolvimento Educacional", "sigla": "IDECAN"},
+        {"id": 1, "nome": "Sem Sigla"},
+        {"id": None, "nome": "invalida"},
+        "lixo",
+    ]}
+    out = _normalizar_itens_filtro(bancas_raw, "bancas")
+    assert out[0] == {"key": "95", "name": "IDECAN — Instituto de Desenvolvimento Educacional"}
+    assert out[1] == {"key": "1", "name": "Sem Sigla"}
+    assert len(out) == 2  # id None e não-dict descartados
+
+    profs_raw = {"profissoes": [{"id": 6, "nome": "Engenharia Civil"}]}
+    assert _normalizar_itens_filtro(profs_raw, "profissoes") == [
+        {"key": "6", "name": "Engenharia Civil"}
+    ]
+    # lista crua (sem wrapper) também funciona
+    assert _normalizar_itens_filtro([{"id": 2, "nome": "X"}], "bancas") == [{"key": "2", "name": "X"}]

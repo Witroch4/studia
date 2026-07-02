@@ -47,6 +47,23 @@ async def fetch_busca_avancada(client: TcClient, filtros: list[dict], pagina: in
     return r.json()
 
 
+def _normalizar_itens_filtro(raw: Any, inner_key: str) -> list[dict[str, str]]:
+    """TC devolve {"bancas": [{id, nome, sigla, ...}]} / {"profissoes": [{id, nome}]}.
+    A UI consome [{key, name}] — key = id (string), name pesquisável (sigla — nome)."""
+    itens = raw.get(inner_key, raw) if isinstance(raw, dict) else raw
+    out: list[dict[str, str]] = []
+    for it in itens or []:
+        if not isinstance(it, dict) or it.get("id") is None:
+            continue
+        nome = str(it.get("nome") or "").strip()
+        sigla = str(it.get("sigla") or "").strip()
+        name = f"{sigla} — {nome}" if sigla and nome and sigla.lower() != nome.lower() else (sigla or nome)
+        if not name:
+            continue
+        out.append({"key": str(it["id"]), "name": name})
+    return out
+
+
 async def fetch_filtros_busca(client: TcClient) -> dict[str, Any]:
     r_bancas = await client._client.get(f"{BUSCA_PATH}/bancas", headers=XHR_HEADERS)  # noqa: SLF001
     client._check(r_bancas)  # noqa: SLF001
@@ -54,7 +71,10 @@ async def fetch_filtros_busca(client: TcClient) -> dict[str, Any]:
     r_profissoes = await client._client.get(f"{BUSCA_PATH}/profissoes", headers=XHR_HEADERS)  # noqa: SLF001
     client._check(r_profissoes)  # noqa: SLF001
     r_profissoes.raise_for_status()
-    return {"bancas": r_bancas.json(), "profissoes": r_profissoes.json()}
+    return {
+        "bancas": _normalizar_itens_filtro(r_bancas.json(), "bancas"),
+        "profissoes": _normalizar_itens_filtro(r_profissoes.json(), "profissoes"),
+    }
 
 
 def parse_busca_page(data: dict[str, Any]) -> list[dict[str, Any]]:
