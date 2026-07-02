@@ -24,16 +24,23 @@ const TAP_SLOP_PX = 6;
 const INTERACTIVE_SELECTOR =
   'button, a[href], input, select, textarea, label, [role="button"], [role="radio"], [role="checkbox"]';
 
-// Clique parado com o canvas ativo: repassa o clique pro elemento clicável que
-// está por baixo do overlay. Arrastar continua desenhando por cima de tudo.
-function clickThroughAt(node: HTMLCanvasElement, clientX: number, clientY: number): boolean {
+// Elemento clicável por baixo do overlay num ponto da tela (o canvas é
+// "desligado" por um instante pro elementFromPoint enxergar através dele).
+function interactiveBelow(node: HTMLCanvasElement, clientX: number, clientY: number): HTMLElement | null {
   const previous = node.style.pointerEvents;
   node.style.pointerEvents = "none";
   const below = document.elementFromPoint(clientX, clientY);
   node.style.pointerEvents = previous;
 
   const target = below?.closest(INTERACTIVE_SELECTOR);
-  if (!(target instanceof HTMLElement)) return false;
+  return target instanceof HTMLElement ? target : null;
+}
+
+// Clique parado com o canvas ativo: repassa o clique pro elemento clicável que
+// está por baixo do overlay. Arrastar continua desenhando por cima de tudo.
+function clickThroughAt(node: HTMLCanvasElement, clientX: number, clientY: number): boolean {
+  const target = interactiveBelow(node, clientX, clientY);
+  if (!target) return false;
 
   target.click();
   return true;
@@ -172,7 +179,58 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
   // até lá é um clique em potencial (que atravessa pro botão de baixo).
   const gestureStart = useRef<{ clientX: number; clientY: number; point: CanvasPoint } | null>(null);
   const isDrawing = useRef(false);
+  // Hover "sintético": o canvas cobre tudo, então o :hover do CSS nunca chega
+  // nos botões de baixo. A gente faz hit-testing no pointermove e acende o
+  // clicável via [data-canvas-hover] + cursor pointer, senão a pessoa tem que
+  // adivinhar que a bolinha/Resolver/nav são clicáveis através do canvas.
+  const hoverTarget = useRef<HTMLElement | null>(null);
+  const hoverRaf = useRef<number | null>(null);
+  const hoverPos = useRef<{ x: number; y: number } | null>(null);
+  const [hoverClickable, setHoverClickable] = useState(false);
   const [size, setSize] = useState<CanvasSize>(MIN_CANVAS_SIZE);
+
+  const setHoverElement = useCallback((el: HTMLElement | null) => {
+    if (hoverTarget.current === el) return;
+    hoverTarget.current?.removeAttribute("data-canvas-hover");
+    hoverTarget.current = el;
+    el?.setAttribute("data-canvas-hover", "");
+    setHoverClickable(el !== null);
+  }, []);
+
+  const scheduleHoverHitTest = useCallback(
+    (clientX: number, clientY: number) => {
+      hoverPos.current = { x: clientX, y: clientY };
+      if (hoverRaf.current !== null) return;
+
+      hoverRaf.current = requestAnimationFrame(() => {
+        hoverRaf.current = null;
+        const node = canvasRef.current;
+        const pos = hoverPos.current;
+        if (!node || !pos) return;
+        setHoverElement(interactiveBelow(node, pos.x, pos.y));
+      });
+    },
+    [setHoverElement],
+  );
+
+  // Desativou o canvas: apaga o highlight pendente. Só mexe em DOM/refs (sem
+  // setState no effect) — o cursor já é gateado por `active` no useMemo.
+  useEffect(() => {
+    if (active) return;
+    if (hoverRaf.current !== null) {
+      cancelAnimationFrame(hoverRaf.current);
+      hoverRaf.current = null;
+    }
+    hoverTarget.current?.removeAttribute("data-canvas-hover");
+    hoverTarget.current = null;
+  }, [active]);
+
+  useEffect(() => {
+    return () => {
+      if (hoverRaf.current !== null) cancelAnimationFrame(hoverRaf.current);
+      hoverTarget.current?.removeAttribute("data-canvas-hover");
+    };
+  }, []);
 
   const getContext = useCallback(() => {
     const node = canvasRef.current;
@@ -251,7 +309,7 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
   // crosshair minúsculo e parecia que "nada acontecia").
   const cursor = useMemo(() => {
     if (!active) return undefined;
-    if (tool !== "eraser") return "crosshair";
+    if (tool !== "eraser") return hoverClickable ? "pointer" : "crosshair";
 
     const radius = Math.max(12, width * 1.75);
     const diameter = Math.ceil(radius * 2 + 4);
@@ -261,7 +319,7 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
       `<circle cx='${center}' cy='${center}' r='${radius}' fill='rgba(148,163,184,0.25)' stroke='white' stroke-width='1.5'/>` +
       `</svg>`;
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${center} ${center}, crosshair`;
-  }, [active, tool, width]);
+  }, [active, hoverClickable, tool, width]);
 
   const pointFromEvent = useCallback((event: PointerEvent<HTMLCanvasElement>): CanvasPoint => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -328,7 +386,14 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
 
   const handlePointerMove = useCallback(
     (event: PointerEvent<HTMLCanvasElement>) => {
-      if (!active || activePointerId.current !== event.pointerId) return;
+      if (!active) return;
+
+      // Ponteiro solto (sem gesto): só atualiza o hover sintético.
+      if (activePointerId.current === null) {
+        scheduleHoverHitTest(event.clientX, event.clientY);
+        return;
+      }
+      if (activePointerId.current !== event.pointerId) return;
 
       event.preventDefault();
       const start = gestureStart.current;
@@ -340,6 +405,7 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
         if (moved <= TAP_SLOP_PX) return;
 
         isDrawing.current = true;
+        setHoverElement(null);
         if (tool === "eraser") {
           eraseAtPoint(start.point);
         } else {
@@ -358,7 +424,7 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
       stroke.points.push(point);
       redraw();
     },
-    [active, color, eraseAtPoint, pointFromEvent, redraw, tool, width],
+    [active, color, eraseAtPoint, pointFromEvent, redraw, scheduleHoverHitTest, setHoverElement, tool, width],
   );
 
   const finishStroke = useCallback(
@@ -433,6 +499,7 @@ export function QuestionCanvasOverlay({ active, canvas, tool, color, width, onCh
       onPointerMove={handlePointerMove}
       onPointerUp={finishStroke}
       onPointerCancel={handlePointerCancel}
+      onPointerLeave={() => setHoverElement(null)}
       role={active ? "application" : undefined}
       aria-label={active ? "Canvas de anotacoes da questao" : undefined}
       aria-hidden={active ? undefined : true}

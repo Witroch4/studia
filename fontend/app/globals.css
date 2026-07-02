@@ -230,6 +230,18 @@ body {
   .q-swap { animation: none; }
 }
 
+/* ----- Hover sintético sob o canvas de anotações ----- */
+/* O canvas ativo cobre o card inteiro, então o :hover do CSS nunca chega nos
+   botões de baixo. O QuestionCanvasOverlay faz hit-testing no pointermove e
+   marca o clicável com [data-canvas-hover] — este é o "acender" que avisa que
+   o tap vai atravessar o rabisco e clicar ali. */
+[data-canvas-hover] {
+  outline: 2px solid rgb(6 182 212 / 0.9);
+  outline-offset: 1px;
+  background-color: rgb(6 182 212 / 0.14);
+  transition: background-color 80ms ease-out;
+}
+
 /* ----- Ambient blueprint grid (dashboards / empty states) ----- */
 .cc-grid {
   background-image:
