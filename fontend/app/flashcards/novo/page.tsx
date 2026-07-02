@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import MarkdownRenderer from "../../components/MarkdownRenderer";
+import FlashcardGuiaMd from "../../components/FlashcardGuiaMd";
 import { apiFetch, apiJson } from "@/lib/api";
 import { qk } from "@/lib/queryKeys";
 
@@ -68,6 +69,10 @@ export default function NovoFlashcardPage() {
         </div>
 
         {tab === "individual" ? <IndividualForm /> : <ImportForm />}
+
+        <div className="max-w-5xl mt-8 pb-8">
+          <FlashcardGuiaMd />
+        </div>
       </main>
     </>
   );
@@ -83,13 +88,20 @@ function IndividualForm() {
   const [verso, setVerso] = useState("");
   const [showPreview, setShowPreview] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [impedirPromocao, setImpedirPromocao] = useState(false);
 
   const saveMutation = useMutation({
     mutationFn: () =>
       apiJson("/api/flashcards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tema, assunto: assunto || tema, frente, verso }),
+        body: JSON.stringify({
+          tema,
+          assunto: assunto || tema,
+          frente,
+          verso,
+          impedir_promocao: impedirPromocao,
+        }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.decks() });
@@ -191,6 +203,8 @@ function IndividualForm() {
         </div>
       )}
 
+      <ImpedirPromocaoCheckbox checked={impedirPromocao} onChange={setImpedirPromocao} />
+
       <button
         onClick={handleSave}
         disabled={!tema || !frente || !verso || saveMutation.isPending}
@@ -214,6 +228,33 @@ function IndividualForm() {
   );
 }
 
+// Checkbox compartilhado: dono decide se o admin pode publicar no catálogo
+function ImpedirPromocaoCheckbox({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start gap-3 mb-6 cursor-pointer select-none max-w-xl">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 h-4 w-4 rounded border-border bg-surface text-primary focus:ring-primary"
+      />
+      <span className="text-sm text-fg">
+        Impedir promoção ao catálogo público
+        <span className="block text-xs text-fg-faint mt-0.5">
+          Marcando, o admin não poderá publicar estes baralhos para outros usuários.
+          Vale para baralhos novos criados agora; dá para mudar depois.
+        </span>
+      </span>
+    </label>
+  );
+}
+
 // ─── Importar Lista ──────────────────────────────────────
 
 function ImportForm() {
@@ -223,6 +264,7 @@ function ImportForm() {
   const [previewIdx, setPreviewIdx] = useState<number | null>(null);
   const [imported, setImported] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [impedirPromocao, setImpedirPromocao] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
@@ -243,6 +285,7 @@ function ImportForm() {
       const blob = new Blob([text], { type: "text/markdown" });
       const formData = new FormData();
       formData.append("file", blob, "flashcards.md");
+      formData.append("impedir_promocao", String(impedirPromocao));
 
       const res = await apiFetch("/api/flashcards/import", {
         method: "POST",
@@ -328,6 +371,8 @@ function ImportForm() {
               {error}
             </div>
           )}
+
+          <ImpedirPromocaoCheckbox checked={impedirPromocao} onChange={setImpedirPromocao} />
 
           <button
             onClick={handleParse}
