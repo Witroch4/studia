@@ -337,7 +337,9 @@ async def import_flashcards(file: UploadFile = File(...), db: AsyncSession = Dep
     parsed = parse_markdown(content.decode("utf-8"))
 
     deck_cache: dict[str, Deck] = {}
+    existing_cache: dict[str, set[tuple[str, str]]] = {}
     imported_cards = []
+    skipped = 0
 
     for item in parsed:
         slug = slugify(item["tema"])
@@ -349,6 +351,17 @@ async def import_flashcards(file: UploadFile = File(...), db: AsyncSession = Dep
                 db.add(deck)
                 await db.flush()
             deck_cache[slug] = deck
+            rows = await db.execute(
+                select(Flashcard.frente, Flashcard.verso).where(Flashcard.deck_id == deck.id)
+            )
+            existing_cache[slug] = {(r.frente, r.verso) for r in rows.all()}
+
+        # Reimporte não duplica: card idêntico (frente+verso) no mesmo deck é pulado
+        key = (item["frente"], item["verso"])
+        if key in existing_cache[slug]:
+            skipped += 1
+            continue
+        existing_cache[slug].add(key)
 
         deck = deck_cache[slug]
         card = Flashcard(
@@ -371,6 +384,7 @@ async def import_flashcards(file: UploadFile = File(...), db: AsyncSession = Dep
 
     return {
         "imported": len(imported_cards),
+        "skipped": skipped,
         "temas": temas,
         "cards": [
             {"id": i + 1, "tema": c["tema"], "assunto": c["assunto"], "frente": c["frente"], "verso": c["verso"]}

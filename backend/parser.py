@@ -31,7 +31,7 @@ def parse_markdown(text: str) -> list[FlashcardData]:
     """Parseia texto markdown e retorna lista de flashcards."""
     # Divide em blocos por "Flashcard:" (case-insensitive: "flashcard:" também vale)
     # Usa lookahead para não consumir o delimitador
-    blocks = re.split(r"(?=^flashcard:)", text.strip(), flags=_BLOCK_FLAGS)
+    blocks = re.split(r"(?=^\*{0,2}flashcard:)", text.strip(), flags=_BLOCK_FLAGS)
     blocks = [b.strip() for b in blocks if b.strip()]
 
     cards: list[FlashcardData] = []
@@ -52,11 +52,14 @@ def _strip_markdown_emphasis(value: str) -> str:
 def _parse_block(block: str) -> FlashcardData | None:
     """Parseia um bloco individual de flashcard."""
     # Extrai header: "Flashcard: Tema: Assunto" (case-insensitive)
-    header_match = re.match(r"^flashcard:\s*(.+)", block, _BLOCK_FLAGS)
+    header_match = re.match(r"^\*{0,2}flashcard:\*{0,2}\s*(.+)", block, _BLOCK_FLAGS)
     if not header_match:
         return None
 
     header = _strip_markdown_emphasis(header_match.group(1))
+    # Tolera cabeçalho entre parênteses, ex.: "(Tema: Assunto)"
+    if header.startswith("(") and header.endswith(")"):
+        header = header[1:-1].strip()
     # Tolera label literal "Tema:" dentro do cabeçalho, ex.: "**Tema: Assunto**"
     header = re.sub(r"(?i)^tema:\s*", "", header).strip()
 
@@ -64,14 +67,19 @@ def _parse_block(block: str) -> FlashcardData | None:
     tema = _strip_markdown_emphasis(parts[0])
     assunto = _strip_markdown_emphasis(parts[1]) if len(parts) > 1 else tema
 
-    # Extrai frente: tudo entre "Frente:" e "Verso:" (case-insensitive)
+    # Extrai frente: tudo entre "Frente:" e "Verso:" (case-insensitive;
+    # tolera labels em negrito, ex.: "**Frente:**")
     frente_match = re.search(
-        r"^frente:\s*(.+?)(?=^verso:)", block, _BLOCK_FLAGS | re.DOTALL
+        r"^\*{0,2}frente:\*{0,2}\s*(.+?)(?=^\*{0,2}verso:)",
+        block,
+        _BLOCK_FLAGS | re.DOTALL,
     )
     frente = frente_match.group(1).strip() if frente_match else ""
 
     # Extrai verso: tudo após "Verso:" (case-insensitive)
-    verso_match = re.search(r"^verso:\s*(.+)", block, _BLOCK_FLAGS | re.DOTALL)
+    verso_match = re.search(
+        r"^\*{0,2}verso:\*{0,2}\s*(.+)", block, _BLOCK_FLAGS | re.DOTALL
+    )
     verso = verso_match.group(1).strip() if verso_match else ""
 
     if not frente and not verso:

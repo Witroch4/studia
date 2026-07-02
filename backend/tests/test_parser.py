@@ -53,6 +53,41 @@ verso: Resposta sobre propriedade.
     assert cards[1]["assunto"] == "Propriedade"
 
 
+def test_parse_markdown_bold_frente_verso_labels():
+    """Marcadores 'frente:'/'verso:' envoltos em negrito (**frente:**) devem ser aceitos."""
+    text = """
+flashcard:GERENCIAMENTO DE PROJETOS:Dimensoes do BIM (3D ao 8D)
+
+**frente:**
+**Quais sao os conceitos agregados a cada dimensao do BIM?**
+
+**verso:**
+O BIM adiciona camadas de dados a geometria do projeto.
+"""
+    cards = parse_markdown(text)
+
+    assert len(cards) == 1
+    assert cards[0]["tema"] == "GERENCIAMENTO DE PROJETOS"
+    assert "BIM" in cards[0]["frente"]
+    assert "camadas de dados" in cards[0]["verso"]
+
+
+def test_parse_markdown_parenthesized_tema_header():
+    """Cabecalho '(Tema: X)' com parenteses nao pode virar tema '(Tema'."""
+    text = """
+Flashcard: (Tema: Geotecnia / Prova de Carga Direta - NBR 6489)
+
+Frente: Pergunta sobre prova de carga?
+
+Verso: Resposta sobre prova de carga.
+"""
+    cards = parse_markdown(text)
+
+    assert len(cards) == 1
+    assert cards[0]["tema"] == "Geotecnia / Prova de Carga Direta - NBR 6489"
+    assert cards[0]["assunto"] == "Geotecnia / Prova de Carga Direta - NBR 6489"
+
+
 def test_parse_markdown_bold_tema_label_in_header():
     """Cabecalho com negrito markdown e label literal 'Tema:' nao deve virar lixo."""
     text = """
