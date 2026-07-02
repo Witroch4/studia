@@ -571,8 +571,22 @@ async def enqueue_concursos(body: EnqueueConcursosBody) -> EnqueueCadernoRespons
 
     if not body.filtros:
         raise HTTPException(422, "informe ao menos um filtro")
-    if any(not isinstance(f, dict) or "id" not in f or "tipo" not in f for f in body.filtros):
-        raise HTTPException(422, "cada filtro precisa de 'id' e 'tipo'")
+
+    def _filtro_valido(f: Any) -> bool:
+        # `filtros_external_id`/`_params_busca` fazem f['tipo'].upper() e
+        # str(f['id']) sem guarda — tipo não-string ou id vazio viraria 500.
+        if not isinstance(f, dict):
+            return False
+        tipo, fid = f.get("tipo"), f.get("id")
+        return (
+            isinstance(tipo, str) and bool(tipo.strip())
+            and isinstance(fid, (int, str)) and not isinstance(fid, bool)
+            and bool(str(fid).strip())
+        )
+
+    if any(not _filtro_valido(f) for f in body.filtros):
+        raise HTTPException(
+            422, "cada filtro precisa de 'id' (int ou string não vazia) e 'tipo' (string não vazia)")
     try:
         select_tc_account_for_task(TC_TASK_GUIA, touch_usage=False)
     except NoEligibleTcAccount as exc:
