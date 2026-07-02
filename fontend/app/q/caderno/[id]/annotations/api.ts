@@ -33,6 +33,27 @@ export async function fetchCalculatorHistory(cadernoId?: number, questaoId?: num
   return data.items || [];
 }
 
+/** Reconhecimento do desenho da gaveta → expressão (PRO/admin). */
+export async function reconhecerDesenho(imageBase64: string): Promise<string> {
+  const response = await apiFetch("/api/q/calculadora/reconhecer", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image_base64: imageBase64 }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+    const error = new Error(body?.detail || `Falha no reconhecimento: ${response.status}`) as Error & {
+      status?: number;
+      detail?: string;
+    };
+    error.status = response.status;
+    error.detail = body?.detail;
+    throw error;
+  }
+  const data = await response.json();
+  return data.expression as string;
+}
+
 export async function createCalculatorHistory(input: {
   expression: string;
   result: string;
