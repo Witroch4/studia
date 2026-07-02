@@ -51,3 +51,78 @@ def test_unit_pula_download_se_objeto_existe(monkeypatch):
     monkeypatch.setattr(mod, "_enqueue_next", lambda **k: None)
     r = asyncio.run(mod._processar_unit_concurso(9, 86869, sleep=lambda s: None))
     assert r["status"] == "done" and baixou == []  # idempotente: não re-baixa
+
+
+def test_unit_funciona_com_hooks_async(monkeypatch):
+    """Trava o caminho async real: _download/_stat_minio/_put_minio/_post_import
+    são corotinas em produção — _call precisa awaitá-las."""
+    calls = {"download": [], "put": [], "post": []}
+
+    async def alease(**k):
+        return {"unit_id": 1, "job_id": 9, "payload": PAYLOAD}
+
+    async def apaused(**k):
+        return False
+
+    async def astat(key):
+        return None
+
+    async def adownload(url):
+        calls["download"].append(url)
+        return (b"%PDF", "application/pdf", "arquivo.pdf")
+
+    async def aput(key, data, ct):
+        calls["put"].append(key)
+
+    async def apost(payload):
+        calls["post"].append(payload)
+        return {"ok": True}
+
+    done = {}
+
+    async def adone(**k):
+        done.update(k)
+
+    async def anext(**k):
+        return None
+
+    async def asleep(s):
+        return None
+
+    monkeypatch.setattr(mod, "_lease", alease)
+    monkeypatch.setattr(mod, "_is_paused", apaused)
+    monkeypatch.setattr(mod, "_stat_minio", astat)
+    monkeypatch.setattr(mod, "_download", adownload)
+    monkeypatch.setattr(mod, "_put_minio", aput)
+    monkeypatch.setattr(mod, "_post_import", apost)
+    monkeypatch.setattr(mod, "_mark_done", adone)
+    monkeypatch.setattr(mod, "_enqueue_next", anext)
+
+    r = asyncio.run(mod._processar_unit_concurso(9, 86869, sleep=asleep))
+    assert r["status"] == "done"
+    assert len(calls["download"]) == 2 and len(calls["put"]) == 2
+    assert done["arquivos_ok"] == 2
+    assert calls["post"][0]["arquivos"][1]["minio_object_key"] == "concursos/u-2.pdf"
+
+
+def test_finalizar_descoberta_fecha_job_sem_units(monkeypatch):
+    """Job de 0 units: refresh_concursos_job_status nunca finaliza (a condição
+    de done exige total_units > 0) — _finalizar_descoberta marca 'done'
+    explicitamente."""
+    marcado = []
+    monkeypatch.setattr(mod, "_discovery_done", lambda **k: 0)
+    monkeypatch.setattr(mod, "_marcar_job_done", lambda **k: marcado.append(k))
+
+    total = asyncio.run(mod._finalizar_descoberta(7))
+    assert total == 0
+    assert marcado == [{"job_id": 7}]
+
+
+def test_finalizar_descoberta_nao_forca_done_com_units(monkeypatch):
+    marcado = []
+    monkeypatch.setattr(mod, "_discovery_done", lambda **k: 12)
+    monkeypatch.setattr(mod, "_marcar_job_done", lambda **k: marcado.append(k))
+
+    total = asyncio.run(mod._finalizar_descoberta(7))
+    assert total == 12
+    assert marcado == []  # com units, quem finaliza é o refresh normal

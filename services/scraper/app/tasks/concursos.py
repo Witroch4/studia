@@ -74,14 +74,18 @@ def _object_key(uuid: str, content_type: str | None, filename: str | None) -> st
     return f"concursos/{uuid}{ext or ''}"
 
 
-def _download(url: str) -> tuple[bytes, str | None, str | None]:
-    """GET público no CDN (sem cookies TC). Retorna (bytes, content_type, filename)."""
-    with httpx.Client(
+async def _download(url: str) -> tuple[bytes, str | None, str | None]:
+    """GET público no CDN (sem cookies TC). Retorna (bytes, content_type, filename).
+
+    Async (httpx.AsyncClient, espelha imagens._download_image) — um PDF/ZIP de
+    edital pode levar minutos (read timeout 300s); um client síncrono aqui
+    bloquearia o event loop inteiro do worker."""
+    async with httpx.AsyncClient(
         timeout=httpx.Timeout(connect=10, read=300, write=30, pool=310),
         follow_redirects=True,
         headers={"User-Agent": "Mozilla/5.0"},
     ) as c:
-        r = c.get(url)
+        r = await c.get(url)
         r.raise_for_status()
         cd = r.headers.get("content-disposition") or ""
         m = re.search(r'filename="?([^";]+)', cd)
@@ -117,21 +121,30 @@ async def _put_minio(key: str, data: bytes, ct: str | None) -> None:
     )
 
 
-def _stat_minio(key: str) -> dict[str, Any] | None:
+async def _stat_minio(key: str) -> dict[str, Any] | None:
     """`key` aqui é um PREFIXO (ex: `concursos/{uuid}`) — lista o bucket por
-    esse prefixo e devolve metadados do primeiro objeto encontrado, ou None."""
+    esse prefixo e devolve metadados do primeiro objeto encontrado, ou None.
+
+    O SDK do MinIO é síncrono → chamadas rodam em thread (asyncio.to_thread,
+    como `_put_minio`) pra não bloquear o event loop do worker. Erro vira None
+    (trata como "não existe" → re-baixa, idempotente) mas LOGA warning: falha
+    sistêmica de credencial/rede do MinIO precisa aparecer nos logs."""
     client = _minio_client()
     bucket = _pdf_bucket()
     try:
-        objs = list(client.list_objects(bucket, prefix=key, recursive=False))
-    except Exception:  # noqa: BLE001 — bucket ainda não existe, etc.
+        objs = await asyncio.to_thread(
+            lambda: list(client.list_objects(bucket, prefix=key, recursive=False))
+        )
+    except Exception as exc:  # noqa: BLE001 — bucket ainda não existe, etc.
+        log.warning("concursos.stat_minio_falhou", key=key, erro=str(exc)[:120])
         return None
     if not objs:
         return None
     obj = objs[0]
     try:
-        st = client.stat_object(bucket, obj.object_name)
-    except Exception:  # noqa: BLE001
+        st = await asyncio.to_thread(client.stat_object, bucket, obj.object_name)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("concursos.stat_minio_falhou", key=key, erro=str(exc)[:120])
         return None
     return {
         "key": obj.object_name,
@@ -239,12 +252,73 @@ async def _enqueue_next(*, job_id: int) -> None:
         await eng.dispose()
 
 
+async def _discovery_done(*, job_id: int) -> int:
+    """Grava discovery=done, sincroniza total_units com as units reais e
+    refresca o status do job. Retorna o total de units conhecidas."""
+    eng, S = _engine_session()
+    try:
+        async with S.begin() as s:
+            await set_concursos_job_discovery(s, job_id=job_id, status="done")
+            total = (
+                await s.execute(
+                    text(
+                        """
+                        UPDATE tc_jobs
+                        SET total_units = (
+                              SELECT count(*) FROM tc_concurso_units WHERE job_id = :job_id
+                            ),
+                            updated_at = now()
+                        WHERE id = :job_id
+                        RETURNING total_units
+                        """
+                    ),
+                    {"job_id": job_id},
+                )
+            ).scalar_one()
+            await refresh_concursos_job_status(s, job_id=job_id)
+        return int(total or 0)
+    finally:
+        await eng.dispose()
+
+
+async def _marcar_job_done(*, job_id: int) -> None:
+    eng, S = _engine_session()
+    try:
+        async with S.begin() as s:
+            await s.execute(
+                text(
+                    """
+                    UPDATE tc_jobs
+                    SET status = 'done', finished_at = now(), updated_at = now()
+                    WHERE id = :job_id
+                    """
+                ),
+                {"job_id": job_id},
+            )
+    finally:
+        await eng.dispose()
+
+
 # ─── núcleo testável ──────────────────────────────────────────────────────────
 
 async def _call(fn: Any, **kw: Any) -> Any:
     """Chama fn(**kw) e awaita se for coroutine (suporta hooks sync em testes)."""
     r = fn(**kw)
     return (await r) if inspect.isawaitable(r) else r
+
+
+async def _finalizar_descoberta(job_id: int) -> int:
+    """Fecha a descoberta: discovery=done + total_units sincronizado + refresh
+    de status. Caso especial: `refresh_concursos_job_status` nunca finaliza um
+    job com `total_units == 0` (a condição de done exige `total_units > 0`) —
+    uma busca sem resultados ficaria 'running' pra sempre. Aqui fechamos
+    explicitamente como 'done'. Retorna o total de units."""
+    import app.tasks.concursos as _self  # noqa: PLC0415
+
+    total = await _call(_self._discovery_done, job_id=job_id)
+    if total == 0:
+        await _call(_self._marcar_job_done, job_id=job_id)
+    return total
 
 
 async def _processar_unit_concurso(
@@ -430,24 +504,16 @@ async def descobrir_concursos(job_id: int, filtros: list[dict[str, Any]]) -> dic
         finally:
             await client.aclose()
 
-        async with S.begin() as s:
-            await set_concursos_job_discovery(s, job_id=job_id, status="done")
-            await s.execute(
-                text(
-                    """
-                    UPDATE tc_jobs
-                    SET total_units = (SELECT count(*) FROM tc_concurso_units WHERE job_id = :job_id),
-                        updated_at = now()
-                    WHERE id = :job_id
-                    """
-                ),
-                {"job_id": job_id},
-            )
-            await refresh_concursos_job_status(s, job_id=job_id)
-
         import app.tasks.concursos as _self  # noqa: PLC0415
 
-        await _self._enqueue_next(job_id=job_id)
-        return {"status": "done", "paginas": pagina, "total_pages": total_pages}
+        total_units = await _finalizar_descoberta(job_id)
+        if total_units > 0:
+            await _self._enqueue_next(job_id=job_id)
+        return {
+            "status": "done",
+            "paginas": pagina,
+            "total_pages": total_pages,
+            "total_units": total_units,
+        }
     finally:
         await eng.dispose()
