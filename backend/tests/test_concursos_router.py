@@ -122,6 +122,17 @@ async def test_importar_sem_token_401(client_sem_auth):
 
 
 @pytest.mark.asyncio
+async def test_importar_requer_admin_ou_service(client, auth_state):
+    """/importar é admin-only (ou token de serviço) — usuário logado comum
+    (não-admin) não pode importar concursos arbitrários."""
+    from tests.conftest import USER_A
+
+    auth_state["user"] = USER_A
+    r = await client.post("/api/q/concursos/importar", json=PAYLOAD)
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_importar_via_token_servico(client_sem_auth, monkeypatch):
     monkeypatch.setenv("STUDIA_INTERNAL_TOKEN", "segredo123")
     r = await client_sem_auth.post(

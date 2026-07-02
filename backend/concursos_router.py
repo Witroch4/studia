@@ -16,19 +16,42 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import CurrentUser, require_admin
+from auth import CurrentUser, get_current_user_opt, require_admin
 from database import get_db
 from minio_client import download_bytes
 from models import TcConcurso, TcConcursoArquivo
-from q_router import require_user_or_service
 
 router = APIRouter(prefix="/api/q/concursos", tags=["concursos"])
+
+
+async def require_admin_or_service(
+    request: Request,
+    user: CurrentUser | None = Depends(get_current_user_opt),
+) -> CurrentUser | None:
+    """Autoriza se houver sessão de ADMIN válida OU header X-Internal-Token
+    correto (mesmo padrão de `q_router.require_user_or_service`, mas aqui o
+    resto do router é admin-only — `/importar` não pode ficar mais permissivo
+    que `/coletar`, `/jobs`, etc. só porque é chamado pelo scraper).
+
+    401 se não autenticado (sem sessão e sem token válido); 403 se autenticado
+    mas não-admin — espelha `auth.require_admin`.
+    """
+    tok = os.getenv("STUDIA_INTERNAL_TOKEN") or ""
+    if tok and request.headers.get("X-Internal-Token") == tok:
+        return None  # chamada de serviço autorizada
+    if user is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "não autenticado")
+    if user.banned:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "conta suspensa")
+    if not user.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "acesso restrito a administradores")
+    return user
 
 SCRAPER_URL = os.getenv("SCRAPER_URL", "http://scraper:8090")
 
@@ -159,7 +182,7 @@ async def _table_exists(db: AsyncSession, qualified_name: str) -> bool:
 @router.post("/importar")
 async def importar_concurso(
     req: ImportarReq,
-    _user: CurrentUser | None = Depends(require_user_or_service),
+    _user: CurrentUser | None = Depends(require_admin_or_service),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Upsert idempotente de um concurso + seus arquivos (service token OU admin).
