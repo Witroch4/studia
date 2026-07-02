@@ -258,3 +258,82 @@ async def test_criar_mapa_ia_match_fora_nao_quebra(client, db_session, auth_stat
     assert [i.assunto_texto for i in itens] == ["Crase", "Concordância"]
     assert all(i.caderno_id is None for i in itens)
     assert (await db_session.execute(select(CadernoQuestoes))).scalars().all() == []
+
+
+# --- Task 9: CRUD do Mapa (lista, detalhe, checklist, delete, reextrair) -----
+
+async def _criar_mapa_via_api(client, db_session, auth_state):
+    c = await seed_concurso(db_session)
+    await _seed_banco_questoes(db_session)
+    db_session.add(EditalExtracao(concurso_id=c.id, status="concluido", dados=DADOS_OK))
+    await db_session.commit()
+    auth_state["user"] = make_user("u1")
+    r = await client.post("/api/q/mapas",
+                          json={"concurso_id": c.id, "cargo_nome": "Engenheiro Civil"})
+    return r.json()["id"], c
+
+
+async def test_listar_meus_mapas(client, db_session, auth_state, _pro, _match_ia):
+    mapa_id, c = await _criar_mapa_via_api(client, db_session, auth_state)
+    r = await client.get("/api/q/mapas")
+    assert r.status_code == 200
+    m = r.json()["mapas"][0]
+    assert m["id"] == mapa_id
+    assert m["data_prova"] == "2026-09-20"
+    assert m["total_itens"] == 2
+    assert m["caderno_ids"]
+
+
+async def test_detalhe_verticalizacao(client, db_session, auth_state, _pro, _match_ia):
+    mapa_id, _ = await _criar_mapa_via_api(client, db_session, auth_state)
+    r = await client.get(f"/api/q/mapas/{mapa_id}")
+    body = r.json()
+    assert body["eventos"][0]["tipo"] == "prova"
+    v = body["verticalizacao"]
+    assert v[0]["materia_nome"] == "Língua Portuguesa"
+    assert [i["assunto_texto"] for i in v[0]["itens"]] == ["Crase", "Concordância"]
+
+
+async def test_detalhe_de_outro_usuario_404(client, db_session, auth_state, _pro, _match_ia):
+    mapa_id, _ = await _criar_mapa_via_api(client, db_session, auth_state)
+    auth_state["user"] = make_user("u2")
+    r = await client.get(f"/api/q/mapas/{mapa_id}")
+    assert r.status_code == 404
+
+
+async def test_patch_item_status(client, db_session, auth_state, _pro, _match_ia):
+    mapa_id, _ = await _criar_mapa_via_api(client, db_session, auth_state)
+    det = (await client.get(f"/api/q/mapas/{mapa_id}")).json()
+    item_id = det["verticalizacao"][0]["itens"][0]["id"]
+    r = await client.patch(f"/api/q/mapas/{mapa_id}/itens/{item_id}",
+                           json={"status": "dominado"})
+    assert r.status_code == 200
+    r2 = await client.patch(f"/api/q/mapas/{mapa_id}/itens/{item_id}",
+                            json={"status": "qualquer"})
+    assert r2.status_code in (400, 422)
+
+
+async def test_delete_mapa_preserva_cadernos(client, db_session, auth_state, _pro, _match_ia):
+    mapa_id, _ = await _criar_mapa_via_api(client, db_session, auth_state)
+    r = await client.delete(f"/api/q/mapas/{mapa_id}")
+    assert r.status_code == 200
+    assert (await db_session.execute(select(MapaAprovacao))).scalar_one_or_none() is None
+    assert (await db_session.execute(select(CadernoQuestoes))).scalar_one() is not None
+
+
+async def test_reextrair_admin(client, db_session, auth_state, _sem_fila):
+    c = await seed_concurso(db_session)
+    db_session.add(EditalExtracao(concurso_id=c.id, status="concluido",
+                                  dados=DADOS_OK, prompt_versao=1))
+    await db_session.commit()
+    auth_state["user"] = make_user("adm", role="admin")
+    r = await client.post(f"/api/q/mapas/extracao/{c.id}/reextrair")
+    assert r.status_code == 202
+    ext = (await db_session.execute(
+        select(EditalExtracao).where(EditalExtracao.concurso_id == c.id)
+    )).scalar_one()
+    assert ext.status == "pendente" and ext.prompt_versao == 2
+    assert len(_sem_fila) == 1
+
+    auth_state["user"] = make_user("u1")  # não-admin
+    assert (await client.post(f"/api/q/mapas/extracao/{c.id}/reextrair")).status_code == 403

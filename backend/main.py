@@ -142,6 +142,12 @@ app.include_router(guias_router)
 from concursos_router import router as concursos_router  # noqa: E402
 app.include_router(concursos_router)
 
+# Mapa da Aprovação: extração IA do edital + verticalização (feature PRO).
+# Registrado ANTES de q_router para que `/api/q/mapas` não caia no catch-all
+# `/api/q/{questao_id}` (mesmo motivo do guias_router acima).
+from mapa_router import router as mapa_router  # noqa: E402
+app.include_router(mapa_router)
+
 # witdev-tec-master: questões/cadernos/IA
 from q_router import router as q_router  # noqa: E402
 app.include_router(q_router)
@@ -168,10 +174,6 @@ app.include_router(auth_router)
 # Painel admin "Modelos de IA" (catálogo central + settings recurso→modelo)
 from admin_llm_router import router as admin_llm_router  # noqa: E402
 app.include_router(admin_llm_router)
-
-# Mapa da Aprovação: extração IA do edital + verticalização (feature PRO)
-from mapa_router import router as mapa_router  # noqa: E402
-app.include_router(mapa_router)
 
 
 # ─── Health ──────────────────────────────────────────────

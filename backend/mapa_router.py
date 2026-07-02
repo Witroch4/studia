@@ -6,7 +6,7 @@ qualquer logado dispara — o resultado serve a todos). Criar/gerir o Mapa em si
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -19,6 +19,7 @@ from database import get_db
 from entitlements import acesso_pro_ativo
 from llm_registry import SETTING_DEFAULTS, SETTING_MAPA, get_setting
 from models import (
+    CadernoQuestoes,
     EditalExtracao,
     MapaAprovacao,
     MapaItem,
@@ -27,6 +28,8 @@ from models import (
 )
 
 router = APIRouter(prefix="/api/q/mapas", tags=["mapa-aprovacao"])
+
+STATUS_ITEM = {"nao_visto", "estudando", "dominado"}
 
 # `worker.py` importa taskiq_nats/nats (broker NATS) no topo do módulo — pesado
 # e ausente em alguns ambientes (venv de teste local). Para não travar o import
@@ -131,6 +134,30 @@ async def status_extracao(
     return out
 
 
+@router.post("/extracao/{concurso_id}/reextrair", status_code=status.HTTP_202_ACCEPTED)
+async def reextrair_edital(
+    concurso_id: int,
+    _admin: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Força nova extração (edital retificado / prompt novo). Mapas existentes
+    mantêm o snapshot em cargo_dados — não são reescritos."""
+    ext = (
+        await db.execute(
+            select(EditalExtracao).where(EditalExtracao.concurso_id == concurso_id)
+        )
+    ).scalar_one_or_none()
+    if ext is None:
+        raise HTTPException(404, "Extração não encontrada")
+    ext.status = "pendente"
+    ext.erro_msg = None
+    ext.prompt_versao = (ext.prompt_versao or 1) + 1
+    await db.commit()
+    modelo = await get_setting(db, SETTING_MAPA, SETTING_DEFAULTS[SETTING_MAPA])
+    await _kiq_extrair(concurso_id, modelo)
+    return {"status": "pendente", "prompt_versao": ext.prompt_versao}
+
+
 @router.post("")
 async def criar_mapa(
     req: CriarMapaReq,
@@ -185,3 +212,157 @@ async def criar_mapa(
         "cadernos_criados": n_cadernos,
         "total_questoes": n_questoes,
     }
+
+
+def _data_prova_do_mapa(dados: Optional[dict], concurso: TcConcurso) -> Optional[str]:
+    """data_prova ISO: extração > evento tipo=prova > data_aplicacao do concurso."""
+    if dados:
+        dp = (dados.get("concurso") or {}).get("data_prova")
+        if dp:
+            return dp
+        for ev in dados.get("eventos") or []:
+            if ev.get("tipo") == "prova" and ev.get("data_inicio"):
+                return ev["data_inicio"]
+    if concurso.data_aplicacao:
+        return concurso.data_aplicacao.date().isoformat()
+    return None
+
+
+async def _mapa_do_usuario(db: AsyncSession, mapa_id: int, user_uid: str) -> MapaAprovacao:
+    mapa = (
+        await db.execute(
+            select(MapaAprovacao).where(
+                MapaAprovacao.id == mapa_id, MapaAprovacao.usuario_uid == user_uid
+            )
+        )
+    ).scalar_one_or_none()
+    if mapa is None:
+        raise HTTPException(404, "Mapa não encontrado")
+    return mapa
+
+
+@router.get("")
+async def listar_mapas(
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    mapas = (
+        await db.execute(
+            select(MapaAprovacao)
+            .where(MapaAprovacao.usuario_uid == user.id)
+            .order_by(MapaAprovacao.criado_em.desc())
+        )
+    ).scalars().all()
+    out = []
+    for m in mapas:
+        concurso = (
+            await db.execute(select(TcConcurso).where(TcConcurso.id == m.concurso_id))
+        ).scalar_one()
+        ext = (
+            await db.execute(
+                select(EditalExtracao).where(EditalExtracao.id == m.extracao_id)
+            )
+        ).scalar_one_or_none()
+        itens = m.itens  # lazy="selectin"
+        out.append({
+            "id": m.id,
+            "concurso_id": m.concurso_id,
+            "concurso_nome": concurso.nome_completo,
+            "orgao_sigla": concurso.orgao_sigla,
+            "banca_nome": concurso.banca_nome,
+            "cargo_nome": m.cargo_nome,
+            "data_prova": _data_prova_do_mapa(ext.dados if ext else None, concurso),
+            "total_itens": len(itens),
+            "itens_dominados": sum(1 for i in itens if i.status == "dominado"),
+            "caderno_ids": sorted({i.caderno_id for i in itens if i.caderno_id}),
+            "criado_em": m.criado_em.isoformat() if m.criado_em else None,
+        })
+    return {"mapas": out}
+
+
+@router.get("/{mapa_id}")
+async def detalhar_mapa(
+    mapa_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    mapa = await _mapa_do_usuario(db, mapa_id, user.id)
+    concurso = (
+        await db.execute(select(TcConcurso).where(TcConcurso.id == mapa.concurso_id))
+    ).scalar_one()
+    ext = (
+        await db.execute(select(EditalExtracao).where(EditalExtracao.id == mapa.extracao_id))
+    ).scalar_one_or_none()
+
+    # Verticalização agrupada por matéria, na ordem dos itens
+    grupos: dict[str, dict[str, Any]] = {}
+    for i in mapa.itens:
+        g = grupos.setdefault(i.materia_nome, {
+            "materia_nome": i.materia_nome, "materia_id": i.materia_id,
+            "caderno_id": i.caderno_id, "itens": [],
+        })
+        g["itens"].append({"id": i.id, "assunto_texto": i.assunto_texto, "status": i.status})
+
+    cadernos_ids = sorted({i.caderno_id for i in mapa.itens if i.caderno_id})
+    cadernos = []
+    if cadernos_ids:
+        rows = (
+            await db.execute(
+                select(CadernoQuestoes).where(CadernoQuestoes.id.in_(cadernos_ids))
+            )
+        ).scalars().all()
+        cadernos = [{"id": c.id, "nome": c.nome, "total": c.total} for c in rows]
+
+    return {
+        "id": mapa.id,
+        "concurso_id": mapa.concurso_id,
+        "concurso_nome": concurso.nome_completo,
+        "orgao_sigla": concurso.orgao_sigla,
+        "banca_nome": concurso.banca_nome,
+        "cargo_nome": mapa.cargo_nome,
+        "cargo_dados": mapa.cargo_dados,
+        "data_prova": _data_prova_do_mapa(ext.dados if ext else None, concurso),
+        "eventos": (ext.dados.get("eventos") if ext and ext.dados else []) or [],
+        "verticalizacao": list(grupos.values()),
+        "cadernos": cadernos,
+    }
+
+
+class ItemPatch(BaseModel):
+    status: str
+
+
+@router.patch("/{mapa_id}/itens/{item_id}")
+async def atualizar_item(
+    mapa_id: int,
+    item_id: int,
+    req: ItemPatch,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    if req.status not in STATUS_ITEM:
+        raise HTTPException(400, f"status deve ser um de {sorted(STATUS_ITEM)}")
+    await _mapa_do_usuario(db, mapa_id, user.id)
+    item = (
+        await db.execute(
+            select(MapaItem).where(MapaItem.id == item_id, MapaItem.mapa_id == mapa_id)
+        )
+    ).scalar_one_or_none()
+    if item is None:
+        raise HTTPException(404, "Item não encontrado")
+    item.status = req.status
+    await db.commit()
+    return {"ok": True, "id": item.id, "status": item.status}
+
+
+@router.delete("/{mapa_id}")
+async def excluir_mapa(
+    mapa_id: int,
+    user: CurrentUser = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Remove o mapa (cascade nos itens). Cadernos criados são do usuário — ficam."""
+    mapa = await _mapa_do_usuario(db, mapa_id, user.id)
+    await db.delete(mapa)
+    await db.commit()
+    return {"ok": True}
