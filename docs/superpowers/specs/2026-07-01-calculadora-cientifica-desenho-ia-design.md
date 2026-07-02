@@ -75,6 +75,13 @@ Modos:
   `log ln exp ^`, `π e x² 1/x` — e toggle **DEG/RAD** ao lado do seletor de modos.
 - Teclas científicas inserem texto na expressão (`x²` → `^2`, `1/x` → `1/(`, `π` → `pi`).
 - Modo e DEG/RAD persistem em `localStorage` (`studia:calc:mode`, `studia:calc:angle`).
+- **Encadeamento a partir do resultado (ANS)**: após `=` (ou restaurar item do
+  histórico), apertar uma tecla de **operador** (`+ − × ÷ ^ % ! x²`) continua a conta a
+  partir do resultado (ex.: resultado `-70`, tecla `÷`, `5`, `=` → expressão `-70/5` →
+  `-14`). Tecla de **dígito/função/parêntese** começa conta nova. Editar o campo
+  manualmente desliga o encadeamento pendente. Motivação: usuário calculou
+  `20*2.5-(40*3)` = -70 e digitou `/5` esperando -14, mas a precedência aplicou o `/5`
+  só ao `(40*3)` (resultado 26, correto porém surpreendente).
 - Histórico, salvamento por questão e input editável: **inalterados**.
 
 ### 2. Frontend — gaveta de desenho (`CalculatorDrawArea.tsx`)
