@@ -55,8 +55,10 @@ export function StrikableAlternative({
             if (!disabled) onSelect();
           }}
           disabled={disabled}
+          // O canvas fica por cima (z-20) e repassa o TAP pra cá via
+          // click-through — sem z-index aqui, o rabisco passa por cima.
           className={`${letterClass} ${
-            disabled ? "pointer-events-none" : "relative z-30 pointer-events-auto hover:bg-primary/10"
+            disabled ? "pointer-events-none" : "hover:bg-primary/10"
           }`}
           aria-label={`Selecionar alternativa ${letra}`}
         >

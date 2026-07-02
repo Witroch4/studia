@@ -826,7 +826,7 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               <button
                 onClick={resolverQuestao}
                 disabled={!selecionada}
-                className="relative z-30 bg-green-600 hover:bg-green-500 disabled:pointer-events-none disabled:bg-surface-2 disabled:cursor-not-allowed px-6 py-2 rounded font-semibold uppercase tracking-wide text-sm"
+                className="bg-green-600 hover:bg-green-500 disabled:pointer-events-none disabled:bg-surface-2 disabled:cursor-not-allowed px-6 py-2 rounded font-semibold uppercase tracking-wide text-sm"
               >
                 Resolver Questão
               </button>
@@ -847,8 +847,10 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
               </div>
             )}
 
-            {/* ─── Bottom nav (estilo TC) ─── */}
-            <nav className="relative z-30 mt-6 pt-4 border-t border-border/60 flex items-center gap-1 flex-wrap">
+            {/* ─── Bottom nav (estilo TC) ───
+                Sem z-index: o canvas (z-20) cobre e repassa o TAP pros botões
+                via click-through; arrastar rabisca por cima deles. */}
+            <nav className="mt-6 pt-4 border-t border-border/60 flex items-center gap-1 flex-wrap">
               <NavBtn icon="←" title="Anterior (←)" onClick={() => avancar(-1)} disabled={idx === 0} />
               <NavBtn icon="→" title="Próxima (→)" onClick={() => avancar(1)} disabled={idx === caderno.total - 1} />
               <NavBtn icon="🔀" title="Aleatória não resolvida (L)" onClick={aleatoria} />
