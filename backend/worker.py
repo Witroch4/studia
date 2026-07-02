@@ -261,3 +261,15 @@ async def scrape_questoes_tc(ids: list[int], caderno_id: int | None = None) -> d
         )
         r.raise_for_status()
         return r.json()
+
+
+# ─── Mapa da Aprovação ───────────────────────────────────────────
+
+
+@broker.task
+async def extrair_edital_task(concurso_id: int, modelo: str = "gemini-3-flash-preview"):
+    """Extração IA do edital (Mapa da Aprovação) — generate_content via proxy, sem Batch."""
+    from mapa_service import executar_extracao
+
+    async with async_session() as db:
+        return await executar_extracao(db, concurso_id, modelo)
