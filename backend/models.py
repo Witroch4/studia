@@ -44,12 +44,24 @@ class StatusProcessamento(str, enum.Enum):
 
 class Deck(Base):
     __tablename__ = "decks"
+    # slug único POR DONO (dois usuários podem ter "engenharia-civil")
+    __table_args__ = (UniqueConstraint("user_id", "slug", name="uq_decks_user_slug"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    slug: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    slug: Mapped[str] = mapped_column(String(128), index=True)
     nome: Mapped[str] = mapped_column(String(256))
     icon: Mapped[str] = mapped_column(String(64), default="style")
     icon_color: Mapped[str] = mapped_column(String(32), default="text-cyan-500")
+    # Dono (Better Auth user.id). NULL = legado/sistema (catálogo inicial).
+    user_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    # Catálogo público read-only; admin promove/despromove.
+    is_public: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    # false = dono marcou "Impedir promoção" ao catálogo.
+    permitir_promocao: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     cards: Mapped[list["Flashcard"]] = relationship(
