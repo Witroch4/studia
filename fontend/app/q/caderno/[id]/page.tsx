@@ -384,8 +384,10 @@ export default function CadernoPage({ params }: { params: Promise<{ id: string }
   const strikeTargetsCount = annotations.strikes.targets.length;
   const clearStrikes = annotations.clearStrikes;
 
+  // Resolveu (acertou OU errou): limpa o riscado das alternativas — o taxado
+  // é ferramenta de eliminação durante a resolução, não anotação permanente.
   useEffect(() => {
-    if (resolvida && acertou === true && strikeTargetsCount > 0) {
+    if (resolvida && acertou !== null && strikeTargetsCount > 0) {
       clearStrikes();
     }
   }, [resolvida, acertou, strikeTargetsCount, clearStrikes]);
