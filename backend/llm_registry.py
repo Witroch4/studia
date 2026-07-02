@@ -31,7 +31,10 @@ SETTING_CALC = "llm.calculadora_reconhecimento"
 SETTING_PDF = "llm.processamento_pdf"
 SETTING_CHAT = "llm.chat_aula"
 
-DEFAULT_CALC_ALIAS = "witdev_copilot/gemini-3-flash-preview"
+# Alias canônico como servido pelo catálogo central (SEM prefixo de grupo:
+# grupos "witdev_copilot/*" roteiam por credencial Copilot, que pode estar
+# inativa — em prod o alias vigente é o id puro, ex. gemini-3-flash-preview).
+DEFAULT_CALC_ALIAS = "gemini-3-flash-preview"
 DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview"
 
 SETTING_DEFAULTS = {

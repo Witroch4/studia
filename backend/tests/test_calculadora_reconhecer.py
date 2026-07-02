@@ -47,7 +47,7 @@ async def test_reconhecer_admin_ok(client, reconhecedor):
     assert resp.status_code == 200
     assert resp.json() == {"expression": "2+2"}
     # Alias default do painel quando nada foi configurado.
-    assert reconhecedor["alias"] == "witdev_copilot/gemini-3-flash-preview"
+    assert reconhecedor["alias"] == "gemini-3-flash-preview"
 
 
 @pytest.mark.asyncio
