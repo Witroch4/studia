@@ -67,3 +67,9 @@ def get_presigned_url(object_name: str, expires_hours: int = 1) -> str:
     return client.presigned_get_object(
         BUCKET_NAME, object_name, expires=timedelta(hours=expires_hours)
     )
+
+
+def remove_object(object_name: str) -> None:
+    """Remove um objeto do bucket (no-op silencioso fica a cargo do chamador)."""
+    client = get_minio_client()
+    client.remove_object(BUCKET_NAME, object_name)
