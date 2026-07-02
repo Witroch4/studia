@@ -182,12 +182,14 @@ async def test_listagem_paginacao_e_busca(client):
 
 
 @pytest.mark.asyncio
-async def test_listagem_requer_admin(client, auth_state):
+async def test_listagem_aberta_a_logado_mas_coleta_requer_admin(client, auth_state):
+    """Regra de acesso: leitura do já-coletado é de qualquer logado; operar a
+    coleta (fonte externa) é admin-only — ver test_usuario_comum_lista_e_baixa_mas_nao_coleta."""
     from tests.conftest import USER_A
 
     auth_state["user"] = USER_A
-    r = await client.get("/api/q/concursos")
-    assert r.status_code == 403
+    assert (await client.get("/api/q/concursos")).status_code == 200
+    assert (await client.get("/api/q/concursos/jobs")).status_code == 403
 
 
 @pytest.mark.asyncio
@@ -622,3 +624,41 @@ async def test_jobs_lista_progresso_do_ledger(db_session, client):
     assert j["discovery"] == "pending"
     assert j["filtros"] == [{"id": 1, "tipo": "banca"}]
     assert j["atualizado_em"] is not None
+
+
+# ─── Acesso: usuário comum só lê o que JÁ existe (nunca aciona a fonte) ───────
+
+
+@pytest.mark.asyncio
+async def test_usuario_comum_lista_e_baixa_mas_nao_coleta(client, auth_state, db_session, monkeypatch):
+    from tests.conftest import USER_A
+
+    # semeia 1 concurso+arquivo como serviço (admin default do fixture)
+    r = await client.post("/api/q/concursos/importar", json=PAYLOAD)
+    assert r.status_code == 200
+
+    auth_state["user"] = USER_A  # usuário comum logado
+
+    # PODE: listar/filtrar o que já existe
+    r = await client.get("/api/q/concursos")
+    assert r.status_code == 200
+    assert r.json()["total"] == 1
+
+    # PODE: baixar arquivo já coletado (stream local, não vai à fonte)
+    arq_id = r.json()["items"][0]["arquivos"][0]["id"]
+    monkeypatch.setattr(concursos_router, "download_bytes", lambda key: b"%PDF fake")
+    r = await client.get(f"/api/q/concursos/arquivo/{arq_id}")
+    assert r.status_code == 200
+
+    # NÃO PODE: nada que acione a fonte externa ou exponha operação de coleta
+    assert (await client.post("/api/q/concursos/coletar", json={"filtros": [{"id": 1, "tipo": "BANCA"}]})).status_code == 403
+    assert (await client.get("/api/q/concursos/jobs")).status_code == 403
+    assert (await client.get("/api/q/concursos/filtros")).status_code == 403
+    assert (await client.post("/api/q/concursos/importar", json=PAYLOAD)).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_anonimo_nao_lista(client, auth_state):
+    auth_state["user"] = None
+    assert (await client.get("/api/q/concursos")).status_code == 401
+    assert (await client.get("/api/q/concursos/arquivo/1")).status_code == 401

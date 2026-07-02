@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import CurrentUser, get_current_user_opt, require_admin
+from auth import CurrentUser, get_current_user_opt, require_admin, require_user
 from database import get_db
 from minio_client import download_bytes
 from models import AppSetting, TcConcurso, TcConcursoArquivo
@@ -242,7 +242,7 @@ async def listar_concursos(
     busca: str | None = None,
     page: int = 1,
     page_size: int = 50,
-    _admin: CurrentUser = Depends(require_admin),
+    _user: CurrentUser = Depends(require_user),  # leitura: qualquer logado
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Lista concursos importados (admin), paginado, mais recentes primeiro."""
@@ -425,7 +425,7 @@ async def filtros_concursos(
 @router.get("/arquivo/{arquivo_id}")
 async def baixar_arquivo(
     arquivo_id: int,
-    _admin: CurrentUser = Depends(require_admin),
+    _user: CurrentUser = Depends(require_user),  # download local (MinIO), nunca aciona a fonte
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Stream do arquivo (edital/prova/gabarito) hospedado no MinIO. (admin)"""
