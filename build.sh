@@ -218,6 +218,7 @@ umask 077
   printf 'GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY"
   printf 'LITELLM_API_KEY=%s\n' "$LITELLM_API_KEY"
   echo "LITELLM_BASE_URL=http://platform-litellm:4000"
+  echo "PLATFORM_LLM_CATALOG_URL=http://platform-api:8000/api/v1/llm/models"
   printf 'BETTER_AUTH_SECRET=%s\n' "$BETTER_AUTH_SECRET"
   printf 'STUDIA_JWT_SECRET=%s\n' "$STUDIA_JWT_SECRET"
   printf 'STUDIA_INTERNAL_TOKEN=%s\n' "$STUDIA_INTERNAL_TOKEN"

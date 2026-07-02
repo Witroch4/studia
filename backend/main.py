@@ -47,66 +47,16 @@ def slugify(text: str) -> str:
 
 
 # ─── Modelos Gemini disponíveis ──────────────────────────
-
-
-GEMINI_MODELS = [
-    {
-        "value": "gemini-3.1-pro-preview",
-        "label": "Gemini 3.1 Pro Preview",
-        "description": "SOTA reasoning com profundidade e multimodal avançado",
-        "pricing": "≤200K: $2.00 / $12.00 · >200K: $4.00 / $18.00",
-        "recommended": False,
-    },
-    {
-        "value": "gemini-3-flash-preview",
-        "label": "Gemini 3 Flash Preview",
-        "description": "Inteligência frontier com velocidade, search e grounding",
-        "pricing": "$0.50 / $3.00 por 1M tokens",
-        "recommended": True,
-    },
-    {
-        "value": "gemini-3-pro-preview",
-        "label": "Gemini 3 Pro Preview",
-        "description": "Raciocínio avançado, multimodal e vibe coding",
-        "pricing": "≤200K: $2.00 / $12.00 · >200K: $4.00 / $18.00",
-        "recommended": False,
-    },
-    {
-        "value": "gemini-2.5-pro",
-        "label": "Gemini 2.5 Pro",
-        "description": "Geração anterior, excelente em código e raciocínio complexo",
-        "pricing": "≤200K: $1.25 / $10.00 · >200K: $2.50 / $15.00",
-        "recommended": False,
-    },
-    {
-        "value": "gemini-2.5-flash",
-        "label": "Gemini 2.5 Flash",
-        "description": "Raciocínio híbrido, 1M context, thinking budgets",
-        "pricing": "$0.30 / $2.50 por 1M tokens",
-        "recommended": False,
-    },
-    {
-        "value": "gemini-2.5-flash-lite",
-        "label": "Gemini 2.5 Flash Lite",
-        "description": "Menor e mais econômico, feito para uso em escala",
-        "pricing": "$0.10 / $0.40 por 1M tokens",
-        "recommended": False,
-    },
-    {
-        "value": "gemini-flash-latest",
-        "label": "Gemini Flash (latest)",
-        "description": "Alias automático → gemini-2.5-flash-preview mais recente",
-        "pricing": "$0.30 / $2.50 por 1M tokens",
-        "recommended": False,
-    },
-    {
-        "value": "gemini-flash-lite-latest",
-        "label": "Gemini Flash Lite (latest)",
-        "description": "Alias automático → Flash Lite mais recente",
-        "pricing": "$0.10 / $0.40 por 1M tokens",
-        "recommended": False,
-    },
-]
+# Catálogo/settings de modelos moraram para llm_registry.py (autoridade
+# central platform-api + fallback local GEMINI_MODELS).
+from llm_registry import (  # noqa: E402
+    GEMINI_MODELS,
+    SETTING_PDF,
+    SETTING_DEFAULTS,
+    fetch_catalog,
+    gemini_options_from_catalog,
+    get_setting,
+)
 
 
 # ─── App ─────────────────────────────────────────────────
@@ -211,6 +161,10 @@ app.include_router(admin_billing_router)
 from auth_router import router as auth_router  # noqa: E402
 app.include_router(auth_router)
 
+# Painel admin "Modelos de IA" (catálogo central + settings recurso→modelo)
+from admin_llm_router import router as admin_llm_router  # noqa: E402
+app.include_router(admin_llm_router)
+
 
 # ─── Health ──────────────────────────────────────────────
 
@@ -224,8 +178,31 @@ def health():
 
 
 @app.get("/api/modelos")
-def list_models():
-    return GEMINI_MODELS
+async def list_models(db: AsyncSession = Depends(get_db)):
+    """Modelos p/ upload de PDF e chat de aula (genai SDK → só Gemini).
+
+    Serve o catálogo central filtrado a Gemini (value = id upstream derivado
+    do alias), mapeado ao shape legado value/label/description/pricing/
+    recommended. Central fora → fallback local GEMINI_MODELS.
+    """
+    catalog = await fetch_catalog()
+    recomendado = await get_setting(db, SETTING_PDF, SETTING_DEFAULTS[SETTING_PDF])
+
+    if catalog["source"] == "central":
+        options = gemini_options_from_catalog(catalog)
+        if options:
+            return [
+                {
+                    "value": m["value"],
+                    "label": m["label"],
+                    "description": m.get("description") or "",
+                    "pricing": m.get("pricing") or "",
+                    "recommended": m["value"] == recomendado,
+                }
+                for m in options
+            ]
+
+    return [{**m, "recommended": m["value"] == recomendado} for m in GEMINI_MODELS]
 
 
 # ─── Decks ───────────────────────────────────────────────
@@ -514,9 +491,13 @@ async def get_disciplina(slug: str, db: AsyncSession = Depends(get_db)):
 async def create_aula(
     slug: str,
     file: UploadFile = File(...),
-    modelo: str = Form("gemini-3-flash-preview"),
+    modelo: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
+    # Sem modelo explícito → default do painel admin (llm.processamento_pdf).
+    if not modelo:
+        modelo = await get_setting(db, SETTING_PDF, SETTING_DEFAULTS[SETTING_PDF])
+
     # Buscar disciplina
     disc = (await db.execute(
         select(Disciplina).where(Disciplina.slug == slug)
@@ -721,12 +702,15 @@ async def delete_gemini_batch_job(job_name: str, _admin=Depends(require_admin)):
 
 class ChatRequest(BaseModel):
     mensagem: str
-    modelo: str = "gemini-3-flash-preview"
+    modelo: Optional[str] = None  # None → default do painel admin (llm.chat_aula)
     historico: list[dict] = []
 
 
 @app.post("/api/aulas/{aula_id}/chat")
 async def chat_aula(aula_id: int, data: ChatRequest, db: AsyncSession = Depends(get_db)):
+    from llm_registry import SETTING_CHAT
+
+    modelo = data.modelo or await get_setting(db, SETTING_CHAT, SETTING_DEFAULTS[SETTING_CHAT])
     result = await db.execute(
         select(Aula.texto_completo).where(Aula.id == aula_id)
     )
@@ -746,7 +730,7 @@ async def chat_aula(aula_id: int, data: ChatRequest, db: AsyncSession = Depends(
                 texto_aula=texto,
                 mensagem=data.mensagem,
                 historico=data.historico,
-                modelo=data.modelo,
+                modelo=modelo,
             ):
                 yield {"data": chunk}
         except Exception as e:

@@ -820,3 +820,19 @@ class CronogramaSimulado(Base):
     discursiva_planejada: Mapped[int] = mapped_column(Integer, default=0)
     resultado_discursiva: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     observacoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class AppSetting(Base):
+    """Configuração chave→valor do app (ex.: modelo de IA por recurso).
+
+    Chaves atuais: llm.calculadora_reconhecimento (alias canônico do proxy),
+    llm.processamento_pdf e llm.chat_aula (id Gemini upstream — exceção Batch).
+    """
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )

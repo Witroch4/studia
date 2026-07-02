@@ -17,6 +17,11 @@ services:
       - MINIO_ACCESS_KEY=witalo
       - MINIO_SECRET_KEY=g3IoVa0N51NjPGaMnbYsMhNdcrUX7UxUegOmCCre
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      # Autoridade de modelos LLM (platform-api na rede compartilhada); se
+      # ausente/fora, /api/modelos e o painel admin caem no fallback local.
+      - PLATFORM_LLM_CATALOG_URL=${PLATFORM_LLM_CATALOG_URL:-http://platform-api:8000/api/v1/llm/models}
+      - LITELLM_API_KEY=${LITELLM_API_KEY:-}
+      - LITELLM_BASE_URL=${LITELLM_BASE_URL:-http://platform-litellm:4000}
       - SCRAPER_URL=http://studia-scraper-dev:8090
       - MEILI_URL=http://meili:7700
       - MEILI_KEY=dev_master_key_studia_2026
