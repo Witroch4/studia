@@ -6,6 +6,7 @@ import { authClient } from "@/lib/auth-client";
 import { apiFetch, apiJson } from "@/lib/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/queryKeys";
+import { ModelosIaSection } from "./ModelosIaSection";
 
 type Job = {
   id: number;
@@ -175,6 +176,9 @@ export default function JobsPage() {
       </header>
 
       <main className="w-full px-4 md:px-8 py-8 overflow-y-auto h-full">
+        {/* Painel de controle: qual modelo atende cada recurso de IA */}
+        <ModelosIaSection />
+
         {/* Stats bar */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <StatBadge label="Total" count={jobs.length} icon="list" color="text-fg-muted" />
