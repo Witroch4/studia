@@ -16,6 +16,10 @@ const AUTH_PREFIXES = ["/login", "/cadastro"];
 // link de redefinição de senha que recebeu por e-mail).
 const RESET_PREFIXES = ["/esqueci-senha", "/redefinir-senha"];
 
+// Perfil público /u/[apelido]: acessível sem login e sem redirect p/ painel
+// (usuário logado também precisa conseguir ver o perfil de outra pessoa).
+const PUBLIC_PREFIXES = ["/u"];
+
 // Rotas de metadata que o matcher não exclui por extensão (precisam ser
 // alcançáveis por crawlers sem login). /icon.svg já passa pelo matcher (.svg).
 const SEO_FILES = new Set([
@@ -34,7 +38,8 @@ export default function proxy(request: NextRequest) {
   const isLanding = pathname === "/";
   const isAuthPage = AUTH_PREFIXES.some((r) => pathname === r || pathname.startsWith(r + "/"));
   const isResetPage = RESET_PREFIXES.some((r) => pathname === r || pathname.startsWith(r + "/"));
-  const isPublic = isLanding || isAuthPage || isResetPage || SEO_FILES.has(pathname);
+  const isPublicPage = PUBLIC_PREFIXES.some((r) => pathname === r || pathname.startsWith(r + "/"));
+  const isPublic = isLanding || isAuthPage || isResetPage || isPublicPage || SEO_FILES.has(pathname);
 
   // Logado na landing ou nas páginas de auth → vai pro painel (sem flash).
   // Crawler/visitante sem cookie continua vendo a landing normalmente.
