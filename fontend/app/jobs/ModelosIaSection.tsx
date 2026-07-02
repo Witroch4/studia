@@ -21,6 +21,7 @@ type LlmSettings = {
   calculadora_reconhecimento: string;
   processamento_pdf: string;
   chat_aula: string;
+  mapa_edital: string;
 };
 
 type SettingsField = keyof LlmSettings;
@@ -174,9 +175,9 @@ export function ModelosIaSection() {
       </div>
 
       {loading || !catalog || !settings ? (
-        // Skeleton no formato final: 3 linhas de recurso (regra "não pula na tela")
+        // Skeleton no formato final: 4 linhas de recurso (regra "não pula na tela")
         <div className="divide-y divide-border">
-          {[1, 2, 3].map((i) => (
+          {[1, 2, 3, 4].map((i) => (
             <div key={i} className="flex items-center gap-4 px-5 py-3">
               <div className="w-64 shrink-0 space-y-1.5">
                 <Skeleton className="h-4 w-48" />
@@ -207,6 +208,13 @@ export function ModelosIaSection() {
             title="Chat de aula"
             detail="genai SDK via passthrough — só Gemini"
             field="chat_aula"
+            options={geminiOnly}
+            settings={settings}
+          />
+          <ModelRow
+            title="Mapa da Aprovação (leitura de edital)"
+            detail="genai SDK via passthrough — só Gemini"
+            field="mapa_edital"
             options={geminiOnly}
             settings={settings}
           />

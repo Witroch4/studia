@@ -21,6 +21,7 @@ from llm_registry import (
     SETTING_CALC,
     SETTING_CHAT,
     SETTING_DEFAULTS,
+    SETTING_MAPA,
     SETTING_PDF,
     fetch_catalog,
     gemini_options_from_catalog,
@@ -35,6 +36,7 @@ _FIELD_TO_KEY = {
     "calculadora_reconhecimento": SETTING_CALC,
     "processamento_pdf": SETTING_PDF,
     "chat_aula": SETTING_CHAT,
+    "mapa_edital": SETTING_MAPA,
 }
 
 
@@ -42,6 +44,7 @@ class LlmSettingsPut(BaseModel):
     calculadora_reconhecimento: Optional[str] = None
     processamento_pdf: Optional[str] = None
     chat_aula: Optional[str] = None
+    mapa_edital: Optional[str] = None
 
 
 @router.get("/models")
