@@ -1,12 +1,33 @@
 type Token =
   | { type: "number"; value: number }
   | { type: "identifier"; value: string }
-  | { type: "operator"; value: "+" | "-" | "*" | "/" | "^" | "%" }
+  | { type: "operator"; value: "+" | "-" | "*" | "/" | "^" | "%" | "!" }
   | { type: "paren"; value: "(" | ")" };
 
-const SUPPORTED_FUNCTIONS = new Set(["sin", "cos", "tan", "log", "ln", "sqrt"]);
+const SUPPORTED_FUNCTIONS = new Set([
+  "sin",
+  "cos",
+  "tan",
+  "asin",
+  "acos",
+  "atan",
+  "log",
+  "ln",
+  "exp",
+  "sqrt",
+]);
+const CONSTANTS: Record<string, number> = { pi: Math.PI, e: Math.E };
 const DEG_TO_RAD = Math.PI / 180;
+const RAD_TO_DEG = 180 / Math.PI;
 const TANGENT_UNDEFINED_TOLERANCE = 1e-12;
+// Fatorial: 170! é o maior que cabe em Number (171! = Infinity).
+const FACTORIAL_MAX = 170;
+
+export type AngleMode = "deg" | "rad";
+
+export interface EvaluateOptions {
+  angleMode?: AngleMode;
+}
 
 function userError(message = "Expressão inválida.") {
   return new Error(message);
@@ -62,7 +83,15 @@ function tokenize(expression: string): Token[] {
       continue;
     }
 
-    if (char === "+" || char === "-" || char === "*" || char === "/" || char === "^" || char === "%") {
+    if (
+      char === "+" ||
+      char === "-" ||
+      char === "*" ||
+      char === "/" ||
+      char === "^" ||
+      char === "%" ||
+      char === "!"
+    ) {
       tokens.push({ type: "operator", value: char });
       index += 1;
       continue;
@@ -77,7 +106,10 @@ function tokenize(expression: string): Token[] {
 class Parser {
   private index = 0;
 
-  constructor(private readonly tokens: Token[]) {}
+  constructor(
+    private readonly tokens: Token[],
+    private readonly angleMode: AngleMode,
+  ) {}
 
   parse() {
     if (this.tokens.length === 0) throw userError("Digite uma expressão.");
@@ -134,11 +166,32 @@ class Parser {
   private parsePostfix(): number {
     let value = this.parsePrimary();
 
-    while (this.matchOperator("%")) {
-      value /= 100;
+    // Pós-fixos encadeáveis: % (divide por 100) e ! (fatorial), ex.: 5!!, 50%%.
+    for (;;) {
+      if (this.matchOperator("%")) {
+        value /= 100;
+        continue;
+      }
+      if (this.matchOperator("!")) {
+        value = this.factorial(value);
+        continue;
+      }
+      break;
     }
 
     return value;
+  }
+
+  private factorial(input: number): number {
+    if (!Number.isInteger(input) || input < 0) {
+      throw userError("Fatorial exige inteiro não negativo.");
+    }
+    if (input > FACTORIAL_MAX) {
+      throw userError(`Fatorial suportado até ${FACTORIAL_MAX}.`);
+    }
+    let result = 1;
+    for (let n = 2; n <= input; n += 1) result *= n;
+    return this.ensureFinite(result, "Resultado fora do limite.");
   }
 
   private parsePrimary(): number {
@@ -158,10 +211,24 @@ class Parser {
     }
 
     if (token.type === "identifier") {
+      if (token.value in CONSTANTS) {
+        this.index += 1;
+        return CONSTANTS[token.value];
+      }
       return this.parseFunction(token.value);
     }
 
     throw userError();
+  }
+
+  /** Ângulo de ENTRADA das trig diretas: DEG converte pra radianos. */
+  private toRadians(value: number): number {
+    return this.angleMode === "deg" ? value * DEG_TO_RAD : value;
+  }
+
+  /** Ângulo de SAÍDA das trig inversas: DEG converte de radianos. */
+  private fromRadians(value: number): number {
+    return this.angleMode === "deg" ? value * RAD_TO_DEG : value;
   }
 
   private parseFunction(name: string): number {
@@ -177,22 +244,32 @@ class Parser {
 
     switch (name) {
       case "sin":
-        return this.ensureFinite(Math.sin(input * DEG_TO_RAD));
+        return this.ensureFinite(Math.sin(this.toRadians(input)));
       case "cos":
-        return this.ensureFinite(Math.cos(input * DEG_TO_RAD));
+        return this.ensureFinite(Math.cos(this.toRadians(input)));
       case "tan": {
-        const radians = input * DEG_TO_RAD;
+        const radians = this.toRadians(input);
         if (Math.abs(Math.cos(radians)) < TANGENT_UNDEFINED_TOLERANCE) {
           throw userError("Tangente indefinida para esse ângulo.");
         }
         return this.ensureFinite(Math.tan(radians));
       }
+      case "asin":
+        if (input < -1 || input > 1) throw userError("Arco seno exige valor entre -1 e 1.");
+        return this.ensureFinite(this.fromRadians(Math.asin(input)));
+      case "acos":
+        if (input < -1 || input > 1) throw userError("Arco cosseno exige valor entre -1 e 1.");
+        return this.ensureFinite(this.fromRadians(Math.acos(input)));
+      case "atan":
+        return this.ensureFinite(this.fromRadians(Math.atan(input)));
       case "log":
         if (input <= 0) throw userError("Logaritmo exige número positivo.");
         return this.ensureFinite(Math.log10(input));
       case "ln":
         if (input <= 0) throw userError("Logaritmo exige número positivo.");
         return this.ensureFinite(Math.log(input));
+      case "exp":
+        return this.ensureFinite(Math.exp(input), "Resultado fora do limite.");
       case "sqrt":
         if (input < 0) throw userError("Raiz exige número não negativo.");
         return this.ensureFinite(Math.sqrt(input));
@@ -242,7 +319,7 @@ function formatResult(value: number) {
   return rounded.toString();
 }
 
-export function evaluateExpression(expression: string): string {
-  const parser = new Parser(tokenize(expression.trim()));
+export function evaluateExpression(expression: string, options: EvaluateOptions = {}): string {
+  const parser = new Parser(tokenize(expression.trim()), options.angleMode ?? "deg");
   return formatResult(parser.parse());
 }
